@@ -1,103 +1,77 @@
-import Image from "next/image";
+import DiscountCarousel from "@/components/DiscountCarousel";
+import DownloadApp from "@/components/DownloadApp";
+import FlightTracker from "@/components/FlightTracker";
+import HeroSection from "@/components/HeroSection";
+import PopularDestinations from "@/components/PopularDestination";
+import TrustedAirlines from "@/components/TrustedAirlines";
 
 export default function Home() {
+  const destinationsData = [
+    {
+        "tagIdentifier": "Popular Destinations",
+        "locationId": "ISMlJEBRKl5AKEFAhGAo4IaPz6z1ggK60oLHDF03Vsg",
+        "locationName": "Kathmandu",
+        "basePrice": 4899.0,
+        "country": "Nepal",
+        "contentPath": "https://cdn.firsttrip.com/tourUpload/tourImage/202505/1748256580584_1_aws_ChatGPT_Image_May_26,_2025,_04_50_21_PM.png",
+        "sortOrder": 1
+    },
+    {
+        "tagIdentifier": "Popular Destinations",
+        "locationId": "ISMlJEBRKl5AKEFAhGAo5jCCJs6liiNsPx3wbhE1XrY",
+        "locationName": "Kuala Lumpur",
+        "basePrice": 9889.0,
+        "country": "Malaysia",
+        "contentPath": "https://cdn.firsttrip.com/tourUpload/tourImage/202502/1737641490676_1_aws_92.jpg",
+        "sortOrder": 2
+    },
+    {
+        "tagIdentifier": "Popular Destinations",
+        "locationId": "ISMlJEBRKl5AKEFAhGAo4Q5yY8PtgfLj_zhOY0DIVSI",
+        "locationName": "Bangkok",
+        "basePrice": 10340.0,
+        "country": "Thailand",
+        "contentPath": "https://cdn.firsttrip.com/tourUpload/tourImage/202505/1748436797334_1_aws_Bangkok_4.jpg",
+        "sortOrder": 3
+    },
+    {
+        "tagIdentifier": "Popular Destinations",
+        "locationId": "ISMlJEBRKl5AKEFAhGAo7aBpsQdNkbFOJAYgp9jMRd8",
+        "locationName": "Singapore",
+        "basePrice": 19100.0,
+        "country": "Singapore",
+        "contentPath": "https://cdn.firsttrip.com/tourUpload/tourImage/202505/1748496893744_1_aws_ChatGPT_Image_May_29,_2025,_11_35_35_AM.png",
+        "sortOrder": 4
+    },
+    {
+        "tagIdentifier": "Popular Destinations",
+        "locationId": "ISMlJEBRKl5AKEFAhGAr5gR2l-ahmsga8IZBSBAxYc8",
+        "locationName": "Male",
+        "basePrice": 11490.0,
+        "country": "Maldives",
+        "contentPath": "https://cdn.firsttrip.com/tourUpload/tourImage/202506/1738665083934_1_aws_maldives.jpg",
+        "sortOrder": 5
+    },
+    {
+        "tagIdentifier": "Popular Destinations",
+        "locationId": "ISMlJEBRKl5AKEFAhGAr54yLO4m5mThD3TzIJw3OYiU",
+        "locationName": "Colombo",
+        "basePrice": 19734.0,
+        "country": "Sri Lanka",
+        "contentPath": "https://cdn.firsttrip.com/tourUpload/tourImage/202505/1748251284736_1_aws_Colombo,_Sri_Lanka.jpg",
+        "sortOrder": 6
+    }
+]
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.js
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+    <main>
+      {/* Hero Section */}
+      <HeroSection />
+      <DiscountCarousel />
+      <FlightTracker />
+      <PopularDestinations destinations={destinationsData}></PopularDestinations>
+      <TrustedAirlines />
+      <DownloadApp />
+      {/* Other sections would go here */}
+    </main>
   );
 }
