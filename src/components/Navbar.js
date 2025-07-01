@@ -2,7 +2,7 @@
 
 "use client"
 import { useActiveSection } from '@/context/ActiveSectionContext';
-import Image from 'next/image';
+
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -74,7 +74,7 @@ export default function Navbar() {
               onClick={(e) => handleNavLinkClick(e, 'flights')}
               className="flex items-center justify-center bg-white/90 backdrop-blur-sm p-2 rounded-xl shadow-sm hover:bg-white transition-all duration-200"
             >
-              <Image src='/Stech-Holodays (1).webp' alt='logo' width={50} height={38} className="rounded-lg" />
+              <img src='/Stech-Holodays (1).webp' alt='logo' width={50} height={38} className="rounded-lg" />
             </Link>
           </div>
 

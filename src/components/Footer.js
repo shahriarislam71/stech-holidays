@@ -1,4 +1,4 @@
-import Image from 'next/image';
+
 import React from 'react';
 
 const Footer = () => {
@@ -10,7 +10,7 @@ const Footer = () => {
           <div className="w-full md:w-1/4">
             <div className="flex items-center mb-4">
               <div className="bg-white bg-opacity-20 backdrop-blur-sm p-3 rounded-xl border border-white border-opacity-30 shadow-lg">
-                <Image 
+                <img 
                   src={'/Stech-Holodays (1).webp'} 
                   alt='stech holidays logo' 
                   width={58} 

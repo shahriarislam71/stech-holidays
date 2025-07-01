@@ -210,20 +210,21 @@ const HeroSection = () => {
   };
 
   const handleFlightSearch = () => {
-    const params = new URLSearchParams();
-    params.append("from", selectedFrom.code);
-    params.append("to", selectedTo.code);
-    params.append("departure", format(departureDate, "yyyy-MM-dd"));
-    if (flightType === "Round Trip") {
-      params.append("return", format(returnDate, "yyyy-MM-dd"));
-    }
-    params.append("adults", adults);
-    params.append("children", children);
-    params.append("infants", infants);
-    params.append("class", selectedClass);
+  const params = new URLSearchParams();
+  params.append("from", selectedFrom.code);
+  params.append("to", selectedTo.code);
+  params.append("departure", format(departureDate, "yyyy-MM-dd"));
+  if (flightType === "Round Trip") {
+    params.append("return", format(returnDate, "yyyy-MM-dd"));
+  }
+  params.append("adults", adults);
+  params.append("children", children);
+  params.append("infants", infants);
+  params.append("class", selectedClass);
 
-    router.push(`/flights/search?${params.toString()}`);
-  };
+  // Redirect to dynamic route with destination code
+  router.push(`/flights/${selectedTo.code}?${params.toString()}`);
+};
 
   const handleCountrySelect = (country) => {
     setSelectedVisaCountry(country);
