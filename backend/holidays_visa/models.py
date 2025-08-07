@@ -1,0 +1,256 @@
+from django.db import models
+from django.contrib.auth import get_user_model
+from django.utils.text import slugify
+from django.utils import timezone
+import random
+
+
+User = get_user_model()
+
+class HolidayPackage(models.Model):
+
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=200, unique=True, blank=True)
+    destination = models.CharField(max_length=100)
+    destination_slug = models.SlugField(max_length=120, editable=False, blank=True)
+    description = models.TextField()
+    duration = models.CharField(max_length=80)
+    nights = models.PositiveIntegerField()
+    days = models.PositiveIntegerField()
+    max_people = models.CharField(max_length=20)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    discount_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    availability_start = models.DateField()
+    availability_end = models.DateField()
+    includes_flight = models.BooleanField(default=False)
+    featured_image = models.ImageField(upload_to='holiday_packages/')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return self.title
+    
+    def save(self, *args, **kwargs):
+        # Always create/refresh the slug from the destination
+        self.destination_slug = slugify(self.destination)
+        self.slug = slugify(self.destination)
+
+        # You already build `self.slug` from title+destination – keep that
+        if not self.slug:
+            self.slug = slugify(f"{self.title}-{self.destination}")
+        super().save(*args, **kwargs)
+
+
+class HolidayPackageDetail(models.Model):
+    package = models.ForeignKey(HolidayPackage, related_name='details', on_delete=models.CASCADE)
+    day = models.PositiveIntegerField()
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    order = models.PositiveIntegerField(default=0)
+    
+    class Meta:
+        ordering = ['day', 'order']
+    
+    def __str__(self):
+        return f"Day {self.day}: {self.title}"
+
+class HolidayPackageTag(models.Model):
+    package = models.ForeignKey(HolidayPackage, related_name='tags', on_delete=models.CASCADE)
+    name = models.CharField(max_length=50)
+    
+    def __str__(self):
+        return self.name
+
+class HolidayBooking(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+        ('cancelled', 'Cancelled'),
+        ('completed', 'Completed'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='holiday_bookings')
+    package = models.ForeignKey(HolidayPackage, on_delete=models.CASCADE, related_name='bookings')
+    contact_name = models.CharField(max_length=100)
+    email = models.EmailField()
+    phone = models.CharField(max_length=20)
+    departure_date = models.DateField()
+    travelers = models.PositiveIntegerField(default=1)
+    custom_request = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Booking #{self.id} - {self.package.title}"
+
+
+
+class VisaCountry(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=100, unique=True, blank=True)
+    description = models.TextField()
+    requirements = models.TextField()
+    processing_time = models.CharField(max_length=50)
+    validity = models.CharField(max_length=50)
+    entry_type = models.CharField(max_length=50)  # single, multiple
+    fee = models.DecimalField(max_digits=10, decimal_places=2)
+    is_featured = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    cover_image = models.ImageField( blank=True, null=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name_plural = "Visa Countries"
+    
+    def __str__(self):
+        return self.name
+    
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
+
+
+class VisaType(models.Model):
+    country = models.ForeignKey(VisaCountry, related_name='visa_types', on_delete=models.CASCADE)
+    type = models.CharField(max_length=100)  # e.g., "Tourist Visa"
+    description = models.TextField()
+    processing_time = models.CharField(max_length=50)
+    validity = models.CharField(max_length=50)
+    entry_type = models.CharField(max_length=50)  # Single/Multiple
+    fee = models.DecimalField(max_digits=10, decimal_places=2)
+    image = models.ImageField(upload_to='visa_types/', null=True, blank=True)
+    requirements = models.JSONField(default=list)  
+    policies = models.JSONField(default=list)
+    
+    def __str__(self):
+        return f"{self.type} for {self.country.name}"
+    
+
+class VisaApplication(models.Model):
+   
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='visa_applications')
+    country = models.ForeignKey(VisaCountry, on_delete=models.CASCADE, related_name='applications')
+    visa_type = models.ForeignKey(VisaType, on_delete=models.CASCADE, related_name='applications', null=True)
+    contact_name = models.CharField(max_length=100)
+    email = models.EmailField()
+    phone = models.CharField(max_length=20)
+    departure_date = models.DateField()
+    travelers = models.PositiveIntegerField(default=1)
+    passport_number = models.CharField(max_length=50)
+    passport_expiry = models.DateField()
+    additional_info = models.TextField(blank=True)
+    status = models.CharField(max_length=20, default='pending')
+    reference_number = models.CharField(max_length=20, unique=True, blank=True)
+    documents = models.JSONField(default=list)  # Store uploaded document references
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    visa_fee = models.DecimalField(max_digits=10, decimal_places=2)
+    processing_fee = models.DecimalField(max_digits=10, decimal_places=2)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Visa Application #{self.reference_number} - {self.country.name}"
+    
+    def save(self, *args, **kwargs):
+        if not self.reference_number:
+            self.reference_number = self.generate_reference_number()
+        super().save(*args, **kwargs)
+    
+    def generate_reference_number(self):
+        prefix = "VISA"
+        date_part = timezone.now().strftime("%y%m%d")
+        random_part = str(random.randint(1000, 9999))
+        return f"{prefix}{date_part}{random_part}"
+
+# Umrah
+
+# holidays_visa/models.py
+
+class UmrahPackage(models.Model):
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=200, unique=True, blank=True)
+    description = models.TextField()
+    nights = models.PositiveIntegerField()
+    days = models.PositiveIntegerField()
+    max_people = models.PositiveIntegerField()
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    discount_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    availability_start = models.DateField()
+    availability_end = models.DateField()
+    includes_flight = models.BooleanField(default=False)
+    includes_hotel = models.BooleanField(default=True)
+    includes_transport = models.BooleanField(default=True)
+    includes_visa = models.BooleanField(default=True)
+    featured_image = models.ImageField(upload_to='umrah_packages/')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return self.title
+    
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.title)
+        super().save(*args, **kwargs)
+
+class UmrahPackageDetail(models.Model):
+    package = models.ForeignKey(UmrahPackage, related_name='details', on_delete=models.CASCADE)
+    day = models.PositiveIntegerField()
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    order = models.PositiveIntegerField(default=0)
+    
+    class Meta:
+        ordering = ['day', 'order']
+    
+    def __str__(self):
+        return f"Day {self.day}: {self.title}"
+
+class UmrahPackageTag(models.Model):
+    package = models.ForeignKey(UmrahPackage, related_name='tags', on_delete=models.CASCADE)
+    name = models.CharField(max_length=50)
+    
+    def __str__(self):
+        return self.name
+
+class UmrahBooking(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+        ('cancelled', 'Cancelled'),
+        ('completed', 'Completed'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='umrah_bookings')
+    package = models.ForeignKey(UmrahPackage, on_delete=models.CASCADE, related_name='bookings')
+    contact_name = models.CharField(max_length=100)
+    email = models.EmailField()
+    phone = models.CharField(max_length=20)
+    departure_date = models.DateField()
+    travelers = models.PositiveIntegerField(default=1)
+    custom_request = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Umrah Booking #{self.id} - {self.package.title}"
