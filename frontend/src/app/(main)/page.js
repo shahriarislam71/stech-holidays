@@ -1,12 +1,13 @@
 // frontend/src/app/(main)/page.js
 "use client";
+
 import DiscountCarousel from "@/components/DiscountCarousel";
 import DownloadApp from "@/components/DownloadApp";
 import FlightTracker from "@/components/FlightTracker";
 import HeroSection from "@/components/HeroSection";
 import PopularDestinations from "@/components/PopularDestination";
 import TrustedAirlines from "@/components/TrustedAirlines";
-import { useEffect, useState } from "react";
+
 export default function Home() {
   const [destinations, setDestinations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +39,7 @@ export default function Home() {
   return (
     <main>
       {/* Hero Section */}
-      <HeroSection />
+      <HeroSection
       <DiscountCarousel />
       <FlightTracker />
       <PopularDestinations destinations={destinations} />

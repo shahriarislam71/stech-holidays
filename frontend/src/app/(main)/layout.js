@@ -1,5 +1,7 @@
-import Navbar from '@/components/Navbar';
+"use client";
+
 import Footer from '@/components/Footer';
+import Navbar from '@/components/Navbar';
 import { ActiveSectionProvider } from '@/context/ActiveSectionContext';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
