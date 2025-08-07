@@ -1,6 +1,6 @@
 // frontend/src/app/(main)/page.js
 "use client";
-
+import { useEffect, useState } from "react";
 import DiscountCarousel from "@/components/DiscountCarousel";
 import DownloadApp from "@/components/DownloadApp";
 import FlightTracker from "@/components/FlightTracker";
@@ -39,7 +39,7 @@ export default function Home() {
   return (
     <main>
       {/* Hero Section */}
-      <HeroSection
+      <HeroSection />
       <DiscountCarousel />
       <FlightTracker />
       <PopularDestinations destinations={destinations} />
