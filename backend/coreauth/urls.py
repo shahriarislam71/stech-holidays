@@ -11,7 +11,7 @@ urlpatterns = [
     # Social login
     path('social/google/', GoogleLogin.as_view(), name='google_login'),
 
-    # Profile & CSRF
+# Profile & CSRF
     path('profile/', ProfileView.as_view(), name='profile'),
 
 
