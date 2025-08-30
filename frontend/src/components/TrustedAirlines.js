@@ -1,8 +1,23 @@
-import AirlineCard from '@/hooks/AirlineCard';
-import React from 'react';
+"use client"
 
+import React, { useState, useEffect } from 'react';
+import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+
+const AirlineCard = ({ airline }) => {
+  return (
+    <div className="w-40 h-40 flex items-center justify-center p-4 bg-white rounded-2xl shadow-[inset_0_0_15px_rgba(0,0,0,0.1)] transition-all duration-300 hover:shadow-[0_5px_15px_rgba(0,0,0,0.08)] border border-gray-100">
+      <img 
+        src={airline.logo} 
+        alt={airline.name}
+        className="max-w-full max-h-full object-contain"
+      />
+    </div>
+  );
+};
 
 const TrustedAirlines = () => {
+  const [isMobile, setIsMobile] = useState(false);
+
   // Airline data with working image URLs
   const airlines = [
     {
@@ -55,21 +70,82 @@ const TrustedAirlines = () => {
     }
   ];
 
-  return (
-    <div className="bg-white py-16 px-[190px]">
-      <div className="text-center mb-12">
-        <h2 className="text-[#445494] text-4xl font-bold mb-4">
-          Travel Beyond Expectations with Our Trusted Airline Alliances
-        </h2>
-        <p className="text-gray-600 text-xl">
-          With Firsttrip, your journey begins with the best names in the sky
-        </p>
-      </div>
+  // Duplicate the airlines for seamless looping
+  const duplicatedAirlines = [...airlines, ...airlines];
 
-      <div className="flex flex-wrap justify-center gap-8">
-        {airlines.map((airline, index) => (
-          <AirlineCard key={index} airline={airline} />
-        ))}
+  // Check screen size on mount and resize
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+
+  return (
+    <div className="bg-white py-12 px-4 sm:px-6 lg:px-8 xl:px-44 2xl:px-60">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-10 md:mb-12">
+          <h2 className="text-[#445494] text-2xl sm:text-3xl md:text-4xl font-bold mb-4">
+            Trusted Airline Alliances
+          </h2>
+          <p className="text-gray-600 text-base sm:text-lg md:text-xl">
+            With Firsttrip, your journey begins with the best names in the sky
+          </p>
+        </div>
+
+        {/* Desktop view - grid layout */}
+        <div className="hidden md:flex flex-wrap justify-center gap-6 lg:gap-8">
+          {airlines.map((airline, index) => (
+            <AirlineCard key={index} airline={airline} />
+          ))}
+        </div>
+
+        {/* Mobile view - continuously scrolling carousel */}
+        <div className="md:hidden relative overflow-hidden">
+          <style jsx>{`
+            @keyframes smoothScroll {
+              0% {
+                transform: translateX(0);
+              }
+              100% {
+                transform: translateX(-50%);
+              }
+            }
+            
+            .scrolling-wrapper {
+              display: flex;
+              width: max-content;
+              animation: smoothScroll 40s linear infinite;
+            }
+            
+            .scrolling-wrapper:hover {
+              animation-play-state: paused;
+            }
+            
+            .scrolling-container {
+              overflow: hidden;
+              position: relative;
+            }
+          `}</style>
+          
+          <div className="scrolling-container">
+            <div className="scrolling-wrapper flex gap-6">
+              {duplicatedAirlines.map((airline, index) => (
+                <div key={index} className="flex-shrink-0">
+                  <AirlineCard airline={airline} />
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Gradient fade effects on edges */}
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-20 bg-gradient-to-r from-white to-transparent"></div>
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-20 bg-gradient-to-l from-white to-transparent"></div>
+        </div>
       </div>
     </div>
   );

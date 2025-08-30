@@ -1,6 +1,6 @@
 import React from "react";
 
-const FlightSearchFilters = ({ filters, onFilterChange }) => {
+const FlightSearchFilters = ({ filters, onFilterChange, onApply }) => {
   const airlines = [
     { id: "biman", name: "Biman Bangladesh" },
     { id: "emirates", name: "Emirates" },
@@ -20,6 +20,12 @@ const FlightSearchFilters = ({ filters, onFilterChange }) => {
     { id: "1stop", name: "1 Stop" },
     { id: "2plus", name: "2+ Stops" },
   ];
+
+  const handleApply = () => {
+    if (onApply) {
+      onApply();
+    }
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-sm p-6">
@@ -122,7 +128,10 @@ const FlightSearchFilters = ({ filters, onFilterChange }) => {
         </div>
       </div>
 
-      <button className="w-full py-2 bg-[#5A53A7] text-white rounded-lg font-medium hover:bg-[#4a4791] transition">
+      <button 
+        onClick={handleApply}
+        className="w-full py-2 bg-[#5A53A7] text-white rounded-lg font-medium hover:bg-[#4a4791] transition"
+      >
         Apply Filters
       </button>
     </div>

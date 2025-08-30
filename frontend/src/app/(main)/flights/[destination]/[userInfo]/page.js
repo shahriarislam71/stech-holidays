@@ -30,7 +30,7 @@ const UserInfoPage = () => {
         airline: {
           code: "AK",
           name: "Air Astra",
-          logo: "/air-astra-logo.png",
+          logo: "/flight/air-asia.webp",
         },
         flightNumber: `AK${Math.floor(Math.random() * 900) + 100}`,
         departureTime: new Date(searchParams.get("departure")),
@@ -153,10 +153,10 @@ const UserInfoPage = () => {
 
               <div className="p-6">
                 <div className="flex items-center mb-4">
-                  <Image
+                  <Image width={50} height={50}
                     src={flight.airline.logo}
                     alt={flight.airline.name}
-                    className="h-10 w-10 object-contain mr-3"
+                    className="rounded object-contain mr-3"
                   />
                   <div>
                     <h3 className="font-semibold text-gray-800">

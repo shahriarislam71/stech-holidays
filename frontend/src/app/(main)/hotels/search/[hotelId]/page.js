@@ -1,7 +1,7 @@
 // app/hotels/search/[hotelId]/page.js
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect } from "react";
 import {
   FiArrowLeft,
   FiMapPin,
@@ -9,6 +9,7 @@ import {
   FiChevronDown,
   FiChevronUp,
   FiX,
+  FiCheck,
 } from "react-icons/fi";
 import {
   FaSwimmingPool,
@@ -50,7 +51,7 @@ const rooms = [
     id: 1,
     type: "Executive Deluxe",
     image:
-      "https://media.istockphoto.com/id/173587041/photo/hotel-bedroom.jpg?s=612x612&w=0&k=20&c=mzbT-i0sbivf2hK4aAJi0mdYVTUca8o5vij0bJq97Ks=", // Add your room image path
+      "/hotels/hotel-image-1.jpg", // Add your room image path
     bedType: "Queen",
     capacity: "02",
     smoking: "Non-Smoking Room",
@@ -76,7 +77,7 @@ const rooms = [
     id: 2,
     type: "Bed And Breakfast",
     image:
-      "https://images.pexels.com/photos/164595/pexels-photo-164595.jpeg?auto=compress&cs=tinysrgb&dpr=1&w=500", // Add your room image path
+      "/hotels/hotel-image-2.jpg", // Add your room image path
     bedType: "King",
     capacity: "02",
     smoking: "Non-Smoking Room",
@@ -111,6 +112,21 @@ export default function HotelDetailsPage({ params }) {
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [selectedPrice, setSelectedPrice] = useState(null);
   const [currentRoomDetails, setCurrentRoomDetails] = useState(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check if device is mobile
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkIsMobile();
+    window.addEventListener('resize', checkIsMobile);
+    
+    return () => {
+      window.removeEventListener('resize', checkIsMobile);
+    };
+  }, []);
 
   // Find the hotel by ID
   let hotel = null;
@@ -209,10 +225,10 @@ export default function HotelDetailsPage({ params }) {
         <div className="flex flex-col lg:flex-row gap-6 mb-8">
           <div className="lg:w-2/3">
             <div className="relative rounded-xl shadow-lg overflow-hidden h-64 md:h-96">
-              <Image
+              <Image width={100} height={100}
                 src={hotel.image}
                 alt={hotel.name}
-                className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                className="w-full rounded object-cover transition-transform duration-500 hover:scale-105"
               />
               <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/70 to-transparent flex items-end p-4">
                 <button
@@ -414,10 +430,10 @@ export default function HotelDetailsPage({ params }) {
                     {/* Room Image */}
                     <div className="md:w-1/3">
                       <div className="relative rounded-lg overflow-hidden h-48">
-                        <Image
+                        <Image width={50} height={50}
                           src={room.image}
                           alt={room.type}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full rounded object-cover"
                         />
                       </div>
                     </div>
@@ -482,60 +498,89 @@ export default function HotelDetailsPage({ params }) {
             </div>
           </div>
 
-          {/* Pricing Summary Sidebar */}
-          <div className="lg:w-1/3">
-            <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100 sticky top-4">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                Pricing Summary
-              </h2>
+          {/* Pricing Summary Sidebar - Desktop Only */}
+          {!isMobile && (
+            <div className="lg:w-1/3">
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100 sticky top-4">
+                <h2 className="text-xl font-semibold text-gray-900 mb-6">
+                  Pricing Summary
+                </h2>
 
-              {selectedRoom && selectedPrice ? (
-                <>
-                  <div className="space-y-4">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Room Type:</span>
-                      <span className="font-medium">{selectedRoom.type}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Price:</span>
-                      <span className="font-medium">{selectedPrice} BDT</span>
-                    </div>
-                    <div className="border-t border-gray-200 pt-3">
-                      <div className="flex justify-between font-semibold">
-                        <span>Total:</span>
-                        <span>{selectedPrice} BDT</span>
+                {selectedRoom && selectedPrice ? (
+                  <>
+                    <div className="space-y-4">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Room Type:</span>
+                        <span className="font-medium">{selectedRoom.type}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Price:</span>
+                        <span className="font-medium">{selectedPrice} BDT</span>
+                      </div>
+                      <div className="border-t border-gray-200 pt-3">
+                        <div className="flex justify-between font-semibold">
+                          <span>Total:</span>
+                          <span>{selectedPrice} BDT</span>
+                        </div>
                       </div>
                     </div>
+                    <Link
+                      href={{
+                        pathname: `/hotels/search/${hotelId}/booking`,
+                        query: {
+                          roomType: selectedRoom?.type,
+                          checkIn: "Sun, Jun 29", // Replace with actual dates
+                          checkOut: "Mon, Jun 30",
+                          nights: "1",
+                          adults: "1",
+                          children: "0",
+                          price: selectedPrice,
+                          taxes: "3467",
+                          total: (parseInt(selectedPrice) + 3467).toString(),
+                        },
+                      }}
+                    >
+                      <button className="mt-6 w-full px-6 py-3 bg-gradient-to-r from-[#5A53A7] to-[#55C3A9] text-white rounded-lg hover:opacity-90 transition font-medium shadow-md">
+                        Continue →
+                      </button>
+                    </Link>
+                  </>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>Select a room and price to see summary</p>
                   </div>
-                  {/* mt-6 w-full px-6 py-3 bg-gradient-to-r from-[#5A53A7] to-[#55C3A9] text-white rounded-lg hover:opacity-90 transition font-medium shadow-md"> */}
-                  <Link
-                    href={{
-                      pathname: `/hotels/search/${hotelId}/booking`,
-                      query: {
-                        roomType: selectedRoom?.type,
-                        checkIn: "Sun, Jun 29", // Replace with actual dates
-                        checkOut: "Mon, Jun 30",
-                        nights: "1",
-                        adults: "1",
-                        children: "0",
-                        price: selectedPrice,
-                        taxes: "3467",
-                        total: (parseInt(selectedPrice) + 3467).toString(),
-                      },
-                    }}
-                  >
-                    <button className="mt-6 w-full px-6 py-3 bg-gradient-to-r from-[#5A53A7] to-[#55C3A9] text-white rounded-lg hover:opacity-90 transition font-medium shadow-md">Continue →</button>
-                    
-                  </Link>
-                </>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <p>Select a room and price to see summary</p>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
+
+        {/* Mobile Booking Button - Fixed at bottom */}
+        {isMobile && selectedRoom && selectedPrice && (
+          <div className="fixed bottom-4 right-4 z-40">
+            <Link
+              href={{
+                pathname: `/hotels/search/${hotelId}/booking`,
+                query: {
+                  roomType: selectedRoom?.type,
+                  checkIn: "Sun, Jun 29",
+                  checkOut: "Mon, Jun 30",
+                  nights: "1",
+                  adults: "1",
+                  children: "0",
+                  price: selectedPrice,
+                  taxes: "3467",
+                  total: (parseInt(selectedPrice) + 3467).toString(),
+                },
+              }}
+            >
+              <button className="flex items-center justify-center w-14 h-14 bg-gradient-to-r from-[#5A53A7] to-[#55C3A9] text-white rounded-full shadow-lg hover:shadow-xl transition-all transform hover:scale-105">
+                <FiCheck size={24} />
+              </button>
+            </Link>
+           
+          </div>
+        )}
 
         {/* Room Details Modal */}
         {showRoomDetailsModal && currentRoomDetails && (
@@ -556,10 +601,10 @@ export default function HotelDetailsPage({ params }) {
               <div className="p-6">
                 {/* Room Image */}
                 <div className="relative rounded-lg overflow-hidden h-64 mb-6">
-                  <Image
+                  <Image width={50} height={50}
                     src={currentRoomDetails.image}
                     alt={currentRoomDetails.type}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full rounded object-cover"
                   />
                 </div>
 

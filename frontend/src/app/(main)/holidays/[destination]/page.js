@@ -1,10 +1,10 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { FiSearch, FiX, FiCheck, FiHome, FiChevronRight, FiCalendar, FiUsers, FiStar, FiArrowRight, FiMapPin } from 'react-icons/fi';
+import { FiSearch, FiX, FiCheck, FiHome, FiChevronRight, FiCalendar, FiUsers, FiStar, FiArrowRight, FiMapPin, FiFilter } from 'react-icons/fi';
 import { FaPlane } from 'react-icons/fa';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useParams } from 'next/navigation';   // ⬅️ new
+import { useParams } from 'next/navigation';
 
 const Breadcrumb = ({ destination }) => {
   const destinationName = destination.replace(/-/g, ' ').replace(/(?:^|\s)\S/g, a => a.toUpperCase());
@@ -27,7 +27,7 @@ const PackageDetailsModal = ({ packageData, onClose, destination }) => {
   if (!packageData) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="relative">
           <div className="h-64 bg-gray-200 overflow-hidden relative">
@@ -113,7 +113,7 @@ const PackageDetailsModal = ({ packageData, onClose, destination }) => {
             </div>
           )}
           
-          <div className="mt-8 flex justify-between items-center">
+          <div className="mt-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <p className="text-gray-500">Starting from</p>
               <p className="text-2xl font-bold text-[#5A53A7]">
@@ -127,7 +127,7 @@ const PackageDetailsModal = ({ packageData, onClose, destination }) => {
             </div>
             <Link 
               href={`/holidays/${destination}/bookings/${packageData.id}-${packageData.slug}`}
-              className="px-6 py-3 bg-gradient-to-r from-[#5A53A7] to-[#445494] text-white rounded-lg hover:opacity-90 transition flex items-center"
+              className="px-6 py-3 bg-gradient-to-r from-[#5A53A7] to-[#445494] text-white rounded-lg hover:opacity-90 transition flex items-center justify-center w-full sm:w-auto"
             >
               Book This Package
               <FiArrowRight className="ml-2" />
@@ -140,7 +140,7 @@ const PackageDetailsModal = ({ packageData, onClose, destination }) => {
 };
 
 const HolidayDestinationPage = () => {
-  const { destination } = useParams();  // destination is now pulled from the route  
+  const { destination } = useParams();
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -160,6 +160,7 @@ const HolidayDestinationPage = () => {
   const [selectedDurations, setSelectedDurations] = useState([]);
   const [flightOption, setFlightOption] = useState(null);
   const [selectedTags, setSelectedTags] = useState([]);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   useEffect(() => {
     const fetchHolidayPackages = async () => {
@@ -257,7 +258,7 @@ const HolidayDestinationPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="px-[190px] py-12">
+      <div className="px-4 md:px-[190px] py-8 md:py-12">
         <Breadcrumb destination={destination} />
         
         <div className="mb-8 relative">
@@ -302,10 +303,35 @@ const HolidayDestinationPage = () => {
           )}
         </div>
 
+        {/* Mobile Filter Button */}
+        <div className="md:hidden flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-gray-800">{destinationName} Packages</h1>
+          <button 
+            onClick={() => setShowMobileFilters(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-[#5A53A7] text-white rounded-lg"
+          >
+            <FiFilter className="h-4 w-4" />
+            Filter
+          </button>
+        </div>
+
         <div className="flex flex-col md:flex-row gap-6">
           {/* Left Sidebar - Filters */}
-          <div className="w-full md:w-64 lg:w-80 bg-white p-6 rounded-xl shadow-md border border-gray-200 h-fit sticky top-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-6">Filter</h3>
+          <div className={`w-full md:w-64 lg:w-80 bg-white p-6 rounded-xl shadow-md border border-gray-200 h-fit md:sticky md:top-6 ${showMobileFilters ? 'fixed inset-0 z-50 overflow-y-auto' : 'hidden md:block'}`}>
+            {/* Mobile header */}
+            {showMobileFilters && (
+              <div className="flex justify-between items-center mb-6 md:hidden">
+                <h3 className="text-lg font-bold text-gray-800">Filter Packages</h3>
+                <button 
+                  onClick={() => setShowMobileFilters(false)}
+                  className="p-2 rounded-full hover:bg-gray-100"
+                >
+                  <FiX className="h-5 w-5 text-gray-700" />
+                </button>
+              </div>
+            )}
+            
+            <h3 className="text-lg font-bold text-gray-800 mb-6 hidden md:block">Filter</h3>
             
             {/* Price Range */}
             <div className="mb-8">
@@ -392,10 +418,23 @@ const HolidayDestinationPage = () => {
                 </button>
               </div>
             </div>
+            
+            {/* Apply button for mobile */}
+            {showMobileFilters && (
+              <button 
+                onClick={() => setShowMobileFilters(false)}
+                className="w-full py-3 bg-[#5A53A7] text-white rounded-lg font-medium md:hidden"
+              >
+                Apply Filters
+              </button>
+            )}
           </div>
 
           {/* Right Side Content - Packages */}
           <div className="flex-1">
+            {/* Desktop Title */}
+            <h1 className="text-2xl font-bold text-gray-800 mb-6 hidden md:block">{destinationName} Packages</h1>
+            
             <div className="space-y-6">
               {loading ? (
                 <div className="flex justify-center py-10">
@@ -429,9 +468,9 @@ const HolidayDestinationPage = () => {
                           />
                         )}
                       </div>
-                      <div className="p-8 md:w-2/3">
-                        <div className="flex justify-between items-start mb-4">
-                          <h2 className="text-2xl font-bold text-[#445494]">{pkg.title}</h2>
+                      <div className="p-6 md:p-8 md:w-2/3">
+                        <div className="flex flex-col md:flex-row justify-between items-start mb-4 gap-2">
+                          <h2 className="text-xl md:text-2xl font-bold text-[#445494]">{pkg.title}</h2>
                           <span className="text-xl font-bold text-[#5A53A7]">
                             BDT {pkg.price.toLocaleString()}
                             {pkg.discount_price && (
@@ -442,7 +481,7 @@ const HolidayDestinationPage = () => {
                           </span>
                         </div>
                         
-                        <div className="flex flex-wrap gap-4 mb-6">
+                        <div className="flex flex-col sm:flex-row flex-wrap gap-4 mb-6">
                           <div className="flex items-center text-gray-600">
                             <FiCalendar className="mr-2 text-[#5A53A7]" />
                             {pkg.nights} Night(s) {pkg.days} Day(s)
@@ -474,7 +513,7 @@ const HolidayDestinationPage = () => {
                             e.stopPropagation();
                             setSelectedPackage(pkg);
                           }}
-                          className="px-6 py-3 bg-gradient-to-r from-[#5A53A7] to-[#445494] text-white rounded-lg hover:opacity-90 transition flex items-center"
+                          className="px-6 py-3 bg-gradient-to-r from-[#5A53A7] to-[#445494] text-white rounded-lg hover:opacity-90 transition flex items-center justify-center w-full md:w-auto"
                         >
                           View Details
                           <FiArrowRight className="ml-2" />
@@ -490,6 +529,23 @@ const HolidayDestinationPage = () => {
                   </svg>
                   <h3 className="mt-2 text-lg font-medium text-gray-900">No packages found</h3>
                   <p className="mt-1 text-gray-500">We couldn't find any packages matching your filters.</p>
+                  <button 
+                    onClick={() => {
+                      setFilters({
+                        minPrice: 0,
+                        maxPrice: 1000000,
+                        durations: [],
+                        hasFlight: null,
+                        tags: []
+                      });
+                      setPriceRange([5000, 50000]);
+                      setSelectedDurations([]);
+                      setFlightOption(null);
+                    }}
+                    className="mt-4 px-4 py-2 bg-[#5A53A7] text-white rounded"
+                  >
+                    Clear Filters
+                  </button>
                 </div>
               )}
             </div>
@@ -502,6 +558,14 @@ const HolidayDestinationPage = () => {
           packageData={selectedPackage} 
           onClose={() => setSelectedPackage(null)}
           destination={destination}
+        />
+      )}
+      
+      {/* Mobile filter overlay */}
+      {showMobileFilters && (
+        <div 
+          className="fixed inset-0 bg-black/50 bg-opacity-50 z-40 md:hidden"
+          onClick={() => setShowMobileFilters(false)}
         />
       )}
     </div>

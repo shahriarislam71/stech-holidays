@@ -4,24 +4,24 @@ import React from 'react';
 
 const FlightTracker = () => {
   return (
-    <div className="flex items-center justify-center min-h-[300px] px-[190px] py-12" style={{ backgroundColor: 'rgb(248, 251, 254)' }}>
-      <div className="flex flex-col md:flex-row items-center justify-between w-full max-w-6xl bg-white rounded-2xl shadow-lg p-8">
-        {/* Left Content */}
-        <div className="flex-1 pr-8">
-          <h1 className="text-3xl font-bold text-[#445494] mb-4">Flight Tracking Made Easy</h1>
-          <p className="text-lg text-gray-600 mb-2">With Firsttrip, tracking your flight is a breeze!</p>
-          <p className="text-lg text-gray-600 mb-8">Stay updated on your flights effortlessly using our handy flight tracker.</p>
+    <div className="flex items-center justify-center min-h-[300px] px-4 md:px-[190px] py-12" style={{ backgroundColor: 'rgb(248, 251, 254)' }}>
+      <div className="flex flex-col md:flex-row items-center justify-between w-full max-w-6xl bg-white rounded-2xl shadow-lg p-6 md:p-8">
+        {/* Left Content - Will appear first on mobile */}
+        <div className="flex-1 md:pr-8 order-2 md:order-1 text-center md:text-left">
+          <h1 className="text-2xl md:text-3xl font-bold text-[#445494] mb-4">Flight Tracking Made Easy</h1>
+          <p className="text-base md:text-lg text-gray-600 mb-2">With Firsttrip, tracking your flight is a breeze!</p>
+          <p className="text-base md:text-lg text-gray-600 mb-6 md:mb-8">Stay updated on your flights effortlessly using our handy flight tracker.</p>
           
-          <div className="border-t border-gray-200 my-6"></div>
+          <div className="border-t border-gray-200 my-4 md:my-6"></div>
           
-          <button className="bg-[#55C3A9] hover:bg-[#54ACA4] text-white font-semibold py-3 px-8 rounded-full transition duration-300">
+          <button className="bg-[#55C3A9] hover:bg-[#54ACA4] text-white font-semibold py-3 px-8 rounded-full transition duration-300 w-full md:w-auto">
             Open Flight Tracker
           </button>
         </div>
         
-        {/* Right Content - Radar Animation */}
-        <div className="flex-1 flex justify-center">
-          <div className="relative w-64 h-64">
+        {/* Right Content - Radar Animation - Will appear first on mobile */}
+        <div className="flex-1 flex justify-center order-1 md:order-2 mb-6 md:mb-0">
+          <div className="relative w-48 h-48 md:w-64 md:h-64">
             {/* Radar Base */}
             <div className="absolute inset-0 rounded-full border-4 border-[#5A53A7] opacity-20"></div>
             
@@ -37,13 +37,13 @@ const FlightTracker = () => {
             </div>
             
             {/* Center Dot */}
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-[#55C3A9] rounded-full"></div>
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-3 h-3 md:w-4 md:h-4 bg-[#55C3A9] rounded-full"></div>
             
             {/* Random Dots (flight signals) */}
-            <div className="absolute top-1/4 left-1/4 w-3 h-3 bg-[#5A53A7] rounded-full animate-pulse"></div>
-            <div className="absolute top-1/3 right-1/5 w-2 h-2 bg-[#55C3A9] rounded-full animate-pulse" style={{ animationDelay: '0.5s' }}></div>
-            <div className="absolute bottom-1/4 right-1/3 w-3 h-3 bg-[#5A53A7] rounded-full animate-pulse" style={{ animationDelay: '1s' }}></div>
-            <div className="absolute bottom-1/3 left-1/4 w-2 h-2 bg-[#54ACA4] rounded-full animate-pulse" style={{ animationDelay: '1.5s' }}></div>
+            <div className="absolute top-1/4 left-1/4 w-2 h-2 md:w-3 md:h-3 bg-[#5A53A7] rounded-full animate-pulse"></div>
+            <div className="absolute top-1/3 right-1/5 w-1.5 h-1.5 md:w-2 md:h-2 bg-[#55C3A9] rounded-full animate-pulse" style={{ animationDelay: '0.5s' }}></div>
+            <div className="absolute bottom-1/4 right-1/3 w-2 h-2 md:w-3 md:h-3 bg-[#5A53A7] rounded-full animate-pulse" style={{ animationDelay: '1s' }}></div>
+            <div className="absolute bottom-1/3 left-1/4 w-1.5 h-1.5 md:w-2 md:h-2 bg-[#54ACA4] rounded-full animate-pulse" style={{ animationDelay: '1.5s' }}></div>
           </div>
         </div>
       </div>

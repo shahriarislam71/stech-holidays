@@ -1,7 +1,7 @@
 "use client"
 import { useState } from 'react';
 
-export default function HotelFilters({ filters, setFilters }) {
+export default function HotelFilters({ filters, setFilters, onApply }) {
   const [expandedSections, setExpandedSections] = useState({
     rating: true,
     propertyTypes: true,
@@ -33,8 +33,14 @@ export default function HotelFilters({ filters, setFilters }) {
     }));
   };
 
+  const handleApply = () => {
+    if (onApply) {
+      onApply();
+    }
+  };
+
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
+    <div className="bg-white rounded-lg shadow-md p-4 md:p-6">
       {/* Property Rating */}
       <div className="mb-6">
         <div 
@@ -225,6 +231,16 @@ export default function HotelFilters({ filters, setFilters }) {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Apply Button for Mobile */}
+      <div className="md:hidden">
+        <button 
+          onClick={handleApply}
+          className="w-full py-3 bg-[#5A53A7] text-white rounded-lg font-medium hover:bg-[#4a4791] transition"
+        >
+          Apply Filters
+        </button>
       </div>
     </div>
   );
