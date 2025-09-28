@@ -3,7 +3,6 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import FlightSearchResults from "@/components/FlightSearchResults";
 import FlightSearchFilters from "@/components/FlightSearchFilters";
-import BookingProgress from "@/components/BookingProgress";
 import { format } from "date-fns";
 import { FiFilter, FiX } from "react-icons/fi";
 
@@ -13,6 +12,8 @@ const FlightDestinationPage = () => {
   const [loading, setLoading] = useState(true);
   const [flights, setFlights] = useState([]);
   const [filteredFlights, setFilteredFlights] = useState([]);
+  const [searchData, setSearchData] = useState(null);
+  const [apiFilters, setApiFilters] = useState({});
   const [filters, setFilters] = useState({
     airlines: [],
     priceRange: [0, 1000],
@@ -44,99 +45,83 @@ const FlightDestinationPage = () => {
   const to = searchParams.get("to");
   const departure = searchParams.get("departure");
   const returnDate = searchParams.get("return");
-  const adults = searchParams.get("adults") || 1;
-  const children = searchParams.get("children") || 0;
-  const infants = searchParams.get("infants") || 0;
+  const adults = parseInt(searchParams.get("adults")) || 1;
+  const children = parseInt(searchParams.get("children")) || 0;
+  const infants = parseInt(searchParams.get("infants")) || 0;
   const flightClass = searchParams.get("class") || "Economy";
 
-  const generateMockFlights = useCallback(() => {
-    const airlines = [
-      {
-        code: "BG",
-        name: "Biman Bangladesh Airlines",
-        logo: "/biman-logo.png",
+  // Build API request payload
+  const buildApiPayload = useCallback(() => {
+    const payload = {
+      slices: [
+        {
+          origin: from,
+          destination: to,
+          departure_date: departure,
+        },
+      ],
+      travelers: {
+        adults: adults,
+        children: children,
+        infants: infants,
       },
-      { code: "AK", name: "Air Astra", logo: "/air-astra-logo.png" },
-      { code: "US", name: "US-Bangla Airlines", logo: "/us-bangla-logo.png" },
-      { code: "EK", name: "Emirates", logo: "/emirates-logo.png" },
-    ];
+      cabin_class: flightClass.toLowerCase(),
+      fare_type: "regular", // You can make this dynamic based on HeroSection selection
+    };
 
-    const mockFlights = [];
-    const basePrice = Math.floor(Math.random() * 500) + 200;
-
-    for (let i = 0; i < 12; i++) {
-      const airline = airlines[Math.floor(Math.random() * airlines.length)];
-      const departureTime = new Date();
-      departureTime.setHours(Math.floor(Math.random() * 24));
-      departureTime.setMinutes(Math.floor(Math.random() * 12) * 5);
-
-      const arrivalTime = new Date(departureTime);
-      arrivalTime.setHours(
-        departureTime.getHours() + Math.floor(Math.random() * 5) + 1
-      );
-
-      mockFlights.push({
-        id: `FL${Math.floor(Math.random() * 10000)}`,
-        airline,
-        flightNumber: `${airline.code}${Math.floor(Math.random() * 900) + 100}`,
-        departureTime,
-        arrivalTime,
-        duration: `${Math.floor(
-          (arrivalTime - departureTime) / (1000 * 60 * 60)
-        )}h ${Math.floor(((arrivalTime - departureTime) / (1000 * 60)) % 60)}m`,
-        price: basePrice + Math.floor(Math.random() * 300),
-        stops: Math.floor(Math.random() * 3),
-        departureAirport: from,
-        arrivalAirport: to,
-        fareOptions: generateFareOptions(
-          basePrice + Math.floor(Math.random() * 300)
-        ),
-      });
+    // Add return date for round trip
+    if (returnDate) {
+      payload.return_date = returnDate;
     }
 
-    return mockFlights.sort((a, b) => a.price - b.price);
-  }, [from, to]);
+    return payload;
+  }, [from, to, departure, returnDate, adults, children, infants, flightClass]);
 
-  const generateFareOptions = (basePrice) => {
-    return [
-      {
-        name: "Star Lite",
-        cabinBag: "7 KG / Adult",
-        checkedIn: "20 KG / Adult",
-        cancellation: "As per Airlines Policy",
-        dateChange: "As per Airlines Policy",
-        meal: "Complementary meal included",
-        price: basePrice,
-      },
-      {
-        name: "Star Go",
-        cabinBag: "7 KG / Adult",
-        checkedIn: "20 KG / Adult",
-        cancellation: "As per Airlines Policy",
-        dateChange: "As per Airlines Policy",
-        meal: "Complementary meal included",
-        price: basePrice + 200,
-      },
-      {
-        name: "Star Easy",
-        cabinBag: "7 KG / Adult",
-        checkedIn: "25 KG / Adult",
-        cancellation: "BDT 1000 + Airline Fee",
-        dateChange: "BDT 500 + Airline Fee",
-        meal: "Complementary meal + Snack",
-        price: basePrice + 500,
-      },
-      {
-        name: "Star Prime",
-        cabinBag: "10 KG / Adult",
-        checkedIn: "30 KG / Adult",
-        cancellation: "BDT 500 + Airline Fee",
-        dateChange: "Free (Once)",
-        meal: "Gourmet meal + Beverages",
-        price: basePrice + 800,
-      },
-    ];
-  };
+  const fetchFlights = useCallback(async () => {
+    setLoading(true);
+    try {
+      const payload = buildApiPayload();
+      
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/flights/search/`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch flights");
+      }
+
+      const data = await response.json();
+      
+      if (data.status === "success") {
+        setFlights(data.results.itineraries);
+        setFilteredFlights(data.results.itineraries);
+        setSearchData(data.search);
+        setApiFilters(data.filters);
+        
+        // Update local filters with API data
+        setFilters(prev => ({
+          ...prev,
+          priceRange: [data.filters.priceRange.min, data.filters.priceRange.max],
+        }));
+      } else {
+        throw new Error(data.message || "Failed to fetch flights");
+      }
+    } catch (error) {
+      console.error("Error fetching flights:", error);
+      // You might want to show an error state here
+      setFlights([]);
+      setFilteredFlights([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [buildApiPayload]);
 
   const applyFilters = useCallback(() => {
     let results = [...flights];
@@ -144,26 +129,34 @@ const FlightDestinationPage = () => {
     // Filter by price range
     results = results.filter(
       (flight) =>
-        flight.price >= filters.priceRange[0] &&
-        flight.price <= filters.priceRange[1]
+        flight.priceAmount >= filters.priceRange[0] &&
+        flight.priceAmount <= filters.priceRange[1]
     );
 
     // Filter by airlines
     if (filters.airlines.length > 0) {
       results = results.filter((flight) =>
-        filters.airlines.includes(flight.airline.code)
+        flight.airlines.some(airline => filters.airlines.includes(airline))
       );
     }
 
     // Filter by departure times
     if (filters.departureTimes.length > 0) {
       results = results.filter((flight) => {
-        const hours = flight.departureTime.getHours();
-        return filters.departureTimes.some((time) => {
-          if (time === "morning") return hours >= 6 && hours < 12;
-          if (time === "afternoon") return hours >= 12 && hours < 18;
-          if (time === "evening") return hours >= 18 && hours < 24;
-          if (time === "night") return hours >= 0 && hours < 6;
+        // Parse time from flight.segments[0].departure.time (e.g., "6:34 PM")
+        const timeStr = flight.segments[0].departure.time;
+        const [time, period] = timeStr.split(" ");
+        const [hours, minutes] = time.split(":").map(Number);
+        let hour24 = hours;
+        
+        if (period === "PM" && hours !== 12) hour24 += 12;
+        if (period === "AM" && hours === 12) hour24 = 0;
+
+        return filters.departureTimes.some((timeFilter) => {
+          if (timeFilter === "morning") return hour24 >= 6 && hour24 < 12;
+          if (timeFilter === "afternoon") return hour24 >= 12 && hour24 < 18;
+          if (timeFilter === "evening") return hour24 >= 18 && hour24 < 24;
+          if (timeFilter === "night") return hour24 >= 0 && hour24 < 6;
           return false;
         });
       });
@@ -172,9 +165,10 @@ const FlightDestinationPage = () => {
     // Filter by stops
     if (filters.stops.length > 0) {
       results = results.filter((flight) => {
-        if (filters.stops.includes("nonstop")) return flight.stops === 0;
-        if (filters.stops.includes("1stop")) return flight.stops === 1;
-        if (filters.stops.includes("2plus")) return flight.stops >= 2;
+        const stops = flight.segments[0].stops;
+        if (filters.stops.includes("nonstop")) return stops === "Non-stop";
+        if (filters.stops.includes("1stop")) return stops.includes("1 stop");
+        if (filters.stops.includes("2plus")) return stops.includes("2") || stops.includes("3+");
         return false;
       });
     }
@@ -183,23 +177,10 @@ const FlightDestinationPage = () => {
   }, [filters, flights]);
 
   useEffect(() => {
-    const fetchFlights = async () => {
-      setLoading(true);
-      try {
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        const mockFlights = generateMockFlights();
-        setFlights(mockFlights);
-        setFilteredFlights(mockFlights);
-      } catch (error) {
-        console.error("Error fetching flights:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchFlights();
-  }, [from, to, departure, generateMockFlights]);
+    if (from && to && departure) {
+      fetchFlights();
+    }
+  }, [from, to, departure, fetchFlights]);
 
   useEffect(() => {
     applyFilters();
@@ -212,10 +193,21 @@ const FlightDestinationPage = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#5A53A7] to-[#4a8b9a] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mb-4"></div>
+          <p className="text-white text-lg">Searching for flights...</p>
+        </div>
       </div>
     );
   }
+
+  // Format display data from search response or URL params
+  const displayFrom = searchData?.route?.from?.city || from;
+  const displayTo = searchData?.route?.to?.city || to;
+  const displayDeparture = searchData?.dates?.departure || departure;
+  const displayReturn = searchData?.dates?.return || returnDate;
+  const displayTotalTravelers = searchData?.travelers?.total || (adults + children + infants);
+  const displayCabinClass = searchData?.preferences?.cabinClass || flightClass;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -227,15 +219,15 @@ const FlightDestinationPage = () => {
           </h1>
           <div className="flex flex-wrap items-center gap-2 md:gap-4">
             <div className="bg-white/20 px-3 py-1 md:px-4 md:py-2 rounded-full text-sm md:text-base">
-              <span className="font-medium">{from}</span> →{" "}
-              <span className="font-medium">{to}</span>
+              <span className="font-medium">{displayFrom}</span> →{" "}
+              <span className="font-medium">{displayTo}</span>
             </div>
             <div className="bg-white/20 px-3 py-1 md:px-4 md:py-2 rounded-full text-sm md:text-base">
-              {format(new Date(departure), "EEE, MMM d")}
+              {format(new Date(displayDeparture), "EEE, MMM d")}
             </div>
-            {returnDate && (
+            {displayReturn && (
               <div className="bg-white/20 px-3 py-1 md:px-4 md:py-2 rounded-full text-sm md:text-base">
-                {format(new Date(returnDate), "EEE, MMM d")}
+                {format(new Date(displayReturn), "EEE, MMM d")}
               </div>
             )}
             <div className="bg-white/20 px-3 py-1 md:px-4 md:py-2 rounded-full text-sm md:text-base">
@@ -243,9 +235,12 @@ const FlightDestinationPage = () => {
               {children > 0
                 ? `, ${children} Child${children > 1 ? "ren" : ""}`
                 : ""}
+              {infants > 0
+                ? `, ${infants} Infant${infants > 1 ? "s" : ""}`
+                : ""}
             </div>
             <div className="bg-white/20 px-3 py-1 md:px-4 md:py-2 rounded-full text-sm md:text-base capitalize">
-              {flightClass.toLowerCase()}
+              {displayCabinClass.toLowerCase()}
             </div>
           </div>
         </div>
@@ -290,6 +285,7 @@ const FlightDestinationPage = () => {
                   <FlightSearchFilters
                     filters={filters}
                     onFilterChange={setFilters}
+                    apiFilters={apiFilters}
                     onApply={() => setShowFilters(false)}
                   />
                 </div>
@@ -297,11 +293,12 @@ const FlightDestinationPage = () => {
             </div>
           )}
 
-          {/* Filters Sidebar - Desktop (unchanged) */}
+          {/* Filters Sidebar - Desktop */}
           <div className="hidden md:block w-full md:w-1/4">
             <FlightSearchFilters
               filters={filters}
               onFilterChange={setFilters}
+              apiFilters={apiFilters}
             />
           </div>
 

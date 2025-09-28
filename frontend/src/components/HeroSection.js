@@ -55,6 +55,46 @@ const HeroSection = () => {
   const [infants, setInfants] = useState(0);
   const [selectedClass, setSelectedClass] = useState("Economy");
 
+  // Multi-city states
+  const [multiCityFlights, setMultiCityFlights] = useState([
+    {
+      id: 1,
+      from: {
+        code: "DAC",
+        city: "Dhaka",
+        name: "Hazrat Shahjalal International Airport",
+      },
+      to: {
+        code: "CXB",
+        city: "Cox's Bazar",
+        name: "Cox's Bazar Airport",
+      },
+      departureDate: new Date(),
+      showFromDropdown: false,
+      showToDropdown: false,
+    },
+    {
+      id: 2,
+      from: {
+        code: "CXB",
+        city: "Cox's Bazar",
+        name: "Cox's Bazar Airport",
+      },
+      to: {
+        code: "CGP",
+        city: "Chittagong",
+        name: "Shah Amanat International Airport",
+      },
+      departureDate: (() => {
+        const date = new Date();
+        date.setDate(date.getDate() + 3);
+        return date;
+      })(),
+      showFromDropdown: false,
+      showToDropdown: false,
+    },
+  ]);
+
   // Umrah states
   const [umrahPackageSearch, setUmrahPackageSearch] = useState("");
   const [showUmrahPackages, setShowUmrahPackages] = useState(false);
@@ -173,6 +213,53 @@ const HeroSection = () => {
     }),
     []
   );
+
+  // Multi-city functions
+  const addNewCity = () => {
+    const newFlight = {
+      id: multiCityFlights.length + 1,
+      from: {
+        code: "",
+        city: "",
+        name: "",
+      },
+      to: {
+        code: "",
+        city: "",
+        name: "",
+      },
+      departureDate: new Date(),
+      showFromDropdown: false,
+      showToDropdown: false,
+    };
+    setMultiCityFlights([...multiCityFlights, newFlight]);
+  };
+
+  const removeCity = (id) => {
+    if (multiCityFlights.length > 2) {
+      setMultiCityFlights(
+        multiCityFlights.filter((flight) => flight.id !== id)
+      );
+    }
+  };
+
+  const updateMultiCityFlight = (id, field, value) => {
+    setMultiCityFlights(
+      multiCityFlights.map((flight) =>
+        flight.id === id ? { ...flight, [field]: value } : flight
+      )
+    );
+  };
+
+  const toggleMultiCityDropdown = (id, dropdown) => {
+    setMultiCityFlights(
+      multiCityFlights.map((flight) =>
+        flight.id === id
+          ? { ...flight, [dropdown]: !flight[dropdown] }
+          : { ...flight, showFromDropdown: false, showToDropdown: false }
+      )
+    );
+  };
 
   // Fetch holiday destinations on component mount
   useEffect(() => {
@@ -308,20 +395,47 @@ const HeroSection = () => {
     }
   };
 
-  const handleFlightSearch = () => {
-    const params = new URLSearchParams();
-    params.append("from", selectedFrom.code);
-    params.append("to", selectedTo.code);
-    params.append("departure", format(departureDate, "yyyy-MM-dd"));
-    if (flightType === "Round Trip") {
-      params.append("return", format(returnDate, "yyyy-MM-dd"));
-    }
-    params.append("adults", adults);
-    params.append("children", children);
-    params.append("infants", infants);
-    params.append("class", selectedClass);
+  // Updated handleFlightSearch function for HeroSection component
 
-    router.push(`/flights/${selectedTo.code}?${params.toString()}`);
+  const handleFlightSearch = () => {
+    if (flightType === "Multi City") {
+      // Handle multi-city search - navigate to results page with search params
+      const params = new URLSearchParams();
+      params.append("type", "multi-city");
+      params.append("adults", adults);
+      params.append("children", children);
+      params.append("infants", infants);
+      params.append("class", selectedClass);
+
+      // Add all multi-city flights data
+      multiCityFlights.forEach((flight, index) => {
+        if (flight.from.code && flight.to.code) {
+          params.append(`flight${index + 1}_from`, flight.from.code);
+          params.append(`flight${index + 1}_to`, flight.to.code);
+          params.append(
+            `flight${index + 1}_departure`,
+            format(flight.departureDate, "yyyy-MM-dd")
+          );
+        }
+      });
+
+      router.push(`/flights/multi-city?${params.toString()}`);
+    } else {
+      // Handle one way and round trip
+      const params = new URLSearchParams();
+      params.append("from", selectedFrom.code);
+      params.append("to", selectedTo.code);
+      params.append("departure", format(departureDate, "yyyy-MM-dd"));
+      if (flightType === "Round Trip") {
+        params.append("return", format(returnDate, "yyyy-MM-dd"));
+      }
+      params.append("adults", adults);
+      params.append("children", children);
+      params.append("infants", infants);
+      params.append("class", selectedClass);
+
+      router.push(`/flights/search?${params.toString()}`);
+    }
   };
 
   const handleCountrySelect = (country) => {
@@ -446,191 +560,464 @@ const HeroSection = () => {
                   ))}
                 </div>
 
-                {/* Search Form */}
-                <div className="bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 p-3 sm:p-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-                    {/* From Airport */}
-                    <div className="space-y-1 relative">
-                      <label className="text-xs sm:text-sm text-white font-medium block">
-                        From
-                      </label>
-                      <div
-                        className="flex items-center p-2 rounded-lg bg-white/5 border border-white/20 hover:border-white/30 transition cursor-pointer"
-                        onClick={() => setShowFromAirports(!showFromAirports)}
-                      >
-                        <div className="bg-[#5A53A7] text-white rounded-full w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-xs mr-2 shrink-0">
-                          {selectedFrom?.code || "DAC"}
-                        </div>
-                        <div className="truncate">
-                          <div className="text-sm sm:text-base font-medium text-white truncate">
-                            {selectedFrom?.city || "Dhaka"}
-                          </div>
-                          <div className="text-xs text-white/80 truncate hidden sm:block">
-                            {selectedFrom?.name || "Shahjalal Airport"}
-                          </div>
-                        </div>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-4 w-4 ml-auto text-white/70"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </div>
-
-                      {showFromAirports && (
-                        <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 max-h-60 overflow-y-auto">
-                          {bangladeshAirports.map((airport) => (
-                            <div
-                              key={airport.code}
-                              className="p-3 hover:bg-[#5A53A7] hover:text-white cursor-pointer flex items-center"
-                              onClick={() => {
-                                setSelectedFrom(airport);
-                                setShowFromAirports(false);
-                              }}
-                            >
-                              <div className="bg-gray-200 text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3">
-                                {airport.code}
-                              </div>
-                              <div>
-                                <div className="text-gray-800 font-medium hover:text-white">
-                                  {airport.city}
-                                </div>
-                                <div className="text-xs text-gray-600 hover:text-white/70 hidden sm:block">
-                                  {airport.name}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* To Airport */}
-                    <div className="space-y-1 relative">
-                      <label className="text-xs sm:text-sm text-white font-medium block">
-                        To
-                      </label>
-                      <div
-                        className="flex items-center p-2 rounded-lg bg-white/5 border border-white/20 hover:border-white/30 transition cursor-pointer"
-                        onClick={() => setShowToAirports(!showToAirports)}
-                      >
-                        <div className="bg-[#5A53A7] text-white rounded-full w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-xs mr-2 shrink-0">
-                          {selectedTo?.code || "CXB"}
-                        </div>
-                        <div className="truncate">
-                          <div className="text-sm sm:text-base font-medium text-white truncate">
-                            {selectedTo?.city || "Cox's Bazar"}
-                          </div>
-                          <div className="text-xs text-white/80 truncate hidden sm:block">
-                            {selectedTo?.name || "Cox's Bazar Airport"}
-                          </div>
-                        </div>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-4 w-4 ml-auto text-white/70"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </div>
-
-                      {showToAirports && (
-                        <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 max-h-60 overflow-y-auto">
-                          {bangladeshAirports.map((airport) => (
-                            <div
-                              key={airport.code}
-                              className="p-3 hover:bg-[#5A53A7] hover:text-white cursor-pointer flex items-center"
-                              onClick={() => {
-                                setSelectedTo(airport);
-                                setShowToAirports(false);
-                              }}
-                            >
-                              <div className="bg-gray-200 text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3">
-                                {airport.code}
-                              </div>
-                              <div>
-                                <div className="text-gray-800 font-medium hover:text-white">
-                                  {airport.city}
-                                </div>
-                                <div className="text-xs text-gray-600 hover:text-white/70 hidden sm:block">
-                                  {airport.name}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Departure & Return */}
-                    <div className="flex justify-between gap-3">
-                      {/* Departure Date */}
-                      <div className="space-y-1">
-                        <label className="text-xs sm:text-sm text-white font-medium block">
-                          Departure
-                        </label>
-                        <DatePicker
-                          selected={departureDate}
-                          onChange={(date) => setDepartureDate(date)}
-                          minDate={new Date()}
-                          className="w-full p-2 rounded-lg bg-white/5 border border-white/20 hover:border-white/30 text-white cursor-pointer"
-                          customInput={
-                            <div className="flex justify-between items-center">
-                              <div>
-                                <div className="text-sm sm:text-base text-white">
-                                  {format(departureDate, "d MMM, yyyy")}
-                                </div>
-                                <div className="text-xs text-white/80 hidden sm:block">
-                                  {format(departureDate, "EEEE")}
-                                </div>
-                              </div>
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-4 w-4 text-white/70"
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
+                {/* Multi City Form */}
+                {flightType === "Multi City" && (
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 p-3 sm:p-4">
+                    <div className="space-y-4">
+                      {multiCityFlights.map((flight, index) => (
+                        <div key={flight.id} className="relative">
+                          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                            {/* From Airport */}
+                            <div className="space-y-1 relative">
+                              <label className="text-xs sm:text-sm text-white font-medium block">
+                                From
+                              </label>
+                              <div
+                                className="flex items-center p-2 rounded-lg bg-white/5 border border-white/20 hover:border-white/30 transition cursor-pointer"
+                                onClick={() =>
+                                  toggleMultiCityDropdown(
+                                    flight.id,
+                                    "showFromDropdown"
+                                  )
+                                }
                               >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
+                                <div className="bg-[#5A53A7] text-white rounded-full w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-xs mr-2 shrink-0">
+                                  {flight.from.code || "---"}
+                                </div>
+                                <div className="truncate">
+                                  <div className="text-sm sm:text-base font-medium text-white truncate">
+                                    {flight.from.city || "Select City"}
+                                  </div>
+                                  <div className="text-xs text-white/80 truncate hidden sm:block">
+                                    {flight.from.name || "Select Airport"}
+                                  </div>
+                                </div>
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  className="h-4 w-4 ml-auto text-white/70"
+                                  viewBox="0 0 20 20"
+                                  fill="currentColor"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              </div>
+
+                              {flight.showFromDropdown && (
+                                <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 max-h-60 overflow-y-auto">
+                                  {bangladeshAirports.map((airport) => (
+                                    <div
+                                      key={airport.code}
+                                      className="p-3 hover:bg-[#5A53A7] hover:text-white cursor-pointer flex items-center"
+                                      onClick={() => {
+                                        updateMultiCityFlight(
+                                          flight.id,
+                                          "from",
+                                          airport
+                                        );
+                                        updateMultiCityFlight(
+                                          flight.id,
+                                          "showFromDropdown",
+                                          false
+                                        );
+                                      }}
+                                    >
+                                      <div className="bg-gray-200 text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3">
+                                        {airport.code}
+                                      </div>
+                                      <div>
+                                        <div className="text-gray-800 font-medium hover:text-white">
+                                          {airport.city}
+                                        </div>
+                                        <div className="text-xs text-gray-600 hover:text-white/70 hidden sm:block">
+                                          {airport.name}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                          }
-                        />
+
+                            {/* To Airport */}
+                            <div className="space-y-1 relative">
+                              <label className="text-xs sm:text-sm text-white font-medium block">
+                                To
+                              </label>
+                              <div
+                                className="flex items-center p-2 rounded-lg bg-white/5 border border-white/20 hover:border-white/30 transition cursor-pointer"
+                                onClick={() =>
+                                  toggleMultiCityDropdown(
+                                    flight.id,
+                                    "showToDropdown"
+                                  )
+                                }
+                              >
+                                <div className="bg-[#5A53A7] text-white rounded-full w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-xs mr-2 shrink-0">
+                                  {flight.to.code || "---"}
+                                </div>
+                                <div className="truncate">
+                                  <div className="text-sm sm:text-base font-medium text-white truncate">
+                                    {flight.to.city || "Select City"}
+                                  </div>
+                                  <div className="text-xs text-white/80 truncate hidden sm:block">
+                                    {flight.to.name || "Select Airport"}
+                                  </div>
+                                </div>
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  className="h-4 w-4 ml-auto text-white/70"
+                                  viewBox="0 0 20 20"
+                                  fill="currentColor"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              </div>
+
+                              {flight.showToDropdown && (
+                                <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 max-h-60 overflow-y-auto">
+                                  {bangladeshAirports.map((airport) => (
+                                    <div
+                                      key={airport.code}
+                                      className="p-3 hover:bg-[#5A53A7] hover:text-white cursor-pointer flex items-center"
+                                      onClick={() => {
+                                        updateMultiCityFlight(
+                                          flight.id,
+                                          "to",
+                                          airport
+                                        );
+                                        updateMultiCityFlight(
+                                          flight.id,
+                                          "showToDropdown",
+                                          false
+                                        );
+                                      }}
+                                    >
+                                      <div className="bg-gray-200 text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3">
+                                        {airport.code}
+                                      </div>
+                                      <div>
+                                        <div className="text-gray-800 font-medium hover:text-white">
+                                          {airport.city}
+                                        </div>
+                                        <div className="text-xs text-gray-600 hover:text-white/70 hidden sm:block">
+                                          {airport.name}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Departure Date */}
+                            <div className="space-y-1">
+                              <label className="text-xs sm:text-sm text-white font-medium block">
+                                Departure
+                              </label>
+                              <DatePicker
+                                selected={flight.departureDate}
+                                onChange={(date) =>
+                                  updateMultiCityFlight(
+                                    flight.id,
+                                    "departureDate",
+                                    date
+                                  )
+                                }
+                                minDate={
+                                  index === 0
+                                    ? new Date()
+                                    : multiCityFlights[index - 1]?.departureDate
+                                }
+                                className="w-full p-2 rounded-lg bg-white/5 border border-white/20 hover:border-white/30 text-white cursor-pointer"
+                                customInput={
+                                  <div className="flex justify-between items-center">
+                                    <div>
+                                      <div className="text-sm sm:text-base text-white">
+                                        {format(
+                                          flight.departureDate,
+                                          "d MMM, yyyy"
+                                        )}
+                                      </div>
+                                      <div className="text-xs text-white/80 hidden sm:block">
+                                        {format(flight.departureDate, "EEEE")}
+                                      </div>
+                                    </div>
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      className="h-4 w-4 text-white/70"
+                                      viewBox="0 0 20 20"
+                                      fill="currentColor"
+                                    >
+                                      <path
+                                        fillRule="evenodd"
+                                        d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"
+                                        clipRule="evenodd"
+                                      />
+                                    </svg>
+                                  </div>
+                                }
+                              />
+                            </div>
+
+                            {/* Remove City Button */}
+                            {multiCityFlights.length > 2 && (
+                              <div className="flex items-end">
+                                <button
+                                  onClick={() => removeCity(flight.id)}
+                                  className="p-2 rounded-lg bg-red-500/20 border border-red-300/30 hover:bg-red-500/30 transition text-red-300 hover:text-red-200"
+                                  title="Remove City"
+                                >
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-4 w-4"
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                      clipRule="evenodd"
+                                    />
+                                  </svg>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Divider line except for last item */}
+                          {index < multiCityFlights.length - 1 && (
+                            <div className="flex items-center my-3">
+                              <div className="flex-grow border-t border-white/20"></div>
+                              <div className="mx-3 text-white/60 text-xs">
+                                FLIGHT {index + 2}
+                              </div>
+                              <div className="flex-grow border-t border-white/20"></div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+
+                      {/* Add City Button */}
+                      <div className="flex justify-center pt-2">
+                        <button
+                          onClick={addNewCity}
+                          className="flex items-center px-4 py-2 rounded-lg bg-white/10 border border-white/30 hover:bg-white/20 transition text-white text-sm font-medium"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-4 w-4 mr-2"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          Add City
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Traveller & Class and Search Button */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 pt-4 border-t border-white/20">
+                      {/* Traveller & Class */}
+                      <div className="space-y-1 relative">
+                        <label className="text-xs sm:text-sm text-white font-medium block">
+                          Traveller & Class
+                        </label>
+                        <div
+                          className="flex p-2 rounded-lg bg-white/5 border border-white/20 hover:border-white/30 transition cursor-pointer"
+                          onClick={() => setShowTravellerModal(true)}
+                        >
+                          <div className="flex-1 text-center">
+                            <div className="text-sm sm:text-base text-white">
+                              {adults + children + infants}
+                            </div>
+                            <div className="text-xs text-white/80">
+                              Traveller
+                              {adults + children + infants !== 1 ? "s" : ""}
+                            </div>
+                          </div>
+                          <div className="flex-1 text-center border-l border-white/20">
+                            <div className="text-sm sm:text-base text-white">
+                              {selectedClass.split("/")[0]}
+                            </div>
+                            <div className="text-xs text-white/80">Class</div>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Return Date (only for Round Trip) */}
-                      {flightType === "Round Trip" && (
+                      {/* Search Button */}
+                      <div className="flex items-end">
+                        <button
+                          onClick={handleFlightSearch}
+                          className="w-full px-4 py-2 sm:px-6 sm:py-3 rounded-lg text-[#5A53A7] bg-white font-medium hover:bg-white/90 transition shadow-md text-sm sm:text-base"
+                        >
+                          Search Multi-City
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* One Way and Round Trip Form */}
+                {flightType !== "Multi City" && (
+                  <div className="bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 p-3 sm:p-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                      {/* From Airport */}
+                      <div className="space-y-1 relative">
+                        <label className="text-xs sm:text-sm text-white font-medium block">
+                          From
+                        </label>
+                        <div
+                          className="flex items-center p-2 rounded-lg bg-white/5 border border-white/20 hover:border-white/30 transition cursor-pointer"
+                          onClick={() => setShowFromAirports(!showFromAirports)}
+                        >
+                          <div className="bg-[#5A53A7] text-white rounded-full w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-xs mr-2 shrink-0">
+                            {selectedFrom?.code || "DAC"}
+                          </div>
+                          <div className="truncate">
+                            <div className="text-sm sm:text-base font-medium text-white truncate">
+                              {selectedFrom?.city || "Dhaka"}
+                            </div>
+                            <div className="text-xs text-white/80 truncate hidden sm:block">
+                              {selectedFrom?.name || "Shahjalal Airport"}
+                            </div>
+                          </div>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-4 w-4 ml-auto text-white/70"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        </div>
+
+                        {showFromAirports && (
+                          <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 max-h-60 overflow-y-auto">
+                            {bangladeshAirports.map((airport) => (
+                              <div
+                                key={airport.code}
+                                className="p-3 hover:bg-[#5A53A7] hover:text-white cursor-pointer flex items-center"
+                                onClick={() => {
+                                  setSelectedFrom(airport);
+                                  setShowFromAirports(false);
+                                }}
+                              >
+                                <div className="bg-gray-200 text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3">
+                                  {airport.code}
+                                </div>
+                                <div>
+                                  <div className="text-gray-800 font-medium hover:text-white">
+                                    {airport.city}
+                                  </div>
+                                  <div className="text-xs text-gray-600 hover:text-white/70 hidden sm:block">
+                                    {airport.name}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* To Airport */}
+                      <div className="space-y-1 relative">
+                        <label className="text-xs sm:text-sm text-white font-medium block">
+                          To
+                        </label>
+                        <div
+                          className="flex items-center p-2 rounded-lg bg-white/5 border border-white/20 hover:border-white/30 transition cursor-pointer"
+                          onClick={() => setShowToAirports(!showToAirports)}
+                        >
+                          <div className="bg-[#5A53A7] text-white rounded-full w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center text-xs mr-2 shrink-0">
+                            {selectedTo?.code || "CXB"}
+                          </div>
+                          <div className="truncate">
+                            <div className="text-sm sm:text-base font-medium text-white truncate">
+                              {selectedTo?.city || "Cox's Bazar"}
+                            </div>
+                            <div className="text-xs text-white/80 truncate hidden sm:block">
+                              {selectedTo?.name || "Cox's Bazar Airport"}
+                            </div>
+                          </div>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-4 w-4 ml-auto text-white/70"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        </div>
+
+                        {showToAirports && (
+                          <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 max-h-60 overflow-y-auto">
+                            {bangladeshAirports.map((airport) => (
+                              <div
+                                key={airport.code}
+                                className="p-3 hover:bg-[#5A53A7] hover:text-white cursor-pointer flex items-center"
+                                onClick={() => {
+                                  setSelectedTo(airport);
+                                  setShowToAirports(false);
+                                }}
+                              >
+                                <div className="bg-gray-200 text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3">
+                                  {airport.code}
+                                </div>
+                                <div>
+                                  <div className="text-gray-800 font-medium hover:text-white">
+                                    {airport.city}
+                                  </div>
+                                  <div className="text-xs text-gray-600 hover:text-white/70 hidden sm:block">
+                                    {airport.name}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Departure & Return */}
+                      <div className="flex justify-between gap-3">
+                        {/* Departure Date */}
                         <div className="space-y-1">
                           <label className="text-xs sm:text-sm text-white font-medium block">
-                            Return
+                            Departure
                           </label>
                           <DatePicker
-                            selected={returnDate}
-                            onChange={(date) => setReturnDate(date)}
-                            minDate={departureDate}
+                            selected={departureDate}
+                            onChange={(date) => setDepartureDate(date)}
+                            minDate={new Date()}
                             className="w-full p-2 rounded-lg bg-white/5 border border-white/20 hover:border-white/30 text-white cursor-pointer"
                             customInput={
                               <div className="flex justify-between items-center">
                                 <div>
                                   <div className="text-sm sm:text-base text-white">
-                                    {format(returnDate, "d MMM, yyyy")}
+                                    {format(departureDate, "d MMM, yyyy")}
                                   </div>
                                   <div className="text-xs text-white/80 hidden sm:block">
-                                    {format(returnDate, "EEEE")}
+                                    {format(departureDate, "EEEE")}
                                   </div>
                                 </div>
                                 <svg
@@ -649,87 +1036,126 @@ const HeroSection = () => {
                             }
                           />
                         </div>
-                      )}
-                    </div>
 
-                    {/* Traveller & Class */}
-                    <div className="space-y-1 relative">
-                      <label className="text-xs sm:text-sm text-white font-medium block">
-                        Traveller & Class
-                      </label>
-                      <div
-                        className="flex p-2 rounded-lg bg-white/5 border border-white/20 hover:border-white/30 transition cursor-pointer"
-                        onClick={() => setShowTravellerModal(true)}
-                      >
-                        <div className="flex-1 text-center">
-                          <div className="text-sm sm:text-base text-white">
-                            {adults + children + infants}
-                          </div>
-                          <div className="text-xs text-white/80">
-                            Traveller
-                            {adults + children + infants !== 1 ? "s" : ""}
-                          </div>
-                        </div>
-                        <div className="flex-1 text-center border-l border-white/20">
-                          <div className="text-sm sm:text-base text-white">
-                            {selectedClass.split("/")[0]}
-                          </div>
-                          <div className="text-xs text-white/80">Class</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                    <div className="space-y-1">
-                      <label className="text-xs sm:text-sm text-white font-medium">
-                        Fare Type
-                      </label>
-                      <div className="flex space-x-2">
-                        <button className="flex-1 flex flex-col items-center p-2 rounded-lg bg-white/5 border border-white/20 hover:border-white/30 transition">
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-4 w-4 sm:h-5 sm:w-5 mb-1 text-white"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z"
-                              clipRule="evenodd"
+                        {/* Return Date (only for Round Trip) */}
+                        {flightType === "Round Trip" && (
+                          <div className="space-y-1">
+                            <label className="text-xs sm:text-sm text-white font-medium block">
+                              Return
+                            </label>
+                            <DatePicker
+                              selected={returnDate}
+                              onChange={(date) => setReturnDate(date)}
+                              minDate={departureDate}
+                              className="w-full p-2 rounded-lg bg-white/5 border border-white/20 hover:border-white/30 text-white cursor-pointer"
+                              customInput={
+                                <div className="flex justify-between items-center">
+                                  <div>
+                                    <div className="text-sm sm:text-base text-white">
+                                      {format(returnDate, "d MMM, yyyy")}
+                                    </div>
+                                    <div className="text-xs text-white/80 hidden sm:block">
+                                      {format(returnDate, "EEEE")}
+                                    </div>
+                                  </div>
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="h-4 w-4 text-white/70"
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"
+                                      clipRule="evenodd"
+                                    />
+                                  </svg>
+                                </div>
+                              }
                             />
-                          </svg>
-                          <span className="text-xs sm:text-sm text-white">
-                            Regular
-                          </span>
-                        </button>
-                        <button className="flex-1 flex flex-col items-center p-2 rounded-lg bg-white/5 border border-white/20 hover:border-white/30 transition">
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-4 w-4 sm:h-5 sm:w-5 mb-1 text-white"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                          >
-                            <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-                          </svg>
-                          <span className="text-xs sm:text-sm text-white">
-                            Student
-                          </span>
-                        </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Traveller & Class */}
+                      <div className="space-y-1 relative">
+                        <label className="text-xs sm:text-sm text-white font-medium block">
+                          Traveller & Class
+                        </label>
+                        <div
+                          className="flex p-2 rounded-lg bg-white/5 border border-white/20 hover:border-white/30 transition cursor-pointer"
+                          onClick={() => setShowTravellerModal(true)}
+                        >
+                          <div className="flex-1 text-center">
+                            <div className="text-sm sm:text-base text-white">
+                              {adults + children + infants}
+                            </div>
+                            <div className="text-xs text-white/80">
+                              Traveller
+                              {adults + children + infants !== 1 ? "s" : ""}
+                            </div>
+                          </div>
+                          <div className="flex-1 text-center border-l border-white/20">
+                            <div className="text-sm sm:text-base text-white">
+                              {selectedClass.split("/")[0]}
+                            </div>
+                            <div className="text-xs text-white/80">Class</div>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Search Button */}
-                    <div className="flex items-end justify-end">
-                      <button
-                        onClick={handleFlightSearch}
-                        className="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 rounded-lg text-[#5A53A7] bg-white font-medium hover:bg-[#4a4791] transition shadow-md text-sm sm:text-base"
-                      >
-                        Search Flights
-                      </button>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                      <div className="space-y-1">
+                        <label className="text-xs sm:text-sm text-white font-medium">
+                          Fare Type
+                        </label>
+                        <div className="flex space-x-2">
+                          <button className="flex-1 flex flex-col items-center p-2 rounded-lg bg-white/5 border border-white/20 hover:border-white/30 transition">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-4 w-4 sm:h-5 sm:w-5 mb-1 text-white"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                            <span className="text-xs sm:text-sm text-white">
+                              Regular
+                            </span>
+                          </button>
+                          <button className="flex-1 flex flex-col items-center p-2 rounded-lg bg-white/5 border border-white/20 hover:border-white/30 transition">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-4 w-4 sm:h-5 sm:w-5 mb-1 text-white"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                            </svg>
+                            <span className="text-xs sm:text-sm text-white">
+                              Student
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Search Button */}
+                      <div className="flex items-end justify-end">
+                        <button
+                          onClick={handleFlightSearch}
+                          className="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 rounded-lg text-[#5A53A7] bg-white font-medium hover:bg-white/90 transition shadow-md text-sm sm:text-base"
+                        >
+                          Search Flights
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Traveller and Class Modal */}
                 {showTravellerModal && (
