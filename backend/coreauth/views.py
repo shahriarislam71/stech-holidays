@@ -37,6 +37,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .serializers import UserSerializer
+from django.conf import settings
 
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -47,7 +48,6 @@ class ProfileView(APIView):
         return Response(serializer.data)
 
 
-from django.conf import settings
 
 class GoogleIDTokenAdapter(GoogleOAuth2Adapter):
     def complete_login(self, request, app, token, **kwargs):

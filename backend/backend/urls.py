@@ -18,7 +18,10 @@ urlpatterns = [
 
     # Include the holidays visa app URLs
     path('api/holidays-visa/', include('holidays_visa.urls')),
+    path('api/flights/', include('flights.urls')),
+    
 ]
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+

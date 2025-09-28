@@ -50,6 +50,8 @@ INSTALLED_APPS = [
     "api",
     "coreauth",
     "holidays_visa",
+    "flights",
+    
 ]
 
 CSRF_TRUSTED_ORIGINS = [
@@ -238,4 +240,54 @@ SOCIALACCOUNT_PROVIDERS = {
         'SCOPE': ['profile', 'email'],
         'AUTH_PARAMS': {'access_type': 'online'},
     }
+}
+DUFFEL_ACCESS_TOKEN = "duffel_test_4Ery-9S_m7fcuDUdNESqhLBtmEgdkHeiGf8psfkjHfI"  # Replace with your actual Duffel access token
+# Duffel API Configuration
+DUFFEL_CONFIG = {
+    'API_KEY': DUFFEL_ACCESS_TOKEN,
+    'BASE_URL': 'https://api.duffel.com',
+    'VERSION': 'v2',
+    'DEFAULT_MARKUP': '10.00',  # €10 default markup
+    'DUFFEL_PAYMENTS_FEE_RATE': 0.029,  # 2.9%
+    'FX_MARKUP_RATE': 0.02,  # 2% FX markup
+    'TIMEOUT': 30,
+}
+
+# Balance currency (your Duffel account currency)
+BALANCE_CURRENCY = 'EUR'
+
+LOG_DIR = BASE_DIR / 'logs'
+LOG_DIR.mkdir(exist_ok=True)
+# Logging
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'payment_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs/payments.log'),
+            'maxBytes': 1024 * 1024 * 5,  # 5MB
+            'backupCount': 5,
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'payments': {
+            'handlers': ['payment_file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
 }
