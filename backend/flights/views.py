@@ -93,184 +93,224 @@ def parse_iso(dt_str):
 
 
 
+
+
+class LocationSearchView(APIView):
+    def get(self, request):
+        query = request.query_params.get("query")
+        if not query:
+            return Response({"error": "Query is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        url = f"https://api.duffel.com/places/suggestions?query={query}"
+        headers = {
+            "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Duffel-Version": "v2"
+        }
+
+        r = requests.get(url, headers=headers)
+        if r.status_code != 200:
+            return Response(
+                {"error": "Duffel API error", "details": r.json()},
+                status=r.status_code
+            )
+
+        data = r.json()
+
+        results = [
+            {
+                "id": place.get("id"),
+                "name": place.get("name"),
+                "iata_code": place.get("iata_code"),
+                "type": place.get("type"),
+                "city": place.get("city_name"),
+                "country": place.get("country_name"),
+            }
+            for place in data.get("data", [])
+        ]
+
+        return Response({"results": results}, status=status.HTTP_200_OK)
+
+
 class FlightListView(APIView):
     def post(self, request):
-            try:
-                # 1️⃣ Validate required fields
-                slices_input = request.data.get("slices")  # multicity array input
-                if not slices_input:
-                    # fallback: single origin/destination
-                    slices_input = [{
-                        "origin": request.data.get("origin"),
-                        "destination": request.data.get("destination"),
-                        "departure_date": request.data.get("departure_date")
-                    }]
+        try:
+            # 1️⃣ Validate required fields
+            slices_input = request.data.get("slices")  # multicity array input
+            if not slices_input:
+                # fallback: single origin/destination
+                slices_input = [{
+                    "origin": request.data.get("origin"),
+                    "destination": request.data.get("destination"),
+                    "departure_date": request.data.get("departure_date")
+                }]
 
-                if not isinstance(slices_input, list) or not slices_input:
+            if not isinstance(slices_input, list) or not slices_input:
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Missing slices or invalid format",
+                    "error_code": "MISSING_FIELD"
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # validate each slice
+            slices = []
+            for s in slices_input:
+                o = s.get("origin", "").upper()
+                d = s.get("destination", "").upper()
+                date = s.get("departure_date")
+                if not o or not d or not date:
                     return JsonResponse({
                         "status": "error",
-                        "message": "Missing slices or invalid format",
+                        "message": "Each slice must have origin, destination, and departure_date",
                         "error_code": "MISSING_FIELD"
                     }, status=status.HTTP_400_BAD_REQUEST)
 
-                # validate each slice
-                slices = []
-                for s in slices_input:
-                    o = s.get("origin", "").upper()
-                    d = s.get("destination", "").upper()
-                    date = s.get("departure_date")
-                    if not o or not d or not date:
-                        return JsonResponse({
-                            "status": "error",
-                            "message": "Each slice must have origin, destination, and departure_date",
-                            "error_code": "MISSING_FIELD"
-                        }, status=status.HTTP_400_BAD_REQUEST)
-
-                    if len(o) != 3 or not o.isalpha():
-                        return JsonResponse({
-                            "status": "error",
-                            "message": f"Invalid origin IATA code: {o}",
-                            "error_code": "INVALID_IATA_CODE"
-                        }, status=status.HTTP_400_BAD_REQUEST)
-
-                    if len(d) != 3 or not d.isalpha():
-                        return JsonResponse({
-                            "status": "error",
-                            "message": f"Invalid destination IATA code: {d}",
-                            "error_code": "INVALID_IATA_CODE"
-                        }, status=status.HTTP_400_BAD_REQUEST)
-
-                    slices.append({
-                        "origin": o,
-                        "destination": d,
-                        "departure_date": date
-                    })
-
-                # 2️⃣ Build passengers array
-                passengers = []
-                travelers = request.data.get("travelers", {})
-                adults_count = travelers.get("adults", 1)
-                children_count = travelers.get("children", 0)
-                infants_count = travelers.get("infants", 0)
-
-                for _ in range(adults_count):
-                    passengers.append({"type": "adult"})
-                for _ in range(children_count):
-                    passengers.append({"type": "child"})
-                for _ in range(infants_count):
-                    passengers.append({"type": "infant"})
-
-                if not passengers:
+                if len(o) != 3 or not o.isalpha():
                     return JsonResponse({
                         "status": "error",
-                        "message": "At least one passenger is required",
-                        "error_code": "NO_PASSENGERS"
+                        "message": f"Invalid origin IATA code: {o}",
+                        "error_code": "INVALID_IATA_CODE"
                     }, status=status.HTTP_400_BAD_REQUEST)
 
-                # 3️⃣ Validate cabin class and fare type
-                valid_cabins = ["economy", "premium_economy", "business", "first"]
-                cabin_class = request.data.get("cabin_class", "economy").lower()
-                if cabin_class not in valid_cabins:
-                    cabin_class = "economy"
-
-                valid_fares = ["regular", "hold"]
-                fare_type = request.data.get("fare_type", "regular").lower()
-                if fare_type not in valid_fares:
-                    fare_type = "regular"
-
-                # 4️⃣ Build Duffel request
-                search_data = {
-                    "data": {
-                        "slices": slices,
-                        "passengers": passengers,
-                        "cabin_class": cabin_class
-                    },
-                    "fare_type": fare_type
-                }
-
-                # 5️⃣ Duffel API request
-                url = "https://api.duffel.com/air/offer_requests"
-                headers = {
-                    "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}",
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                    "Duffel-Version": "v2"
-                }
-
-                response = requests.post(url, json=search_data, headers=headers, timeout=30)
-
-                if response.status_code != 201:
-                    try:
-                        error_data = response.json()
-                        error_msg = error_data.get("errors", [{}])[0].get("title", "Unknown error")
-                    except Exception:
-                        error_msg = response.text
+                if len(d) != 3 or not d.isalpha():
                     return JsonResponse({
                         "status": "error",
-                        "message": "Flight search failed",
-                        "error": f"Duffel API error: {error_msg}",
-                        "error_code": "DUFFEL_API_ERROR"
-                    }, status=response.status_code)
+                        "message": f"Invalid destination IATA code: {d}",
+                        "error_code": "INVALID_IATA_CODE"
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
-                # 6️⃣ Transform Duffel offers
-                data = response.json()
-                all_offers = data.get("data", {}).get("offers", [])
+                slices.append({
+                    "origin": o,
+                    "destination": d,
+                    "departure_date": date
+                })
 
-                if not all_offers:
-                    return JsonResponse({
-                        "status": "success",
-                        "message": "No flights found for your search criteria",
-                        "results": {
-                            "total": 0,
-                            "itineraries": []
-                        },
-                        "search": self._build_search_summary(request.data, slices, passengers),
-                        "filters": self._build_filters([]),
-                        "metadata": {
-                            "searchId": data.get("data", {}).get("id", ""),
-                            "timestamp": datetime.now().isoformat(),
-                            "resultsCount": 0
-                        }
-                    }, status=status.HTTP_200_OK)
+            # 2️⃣ Build passengers array
+            passengers = []
+            travelers = request.data.get("travelers", {})
+            adults_count = travelers.get("adults", 1)
+            children_count = travelers.get("children", 0)
+            infants_count = travelers.get("infants", 0)
 
-                itineraries = self._transform_offers(all_offers, passengers, request.data)
-                search_summary = self._build_search_summary(request.data, slices, passengers)
-                filters = self._build_filters(itineraries)
-                metadata = {
-                    "searchId": data.get("data", {}).get("id", ""),
-                    "timestamp": datetime.now().isoformat(),
-                    "resultsCount": len(itineraries)
-                }
+            for _ in range(adults_count):
+                passengers.append({"type": "adult"})
+            for _ in range(children_count):
+                passengers.append({"type": "child"})
+            for _ in range(infants_count):
+                passengers.append({"type": "infant"})
 
+            if not passengers:
+                return JsonResponse({
+                    "status": "error",
+                    "message": "At least one passenger is required",
+                    "error_code": "NO_PASSENGERS"
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # 3️⃣ Validate cabin class and fare type
+            valid_cabins = ["economy", "premium_economy", "business", "first"]
+            cabin_class = request.data.get("cabin_class", "economy").lower()
+            if cabin_class not in valid_cabins:
+                cabin_class = "economy"
+
+            valid_fares = ["regular", "hold"]
+            fare_type = request.data.get("fare_type", "regular").lower()
+            if fare_type not in valid_fares:
+                fare_type = "regular"
+
+            # 4️⃣ Build Duffel request
+            search_data = {
+                "data": {
+                    "slices": slices,
+                    "passengers": passengers,
+                    "cabin_class": cabin_class
+                },
+                "fare_type": fare_type
+            }
+
+            # 5️⃣ Duffel API request
+            url = "https://api.duffel.com/air/offer_requests"
+            headers = {
+                "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Duffel-Version": "v2"
+            }
+
+            response = requests.post(url, json=search_data, headers=headers, timeout=30)
+
+            if response.status_code != 201:
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("errors", [{}])[0].get("title", "Unknown error")
+                except Exception:
+                    error_msg = response.text
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Flight search failed",
+                    "error": f"Duffel API error: {error_msg}",
+                    "error_code": "DUFFEL_API_ERROR"
+                }, status=response.status_code)
+
+            # 6️⃣ Transform Duffel offers
+            data = response.json()
+            all_offers = data.get("data", {}).get("offers", [])
+
+            if not all_offers:
                 return JsonResponse({
                     "status": "success",
-                    "message": f"Found {len(itineraries)} flight options",
-                    "search": search_summary,
+                    "message": "No flights found for your search criteria",
                     "results": {
-                        "total": len(itineraries),
-                        "sorting": "price_low_to_high",
-                        "itineraries": itineraries
+                        "total": 0,
+                        "itineraries": []
                     },
-                    "filters": filters,
-                    "metadata": metadata
+                    "search": self._build_search_summary(request.data, slices, passengers),
+                    "filters": self._build_filters([]),
+                    "metadata": {
+                        "searchId": data.get("data", {}).get("id", ""),
+                        "timestamp": datetime.now().isoformat(),
+                        "resultsCount": 0
+                    }
                 }, status=status.HTTP_200_OK)
 
-            except requests.exceptions.Timeout:
-                return JsonResponse({
-                    "status": "error",
-                    "message": "Flight search timeout",
-                    "error": "Request to flight provider timed out",
-                    "error_code": "TIMEOUT_ERROR"
-                }, status=status.HTTP_504_GATEWAY_TIMEOUT)
+            itineraries = self._transform_offers(all_offers, passengers, request.data)
+            search_summary = self._build_search_summary(request.data, slices, passengers)
+            filters = self._build_filters(itineraries)
+            metadata = {
+                "searchId": data.get("data", {}).get("id", ""),
+                "timestamp": datetime.now().isoformat(),
+                "resultsCount": len(itineraries)
+            }
 
-            except Exception as e:
-                return JsonResponse({
-                    "status": "error",
-                    "message": "Failed to search flights",
-                    "error": str(e),
-                    "error_code": "INTERNAL_SERVER_ERROR"
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        # ================== Keep all your existing helper methods intact ==================
+            return JsonResponse({
+                "status": "success",
+                "message": f"Found {len(itineraries)} flight options",
+                "search": search_summary,
+                "results": {
+                    "total": len(itineraries),
+                    "sorting": "price_low_to_high",
+                    "itineraries": itineraries
+                },
+                "filters": filters,
+                "metadata": metadata
+            }, status=status.HTTP_200_OK)
+
+        except requests.exceptions.Timeout:
+            return JsonResponse({
+                "status": "error",
+                "message": "Flight search timeout",
+                "error": "Request to flight provider timed out",
+                "error_code": "TIMEOUT_ERROR"
+            }, status=status.HTTP_504_GATEWAY_TIMEOUT)
+
+        except Exception as e:
+            return JsonResponse({
+                "status": "error",
+                "message": "Failed to search flights",
+                "error": str(e),
+                "error_code": "INTERNAL_SERVER_ERROR"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    # ================== Keep all your existing helper methods intact ==================
 
     def _transform_offers(self, offers, passengers, request_data):
         itineraries = []
@@ -297,6 +337,9 @@ class FlightListView(APIView):
                         marketing_carrier = segment.get("marketing_carrier", {})
                         airline_name = operating_carrier.get("name") or marketing_carrier.get("name") or "Unknown Airline"
                         flight_number = f"{marketing_carrier.get('iata_code', '')}{segment.get('marketing_carrier_flight_number', '')}"
+                        # ✅ Add airline logo
+                        airline_logo = operating_carrier.get("logo_lockup_url") or marketing_carrier.get("logo_lockup_url") or ""
+
                         segments.append({
                             "airline": airline_name,
                             "flightNumber": flight_number,
@@ -312,7 +355,8 @@ class FlightListView(APIView):
                                 "airportCode": segment.get("destination", {}).get("iata_code", ""),
                                 "airportName": segment.get("destination", {}).get("name", "")
                             },
-                            "layover": False
+                            "layover": False,
+                            "airlineLogo": airline_logo  # 👈 Added field
                         })
 
                 total_duration = self._minutes_to_duration_string(total_duration_minutes)
@@ -485,7 +529,6 @@ class FlightListView(APIView):
         }
     def _build_metadata(self, duffel_data, itineraries):
         return {"searchId": duffel_data.get("data", {}).get("id",""),"timestamp":datetime.now().isoformat(),"resultsCount":len(itineraries)}
-
 
 
 class FlightDetailsView(APIView):

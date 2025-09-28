@@ -6,6 +6,10 @@ from .views import *
 router = DefaultRouter()
 
 urlpatterns = [
+    
+    # Search airports by query - MAIN ENDPOINT FOR FRONTEND
+    path("locations/", LocationSearchView.as_view(), name="location-search"),
+
     # Step 1: Search flights
     path('search/', views.FlightListView.as_view(), name='flight_list'),
 
