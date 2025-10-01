@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "coreauth",
     "holidays_visa",
     "flights",
+    "hotels",
     
 ]
 
