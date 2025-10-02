@@ -1,11 +1,24 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from django.urls import path
 from . import views
-from .views import *
-
-router = DefaultRouter()
 
 urlpatterns = [
-    # Step 1: Search flights
-    path('search/', views.AccommodationSearchView.as_view(), name='flight_list'),
+    # Step 1: Search accommodations
+    path('search/', views.AccommodationSearchView.as_view(), name='accommodation-search'),
+    
+    # Step 2: Get hotel offers/rooms
+    path('offers/<str:search_result_id>/', views.HotelOffersView.as_view(), name='hotel-offers'),
+    
+    # Step 3: Create quote
+    path('quotes/', views.CreateQuoteView.as_view(), name='create-quote'),
+    
+    # Step 4: Create booking
+    path('bookings/', views.CreateBookingView.as_view(), name='create-booking'),
+    
+    # Step 5: Confirm payment
+    path('bookings/confirm-payment/', views.ConfirmBookingPaymentView.as_view(), name='confirm-booking-payment'),
+    
+    # Additional booking management endpoints
+    path('bookings/<str:booking_id>/', views.GetBookingView.as_view(), name='get-booking'),
+    path('bookings/<str:booking_id>/cancel/', views.CancelBookingView.as_view(), name='cancel-booking'),
+    path('bookings/', views.ListBookingsView.as_view(), name='list-bookings'),
 ]

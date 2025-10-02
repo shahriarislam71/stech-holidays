@@ -1,5 +1,6 @@
 from rest_framework.views import APIView
-from rest_framework.response import Response
+from rest_framework.response import Response 
+from rest_framework.permissions import AllowAny
 from rest_framework import status
 import requests
 from django.conf import settings
@@ -10,36 +11,36 @@ import json
 logger = logging.getLogger(__name__)
 
 class AccommodationSearchView(APIView):
+    """
+    Step 1: Search for accommodations
+    """
+    permission_classes = [AllowAny]
+    
     def post(self, request):
         try:
-            # ==================== DEBUG 1: INCOMING REQUEST ====================
-            logger.info("🔍 [DEBUG 1] Starting accommodation search request")
-            logger.info(f"📥 [DEBUG 1] Raw request data: {request.data}")
-            # ==================== END DEBUG 1 ====================
-
-            # 1️⃣ Validate required fields
+            logger.info("🔍 Starting accommodation search")
+            
+            # Validate required fields
             check_in_date = request.data.get("check_in_date")
             check_out_date = request.data.get("check_out_date")
             
             if not check_in_date or not check_out_date:
                 return Response({
                     "status": "error",
-                    "message": "Missing check_in_date or check_out_date",
-                    "error_code": "MISSING_FIELD"
+                    "message": "check_in_date and check_out_date are required"
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # 2️⃣ Validate location or accommodation
+            # Validate location or accommodation
             location = request.data.get("location")
             accommodation = request.data.get("accommodation")
             
             if not location and not accommodation:
                 return Response({
                     "status": "error", 
-                    "message": "Either location or accommodation must be provided",
-                    "error_code": "MISSING_FIELD"
+                    "message": "Either location or accommodation must be provided"
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # 3️⃣ Build guests array
+            # Build guests array
             guests = []
             travelers = request.data.get("travelers", {})
             adults_count = travelers.get("adults", 1)
@@ -57,27 +58,18 @@ class AccommodationSearchView(APIView):
             if not guests:
                 return Response({
                     "status": "error",
-                    "message": "At least one guest is required",
-                    "error_code": "NO_GUESTS"
+                    "message": "At least one guest is required"
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # 4️⃣ Validate other parameters
-            rooms = request.data.get("rooms", 1)
-            if rooms < 1:
-                rooms = 1
-            
-            free_cancellation_only = request.data.get("free_cancellation_only", False)
-            mobile = request.data.get("mobile", False)
-            
-            # 5️⃣ Build Duffel request
+            # Build Duffel request
             search_data = {
                 "data": {
                     "check_in_date": check_in_date,
                     "check_out_date": check_out_date,
                     "guests": guests,
-                    "rooms": rooms,
-                    "free_cancellation_only": free_cancellation_only,
-                    "mobile": mobile
+                    "rooms": request.data.get("rooms", 1),
+                    "free_cancellation_only": request.data.get("free_cancellation_only", False),
+                    "mobile": request.data.get("mobile", False)
                 }
             }
             
@@ -86,8 +78,7 @@ class AccommodationSearchView(APIView):
                 if not location.get("geographic_coordinates"):
                     return Response({
                         "status": "error",
-                        "message": "Location must contain geographic_coordinates",
-                        "error_code": "INVALID_LOCATION"
+                        "message": "Location must contain geographic_coordinates"
                     }, status=status.HTTP_400_BAD_REQUEST)
                 
                 try:
@@ -101,23 +92,20 @@ class AccommodationSearchView(APIView):
                 except (KeyError, ValueError, TypeError) as e:
                     return Response({
                         "status": "error",
-                        "message": "Invalid geographic coordinates format",
-                        "error": str(e),
-                        "error_code": "INVALID_COORDINATES"
+                        "message": "Invalid geographic coordinates format"
                     }, status=status.HTTP_400_BAD_REQUEST)
             else:
                 if not accommodation.get("id"):
                     return Response({
                         "status": "error",
-                        "message": "Accommodation must contain id",
-                        "error_code": "INVALID_ACCOMMODATION"
+                        "message": "Accommodation must contain id"
                     }, status=status.HTTP_400_BAD_REQUEST)
                 
                 search_data["data"]["accommodation"] = {
                     "id": accommodation["id"]
                 }
             
-            # 6️⃣ Duffel API request
+            # Duffel API request
             url = "https://api.duffel.com/stays/search"
             headers = {
                 "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}",
@@ -133,477 +121,533 @@ class AccommodationSearchView(APIView):
                 response = requests.post(url, json=search_data, headers=headers, timeout=30)
                 logger.info(f"📊 Duffel API response status: {response.status_code}")
                 
-                # ✅ FIX: Duffel returns 201 (Created) for successful searches, not 200
-                if response.status_code in [200, 201]:  # Accept both 200 and 201 as success
-                    # Parse the successful response
+                if response.status_code in [200, 201]:
                     data = response.json()
                     all_results = data.get("data", {}).get("results", [])
                     
-                    logger.info(f"✅ SUCCESS! Found {len(all_results)} accommodations from Duffel")
+                    logger.info(f"✅ SUCCESS! Found {len(all_results)} accommodations")
                     
                     if not all_results:
                         return Response({
                             "status": "success",
-                            "message": "No accommodations found for your search criteria",
-                            "results": {
-                                "total": 0,
-                                "accommodations": []
-                            },
-                            "search": self._build_search_summary(request.data, guests),
-                            "filters": self._build_filters([]),
-                            "metadata": {
-                                "searchId": data.get("data", {}).get("id", ""),
-                                "timestamp": datetime.now().isoformat(),
-                                "resultsCount": 0
-                            }
+                            "message": "No accommodations found",
+                            "results": []
                         }, status=status.HTTP_200_OK)
                     
-                    # Transform and return successful results
-                    accommodations = self._transform_results(all_results, guests, request.data)
-                    search_summary = self._build_search_summary(request.data, guests)
-                    filters = self._build_filters(accommodations)
-                    metadata = {
-                        "searchId": data.get("data", {}).get("id", ""),
-                        "timestamp": datetime.now().isoformat(),
-                        "resultsCount": len(accommodations)
-                    }
+                    # Transform results
+                    accommodations = []
+                    for result in all_results:
+                        try:
+                            accommodation_data = result.get("accommodation", {})
+                            location_data = accommodation_data.get("location", {})
+                            address_data = location_data.get("address", {})
+                            
+                            accommodation_obj = {
+                                "search_result_id": result.get("id"),
+                                "accommodation_id": accommodation_data.get("id"),
+                                "name": accommodation_data.get("name"),
+                                "description": accommodation_data.get("description"),
+                                "rating": accommodation_data.get("rating"),
+                                "review_score": accommodation_data.get("review_score"),
+                                "review_count": accommodation_data.get("review_count"),
+                                "location": {
+                                    "address": {
+                                        "line_one": address_data.get("line_one"),
+                                        "city_name": address_data.get("city_name"),
+                                        "region": address_data.get("region"),
+                                        "country_code": address_data.get("country_code"),
+                                        "postal_code": address_data.get("postal_code")
+                                    },
+                                    "coordinates": {
+                                        "latitude": location_data.get("geographic_coordinates", {}).get("latitude"),
+                                        "longitude": location_data.get("geographic_coordinates", {}).get("longitude")
+                                    }
+                                },
+                                "photos": [{"url": photo.get("url")} for photo in accommodation_data.get("photos", [])],
+                                "amenities": [
+                                    {
+                                        "type": amenity.get("type"),
+                                        "description": amenity.get("description", "")
+                                    } for amenity in accommodation_data.get("amenities", [])
+                                ],
+                                "pricing": {
+                                    "total_amount": float(result.get("cheapest_rate_total_amount", 0)),
+                                    "currency": result.get("cheapest_rate_currency", "GBP"),
+                                    "public_amount": result.get("cheapest_rate_public_amount"),
+                                    "due_at_accommodation_amount": result.get("cheapest_rate_due_at_accommodation_amount")
+                                },
+                                "check_in_info": accommodation_data.get("check_in_information", {})
+                            }
+                            accommodations.append(accommodation_obj)
+                            
+                        except Exception as e:
+                            logger.error(f"Error processing accommodation: {str(e)}")
+                            continue
                     
-                    logger.info(f"🎉 Returning {len(accommodations)} processed accommodations")
+                    # Sort by price
+                    accommodations.sort(key=lambda x: x.get("pricing", {}).get("total_amount", 0))
                     
                     return Response({
                         "status": "success",
-                        "message": f"Found {len(accommodations)} accommodation options",
-                        "search": search_summary,
-                        "results": {
-                            "total": len(accommodations),
-                            "sorting": "price_low_to_high",
-                            "accommodations": accommodations
-                        },
-                        "filters": filters,
-                        "metadata": metadata
+                        "message": f"Found {len(accommodations)} accommodations",
+                        "search_id": data.get("data", {}).get("id", ""),
+                        "results": accommodations
                     }, status=status.HTTP_200_OK)
                 
                 else:
-                    # Handle actual API errors
-                    try:
-                        error_data = response.json()
-                        error_msg = error_data.get("errors", [{}])[0].get("title", "Unknown error")
-                        error_detail = error_data.get("errors", [{}])[0].get("detail", "")
-                    except Exception:
-                        error_msg = response.text or "Unknown error"
+                    error_data = response.json()
+                    error_msg = error_data.get("errors", [{}])[0].get("title", "Unknown error")
                     
                     logger.error(f"❌ Duffel API error {response.status_code}: {error_msg}")
                     
                     return Response({
                         "status": "error",
-                        "message": "Accommodation search failed",
-                        "error": f"Duffel API error: {error_msg}",
-                        "error_detail": error_detail,
-                        "error_code": "DUFFEL_API_ERROR"
+                        "message": "Search failed",
+                        "error": error_msg
                     }, status=response.status_code)
                 
             except requests.exceptions.Timeout:
                 logger.error("⏰ Duffel API request timeout")
                 return Response({
                     "status": "error",
-                    "message": "Accommodation search timeout",
-                    "error": "Request to accommodation provider timed out",
-                    "error_code": "TIMEOUT_ERROR"
+                    "message": "Search timeout"
                 }, status=status.HTTP_504_GATEWAY_TIMEOUT)
                 
             except Exception as e:
                 logger.error(f"🌐 Request error: {str(e)}")
                 return Response({
                     "status": "error",
-                    "message": "Network error",
-                    "error": str(e),
-                    "error_code": "NETWORK_ERROR"
+                    "message": "Network error"
                 }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             
         except Exception as e:
             logger.error(f"💥 Unexpected error: {str(e)}")
             return Response({
                 "status": "error",
-                "message": "Failed to search accommodations",
-                "error": str(e),
-                "error_code": "INTERNAL_SERVER_ERROR"
+                "message": "Internal server error"
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    def _transform_results(self, results, guests, request_data):
-        accommodations = []
-        for result in results:
-            try:
-                search_result_id = result.get("id")
-                accommodation_data = result.get("accommodation", {})
-                location_data = accommodation_data.get("location", {})
-                address_data = location_data.get("address", {})
-                
-                # ==================== REQUIRED PRICING FIELDS ====================
-                total_amount = float(result.get("cheapest_rate_total_amount", 0))
-                currency = result.get("cheapest_rate_currency", "GBP")
-                public_amount = result.get("cheapest_rate_public_amount")
-                due_at_accommodation_amount = result.get("cheapest_rate_due_at_accommodation_amount")
-                base_amount = result.get("cheapest_rate_base_amount")
-                # ==================== END REQUIRED PRICING FIELDS ====================
-                
-                # ==================== REQUIRED ROOM INFORMATION ====================
-                rooms_data = accommodation_data.get("rooms", [])
-                available_rooms = self._extract_room_info(rooms_data)
-                # ==================== END REQUIRED ROOM INFORMATION ====================
-                
-                # ==================== REQUIRED AMENITIES ====================
-                amenities = []
-                for amenity in accommodation_data.get("amenities", []):
-                    amenities.append({
-                        "type": amenity.get("type"),
-                        "description": amenity.get("description", "")
-                    })
-                # ==================== END REQUIRED AMENITIES ====================
-                
-                # ==================== REQUIRED PHOTOS ====================
-                photos = []
-                for photo in accommodation_data.get("photos", []):
-                    photos.append({
-                        "url": photo.get("url")
-                    })
-                # ==================== END REQUIRED PHOTOS ====================
-                
-                # ==================== REQUIRED CHECK-IN INFORMATION ====================
-                check_in_info = accommodation_data.get("check_in_information", {})
-                # ==================== END REQUIRED CHECK-IN INFORMATION ====================
-                
-                # ==================== REQUIRED NEGOTIATED RATES ====================
-                negotiated_rates = []
-                for rate in result.get("supported_negotiated_rates", []):
-                    negotiated_rates.append({
-                        "id": rate.get("id"),
-                        "display_name": rate.get("display_name")
-                    })
-                # ==================== END REQUIRED NEGOTIATED RATES ====================
-                
-                # ==================== BUILD THE COMPLETE ACCOMMODATION OBJECT ====================
-                accommodation = {
-                    # ==================== SEARCH RESULT IDENTIFIERS ====================
-                    "id": search_result_id,
-                    "accommodationId": accommodation_data.get("id"),
-                    
-                    # ==================== BASIC INFORMATION ====================
-                    "name": accommodation_data.get("name"),
-                    "description": accommodation_data.get("description"),
-                    "chain": accommodation_data.get("chain", {}).get("name"),
-                    "brand": {
-                        "name": accommodation_data.get("brand", {}).get("name"),
-                        "id": accommodation_data.get("brand", {}).get("id")
-                    },
-                    
-                    # ==================== PRICING INFORMATION (REQUIRED) ====================
-                    "pricing": {
-                        "totalAmount": total_amount,
-                        "currency": currency,
-                        "totalDisplay": f"{currency} {total_amount:.2f}",
-                        "publicAmount": public_amount,
-                        "dueAtAccommodationAmount": due_at_accommodation_amount,
-                        "baseAmount": base_amount,
-                        "baseCurrency": result.get("cheapest_rate_base_currency"),
-                        "publicCurrency": result.get("cheapest_rate_public_currency"),
-                        "dueAtAccommodationCurrency": result.get("cheapest_rate_due_at_accommodation_currency")
-                    },
-                    
-                    # ==================== LOCATION INFORMATION (REQUIRED) ====================
-                    "location": {
-                        "address": {
-                            "lineOne": address_data.get("line_one"),
-                            "cityName": address_data.get("city_name"),
-                            "region": address_data.get("region"),
-                            "countryCode": address_data.get("country_code"),
-                            "postalCode": address_data.get("postal_code")
-                        },
-                        "coordinates": {
-                            "latitude": location_data.get("geographic_coordinates", {}).get("latitude"),
-                            "longitude": location_data.get("geographic_coordinates", {}).get("longitude")
-                        },
-                        "fullAddress": f"{address_data.get('line_one', '')}, {address_data.get('city_name', '')}, {address_data.get('region', '')}, {address_data.get('country_code', '')}"
-                    },
-                    
-                    # ==================== RATING INFORMATION (REQUIRED) ====================
-                    "rating": {
-                        "score": accommodation_data.get("review_score"),
-                        "count": accommodation_data.get("review_count"),
-                        "starRating": accommodation_data.get("rating")
-                    },
-                    
-                    # ==================== CONTACT INFORMATION ====================
-                    "contact": {
-                        "phone": accommodation_data.get("phone_number"),
-                        "email": accommodation_data.get("email")
-                    },
-                    
-                    # ==================== CHECK-IN INFORMATION (REQUIRED) ====================
-                    "checkInInfo": {
-                        "checkInAfterTime": check_in_info.get("check_in_after_time"),
-                        "checkInBeforeTime": check_in_info.get("check_in_before_time"),
-                        "checkOutBeforeTime": check_in_info.get("check_out_before_time")
-                    },
-                    
-                    # ==================== KEY COLLECTION ====================
-                    "keyCollection": accommodation_data.get("key_collection", {}),
-                    
-                    # ==================== AMENITIES (REQUIRED) ====================
-                    "amenities": amenities,
-                    
-                    # ==================== PHOTOS (REQUIRED) ====================
-                    "photos": photos,
-                    
-                    # ==================== ROOMS (REQUIRED) ====================
-                    "rooms": available_rooms,
-                    
-                    # ==================== FEATURES AND SUPPORT ====================
-                    "features": {
-                        "negotiatedRates": negotiated_rates,
-                        "loyaltyProgramme": accommodation_data.get("supported_loyalty_programme"),
-                        "paymentInstructionsSupported": accommodation_data.get("payment_instruction_supported", False)
-                    },
-                    
-                    # ==================== SEARCH METADATA ====================
-                    "searchDetails": {
-                        "checkInDate": result.get("check_in_date"),
-                        "checkOutDate": result.get("check_out_date"),
-                        "guests": guests,  # Keep original guest structure
-                        "rooms": result.get("rooms", 1),
-                        "totalGuests": len(guests)
-                    },
-                    
-                    # ==================== TIMESTAMP ====================
-                    "createdAt": result.get("created_at")
-                }
-                
-                accommodations.append(accommodation)
-                
-            except Exception as e:
-                logger.error(f"Error processing accommodation result {result.get('id')}: {str(e)}")
-                continue
-        
-        # Sort by price low to high
-        accommodations.sort(key=lambda x: x.get("pricing", {}).get("totalAmount", 0))
-        return accommodations
-
-    def _extract_room_info(self, rooms_data):
-        rooms = []
-        for room in rooms_data:
-            try:
-                room_info = {
-                    "name": room.get("name"),
-                    "beds": room.get("beds", []),
-                    "photos": [{"url": photo.get("url")} for photo in room.get("photos", [])],
-                    "rates": []
-                }
-                
-                # Extract rate information with all required fields
-                for rate in room.get("rates", []):
-                    rate_info = {
-                        # ==================== RATE IDENTIFIERS ====================
-                        "id": rate.get("id"),
-                        "code": rate.get("code"),
-                        "negotiatedRateId": rate.get("negotiated_rate_id"),
-                        
-                        # ==================== PRICING BREAKDOWN ====================
-                        "pricing": {
-                            "totalAmount": rate.get("total_amount"),
-                            "totalCurrency": rate.get("total_currency"),
-                            "publicAmount": rate.get("public_amount"),
-                            "publicCurrency": rate.get("public_currency"),
-                            "dueAtAccommodationAmount": rate.get("due_at_accommodation_amount"),
-                            "dueAtAccommodationCurrency": rate.get("due_at_accommodation_currency"),
-                            "baseAmount": rate.get("base_amount"),
-                            "baseCurrency": rate.get("base_currency"),
-                            "taxAmount": rate.get("tax_amount"),
-                            "taxCurrency": rate.get("tax_currency"),
-                            "feeAmount": rate.get("fee_amount"),
-                            "feeCurrency": rate.get("fee_currency")
-                        },
-                        
-                        # ==================== RATE DETAILS ====================
-                        "paymentType": rate.get("payment_type"),
-                        "boardType": rate.get("board_type"),
-                        "quantityAvailable": rate.get("quantity_available"),
-                        "loyaltyProgrammeRequired": rate.get("loyalty_programme_required", False),
-                        "supportedLoyaltyProgramme": rate.get("supported_loyalty_programme"),
-                        
-                        # ==================== DEAL TYPES ====================
-                        "dealTypes": rate.get("deal_types", []),
-                        
-                        # ==================== PAYMENT METHODS ====================
-                        "availablePaymentMethods": rate.get("available_payment_methods", []),
-                        
-                        # ==================== CANCELLATION POLICY ====================
-                        "cancellationTimeline": rate.get("cancellation_timeline", []),
-                        
-                        # ==================== CONDITIONS ====================
-                        "conditions": rate.get("conditions", [])
-                    }
-                    room_info["rates"].append(rate_info)
-                
-                rooms.append(room_info)
-            except Exception as e:
-                logger.error(f"Error processing room: {str(e)}")
-                continue
-        
-        return rooms
 
 
+class HotelOffersView(APIView):
+    """
+    Step 2: Get detailed offers/rooms for a specific search result
+    """
+    permission_classes = [AllowAny]
 
-    def _build_search_summary(self, request_data, guests):
-        travelers = request_data.get("travelers", {})
-        location = request_data.get("location")
-        accommodation = request_data.get("accommodation")
-        
-        search_type = "location" if location else "accommodation"
-        search_target = location if location else accommodation
-        
-        return {
-            "dates": {
-                "checkIn": request_data.get("check_in_date"),
-                "checkOut": request_data.get("check_out_date"),
-                "nights": self._calculate_nights(request_data.get("check_in_date"), request_data.get("check_out_date"))
-            },
-            "searchType": search_type,
-            "searchTarget": search_target,
-            "occupancy": {
-                "adults": travelers.get("adults", 1),
-                "children": len(travelers.get("children_ages", [])),
-                "totalGuests": len(guests),
-                "rooms": request_data.get("rooms", 1)
-            },
-            "preferences": {
-                "freeCancellationOnly": request_data.get("free_cancellation_only", False),
-                "mobile": request_data.get("mobile", False)
-            }
+    def get(self, request, search_result_id):
+        url = f"https://api.duffel.com/stays/search_results/{search_result_id}/actions/fetch_all_rates"
+        headers = {
+            "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}",
+            "Duffel-Version": "v2",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Accept-Encoding": "gzip"
         }
-    
-    def _calculate_nights(self, check_in, check_out):
+
         try:
-            check_in_date = datetime.strptime(check_in, "%Y-%m-%d")
-            check_out_date = datetime.strptime(check_out, "%Y-%m-%d")
-            return (check_out_date - check_in_date).days
-        except:
-            return 0
-    
-    def _build_filters(self, accommodations):
-        if not accommodations:
-            return {
-                "priceRange": {"min": 0, "max": 0, "currency": "GBP"},
-                "ratings": [],
-                "amenities": [],
-                "chains": [],
-                "starRatings": [1, 2, 3, 4, 5]
-            }
-        
-        # ✅ FIX: Pull price from the nested pricing dict
-        prices = [
-            acc["pricing"]["totalAmount"]
-            for acc in accommodations
-            if acc.get("pricing") and acc["pricing"].get("totalAmount") is not None
-        ]
-        if not prices:
-            prices = [0]
+            response = requests.post(url, headers=headers, timeout=30)
+            data = response.json()
 
-        # ✅ FIX: Get currency from the first accommodation's pricing
-        currency = (
-            accommodations[0].get("pricing", {}).get("currency", "GBP")
-            if accommodations else "GBP"
-        )
-        
-        # ✅ Ratings (rounding where possible)
-        ratings = set()
-        for acc in accommodations:
-            rating_score = acc.get("rating", {}).get("score")
-            if rating_score:
-                try:
-                    ratings.add(round(float(rating_score)))
-                except (ValueError, TypeError):
-                    continue
-        
-        # ✅ Amenities (flatten amenity descriptions instead of dicts)
-        amenities = set()
-        for acc in accommodations:
-            for amenity in acc.get("amenities", []):
-                desc = amenity.get("description")
-                if desc:
-                    amenities.add(desc)
-        
-        # ✅ Chains
-        chains = set()
-        for acc in accommodations:
-            chain = acc.get("chain")
-            if chain:
-                chains.add(chain)
-        
-        # ✅ Star ratings
-        star_ratings = set()
-        for acc in accommodations:
-            star_rating = acc.get("rating", {}).get("starRating")
-            if star_rating:
-                try:
-                    star_ratings.add(int(star_rating))
-                except (ValueError, TypeError):
-                    continue
-        
-        return {
-            "priceRange": {
-                "min": min(prices),
-                "max": max(prices),
-                "currency": currency
-            },
-            "ratings": sorted(list(ratings)),
-            "amenities": sorted(list(amenities)),
-            "chains": sorted(list(chains)),
-            "starRatings": sorted(list(star_ratings)) if star_ratings else [1, 2, 3, 4, 5]
+            if response.status_code != 200:
+                return Response(
+                    {"status": "error", "message": "Failed to fetch offers", "details": data},
+                    status=response.status_code
+                )
+
+            hotel_info = data.get("data", {})
+            accommodation = hotel_info.get("accommodation", {})
+            rooms = accommodation.get("rooms", [])
+
+            room_offers = []
+            for room in rooms:
+                for rate in room.get("rates", []):
+                    room_offers.append({
+                        "rate_id": rate.get("id"),
+                        "room_name": room.get("name"),
+                        "beds": room.get("beds", []),
+                        "board_type": rate.get("board_type"),
+                        "total_amount": rate.get("total_amount"),
+                        "currency": rate.get("total_currency"),
+                        "due_at_accommodation_amount": rate.get("due_at_accommodation_amount"),
+                        "payment_type": rate.get("payment_type"),
+                        "cancellation_timeline": rate.get("cancellation_timeline", []),
+                        "conditions": rate.get("conditions", []),
+                        "available_payment_methods": rate.get("available_payment_methods", []),
+                        "quantity_available": rate.get("quantity_available")
+                    })
+
+            return Response({
+                "status": "success",
+                "hotel": {
+                    "name": accommodation.get("name"),
+                    "description": accommodation.get("description"),
+                    "rating": accommodation.get("rating"),
+                    "review_score": accommodation.get("review_score"),
+                    "review_count": accommodation.get("review_count"),
+                    "location": accommodation.get("location"),
+                    "photos": accommodation.get("photos", []),
+                    "amenities": accommodation.get("amenities", [])
+                },
+                "room_offers": room_offers
+            }, status=status.HTTP_200_OK)
+
+        except requests.exceptions.RequestException as e:
+            return Response(
+                {"status": "error", "message": "Request failed", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        except Exception as e:
+            return Response(
+                {"status": "error", "message": "Unexpected error", "details": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class CreateQuoteView(APIView):
+    """
+    Step 3: Create a quote from a rate ID
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        rate_id = request.data.get("rate_id")
+        if not rate_id:
+            return Response({
+                "status": "error", 
+                "message": "rate_id is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        url = "https://api.duffel.com/stays/quotes"
+        headers = {
+            "Accept-Encoding": "gzip",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Duffel-Version": "v2",
+            "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}"
+        }
+        payload = {
+            "data": {
+                "rate_id": rate_id
+            }
         }
 
-        if not accommodations:
-            return {
-                "priceRange": {"min": 0, "max": 0, "currency": "GBP"},
-                "ratings": [],
-                "amenities": [],
-                "chains": [],
-                "starRatings": [1, 2, 3, 4, 5]
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            
+            if response.status_code == 201:
+                data = response.json()
+                return Response({
+                    "status": "success",
+                    "quote": data.get("data", {})
+                }, status=status.HTTP_201_CREATED)
+            else:
+                error_data = response.json()
+                return Response({
+                    "status": "error",
+                    "message": "Failed to create quote",
+                    "details": error_data
+                }, status=response.status_code)
+                
+        except requests.exceptions.RequestException as e:
+            return Response({
+                "status": "error",
+                "message": "Request failed",
+                "details": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CreateBookingView(APIView):
+    """
+    Step 4: Create a booking from a quote
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        # Extract booking data
+        quote_id = request.data.get("quote_id")
+        guests = request.data.get("guests", [])
+        email = request.data.get("email")
+        phone_number = request.data.get("phone_number")
+        
+        # Validate required fields
+        if not quote_id:
+            return Response({
+                "status": "error",
+                "message": "quote_id is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not guests:
+            return Response({
+                "status": "error",
+                "message": "At least one guest is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not email:
+            return Response({
+                "status": "error",
+                "message": "email is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not phone_number:
+            return Response({
+                "status": "error",
+                "message": "phone_number is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Build booking payload
+        booking_data = {
+            "data": {
+                "quote_id": quote_id,
+                "guests": guests,
+                "email": email,
+                "phone_number": phone_number
             }
-        
-        # Price range
-        prices = [acc["priceAmount"] for acc in accommodations]
-        currency = accommodations[0]["currency"] if accommodations else "GBP"
-        
-        # Ratings
-        ratings = set()
-        for acc in accommodations:
-            if acc["rating"]["score"]:
-                ratings.add(round(acc["rating"]["score"]))
-        
-        # Amenities
-        amenities = set()
-        for acc in accommodations:
-            for amenity in acc["amenities"]:
-                amenities.add(amenity)
-        
-        # Chains
-        chains = set()
-        for acc in accommodations:
-            if acc["chain"]:
-                chains.add(acc["chain"])
-        
-        # Star ratings
-        star_ratings = set()
-        for acc in accommodations:
-            if acc["rating"]["starRating"]:
-                star_ratings.add(acc["rating"]["starRating"])
-        
-        return {
-            "priceRange": {
-                "min": min(prices),
-                "max": max(prices),
-                "currency": currency
-            },
-            "ratings": sorted(list(ratings)),
-            "amenities": sorted(list(amenities)),
-            "chains": sorted(list(chains)),
-            "starRatings": sorted(list(star_ratings))
         }
+        
+        # Add optional fields
+        if request.data.get("loyalty_programme_account_number"):
+            booking_data["data"]["loyalty_programme_account_number"] = request.data.get("loyalty_programme_account_number")
+        
+        if request.data.get("accommodation_special_requests"):
+            booking_data["data"]["accommodation_special_requests"] = request.data.get("accommodation_special_requests")
+        
+        if request.data.get("metadata"):
+            booking_data["data"]["metadata"] = request.data.get("metadata")
+        
+        if request.data.get("users"):
+            booking_data["data"]["users"] = request.data.get("users")
+
+        # Duffel API request
+        url = "https://api.duffel.com/stays/bookings"
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Duffel-Version": "v2",
+            "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}"
+        }
+
+        try:
+            response = requests.post(url, json=booking_data, headers=headers, timeout=30)
+            
+            if response.status_code == 201:
+                data = response.json()
+                logger.info(f"✅ Booking created successfully: {data.get('data', {}).get('id')}")
+                
+                return Response({
+                    "status": "success",
+                    "message": "Booking created successfully",
+                    "booking": data.get("data", {})
+                }, status=status.HTTP_201_CREATED)
+            else:
+                error_data = response.json()
+                logger.error(f"❌ Booking creation failed: {error_data}")
+                
+                return Response({
+                    "status": "error",
+                    "message": "Booking creation failed",
+                    "details": error_data
+                }, status=response.status_code)
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"🌐 Booking request failed: {str(e)}")
+            return Response({
+                "status": "error",
+                "message": "Booking request failed",
+                "details": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ConfirmBookingPaymentView(APIView):
+    """
+    Step 5: Confirm payment for a booking (if required)
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        booking_id = request.data.get("booking_id")
+        payment_type = request.data.get("payment_type", "balance")  # balance or card
+
+        if not booking_id:
+            return Response({
+                "status": "error",
+                "message": "booking_id is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        payload = {
+            "data": {
+                "type": payment_type
+            }
+        }
+
+        # Add card details if payment type is card
+        if payment_type == "card" and request.data.get("payment_method_id"):
+            payload["data"]["payment_method_id"] = request.data.get("payment_method_id")
+
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Duffel-Version": "v2",
+            "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}"
+        }
+
+        try:
+            response = requests.post(
+                f"https://api.duffel.com/stays/bookings/{booking_id}/payments",
+                json=payload, 
+                headers=headers,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return Response({
+                    "status": "success",
+                    "message": "Payment confirmed",
+                    "payment": data.get("data", {})
+                }, status=status.HTTP_200_OK)
+            else:
+                error_data = response.json()
+                return Response({
+                    "status": "error",
+                    "message": "Payment confirmation failed",
+                    "details": error_data
+                }, status=response.status_code)
+                
+        except requests.exceptions.RequestException as e:
+            return Response({
+                "status": "error",
+                "message": "Payment request failed",
+                "details": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class GetBookingView(APIView):
+    """
+    Get booking details
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, booking_id):
+        url = f"https://api.duffel.com/stays/bookings/{booking_id}"
+        headers = {
+            "Accept": "application/json",
+            "Duffel-Version": "v2",
+            "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}"
+        }
+
+        try:
+            response = requests.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                return Response({
+                    "status": "success",
+                    "booking": data.get("data", {})
+                }, status=status.HTTP_200_OK)
+            else:
+                error_data = response.json()
+                return Response({
+                    "status": "error",
+                    "message": "Failed to get booking",
+                    "details": error_data
+                }, status=response.status_code)
+                
+        except requests.exceptions.RequestException as e:
+            return Response({
+                "status": "error",
+                "message": "Request failed",
+                "details": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CancelBookingView(APIView):
+    """
+    Cancel a booking
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request, booking_id):
+        url = f"https://api.duffel.com/stays/bookings/{booking_id}/actions/cancel"
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Duffel-Version": "v2",
+            "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}"
+        }
+
+        try:
+            response = requests.post(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                return Response({
+                    "status": "success",
+                    "message": "Booking cancelled successfully",
+                    "booking": data.get("data", {})
+                }, status=status.HTTP_200_OK)
+            else:
+                error_data = response.json()
+                return Response({
+                    "status": "error",
+                    "message": "Failed to cancel booking",
+                    "details": error_data
+                }, status=response.status_code)
+                
+        except requests.exceptions.RequestException as e:
+            return Response({
+                "status": "error",
+                "message": "Cancel request failed",
+                "details": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ListBookingsView(APIView):
+    """
+    List all bookings with pagination
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        url = "https://api.duffel.com/stays/bookings"
+        
+        # Get query parameters
+        params = {}
+        if request.GET.get('limit'):
+            params['limit'] = request.GET.get('limit')
+        if request.GET.get('after'):
+            params['after'] = request.GET.get('after')
+        if request.GET.get('before'):
+            params['before'] = request.GET.get('before')
+        if request.GET.get('user_id'):
+            params['user_id'] = request.GET.get('user_id')
+
+        headers = {
+            "Accept": "application/json",
+            "Duffel-Version": "v2",
+            "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}"
+        }
+
+        try:
+            response = requests.get(url, headers=headers, params=params, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                return Response({
+                    "status": "success",
+                    "bookings": data.get("data", []),
+                    "meta": data.get("meta", {})
+                }, status=status.HTTP_200_OK)
+            else:
+                error_data = response.json()
+                return Response({
+                    "status": "error",
+                    "message": "Failed to list bookings",
+                    "details": error_data
+                }, status=response.status_code)
+                
+        except requests.exceptions.RequestException as e:
+            return Response({
+                "status": "error",
+                "message": "Request failed",
+                "details": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
