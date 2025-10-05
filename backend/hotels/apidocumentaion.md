@@ -51,7 +51,7 @@ backend/flights/apidocumentaion.mdre_type": "regular"
 Example Usage Flow
 1. Search Accommodations
 bash
-POST /api/stays/search/
+POST /api/hotels/search/
 ```json
 {
     "check_in_date": "2025-10-15",
@@ -76,18 +76,18 @@ POST /api/stays/search/
 
 2. Get Hotel Offers
 bash
-GET /api/stays/offers/{search_result_id}/
+GET /api/hotels/offers/{search_result_id}/
 3. Create Quote
 bash
-POST /api/stays/quotes/
+POST /api/hotels/quotes/
 {
   "rate_id": "rat_0000BTVRuKZTavzrZDJ4cb"
 }
 4. Create Booking
 bash
-POST /api/stays/bookings/
 {
-  "quote_id": "quo_0000AS0NZdKjjnnHZmSUbI",
+  "quote_id": "quo_0000AytUYzHArTi1yu15a7",
+   "rate_id":"rat_0000AytWeVzZQADxebLZpq",
   "guests": [
     {
       "given_name": "John",
@@ -95,9 +95,9 @@ POST /api/stays/bookings/
     }
   ],
   "email": "john.doe@example.com",
-  "phone_number": "+441234567890",
-  "loyalty_programme_account_number": "123456789"
+  "phone_number": "+441234567890"
 }
+
 5. Confirm Payment (if required)
 bash
 POST /api/stays/bookings/confirm-payment/

@@ -6,7 +6,7 @@ urlpatterns = [
     path('search/', views.AccommodationSearchView.as_view(), name='accommodation-search'),
     
     # Step 2: Get hotel offers/rooms
-    path('offers/<str:search_result_id>/', views.HotelOffersView.as_view(), name='hotel-offers'),
+    path('search/<str:search_result_id>/', views.HotelOffersView.as_view(), name='hotel-offers'),
     
     # Step 3: Create quote
     path('quotes/', views.CreateQuoteView.as_view(), name='create-quote'),
