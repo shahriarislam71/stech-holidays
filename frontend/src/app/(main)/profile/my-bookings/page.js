@@ -13,8 +13,9 @@ export default function MyBookings() {
   const { user } = useAuth({ redirectToLogin: false });
   const [activeTab, setActiveTab] = useState('current');
   const [activeCategory, setActiveCategory] = useState(
-    searchParams.get('tab') || 'holidays'
-  );
+  searchParams.get('tab') || 'flights'  // Default to flights
+);
+
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -27,50 +28,100 @@ export default function MyBookings() {
   });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const handleCancelBooking = async (bookingId) => {
-    if (window.confirm('Are you sure you want to cancel this booking?')) {
-      try {
-        const token = localStorage.getItem('authToken');
-        let endpoint = '';
-        
-        if (activeCategory === 'holidays') {
-          endpoint = `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/holiday-bookings/${bookingId}/cancel/`;
-        } else if (activeCategory === 'umrah') {
-          endpoint = `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/umrah-bookings/${bookingId}/cancel/`;
-        } else {
-          throw new Error('Cancellation not supported for this booking type');
-        }
-
-        const response = await fetch(
-          endpoint,
-          {
-            method: 'PATCH',
-            headers: {
-              'Authorization': `Token ${token}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-
-        if (response.ok) {
-          toast.success('Booking cancelled successfully');
-          // Refresh bookings
-          fetchBookings();
-        } else {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to cancel booking');
-        }
-      } catch (error) {
-        toast.error(error.message);
+const handleCancelBooking = async (bookingId) => {
+  if (window.confirm('Are you sure you want to cancel this booking?')) {
+    try {
+      const token = localStorage.getItem('authToken');
+      let endpoint = '';
+      
+      if (activeCategory === 'holidays') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/holiday-bookings/${bookingId}/cancel/`;
+      } else if (activeCategory === 'umrah') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/umrah-bookings/${bookingId}/cancel/`;
+      } else if (activeCategory === 'flights') {
+        endpoint = `${process.env.NEXT_PUBLIC_API_BASE_URL}/flights/my-flights/${bookingId}/cancel/`;
+      } else {
+        throw new Error('Cancellation not supported for this booking type');
       }
+
+      const response = await fetch(
+        endpoint,
+        {
+          method: activeCategory === 'flights' ? 'POST' : 'PATCH',
+          headers: {
+            'Authorization': `Token ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.ok) {
+        toast.success('Booking cancelled successfully');
+        // Refresh bookings
+        fetchBookings();
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to cancel booking');
+      }
+    } catch (error) {
+      toast.error(error.message);
     }
-  };
+  }
+};
 
   const fetchBookings = async () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('authToken');
       if (!token) return;
+
+       if (activeCategory === 'flights') {
+      try {
+        const flightResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/flights/my-flights/`,
+          {
+            headers: {
+              'Authorization': `Token ${token}`
+            }
+          }
+        );
+        
+        if (flightResponse.ok) {
+          const flightData = await flightResponse.json();
+          setBookings(prev => ({
+            ...prev,
+            flights: flightData.flights?.map(flight => ({
+              ...flight,
+              id: flight.order_id,
+              bookingNumber: flight.booking_reference,
+              date: new Date(flight.created_at).toLocaleDateString(),
+              departure_date: flight.departure_time,
+              destination: `${flight.departure} to ${flight.arrival}`,
+              status: flight.status,
+              price: `${flight.currency} ${flight.total_amount}`,
+              passenger: flight.passengers?.[0]?.given_name + ' ' + flight.passengers?.[0]?.family_name || 'N/A',
+              email: flight.passengers?.[0]?.email || 'N/A',
+              image: '/default-flight.jpg', // Add a default flight image
+              airline: flight.airline,
+              flight_number: flight.flight_number,
+              departure_time: flight.departure_time,
+              arrival_time: flight.arrival_time,
+              duration: flight.duration,
+              cabin_class: flight.cabin_class,
+              trip_type: flight.trip_type,
+              payment_status: flight.payment_status,
+              passengers: flight.passengers || []
+            })) || []
+          }));
+        } else {
+          console.error('Failed to fetch flights:', flightResponse.status);
+          setBookings(prev => ({ ...prev, flights: [] }));
+        }
+      } catch (error) {
+        console.error('Error fetching flights:', error);
+        setBookings(prev => ({ ...prev, flights: [] }));
+      }
+    }
 
       // Fetch holiday bookings
       if (activeCategory === 'holidays') {
@@ -215,60 +266,87 @@ export default function MyBookings() {
     }
   }, [searchParams]);
 
-  const handleViewDetails = (booking) => {
-    if (activeCategory === 'holidays') {
-      setSelectedBooking({
-        ...booking,
-        nights: booking.packageDetails?.nights,
-        days: booking.packageDetails?.days,
-        includes: booking.packageDetails?.tags?.map(tag => tag.name) || []
-      });
-    } else if (activeCategory === 'umrah') {
-      setSelectedBooking({
-        ...booking,
-        includes: [
-          booking.includes_flight && 'Flight',
-          booking.includes_hotel && 'Hotel',
-          booking.includes_transport && 'Transport',
-          booking.includes_visa && 'Visa'
-        ].filter(Boolean)
-      });
-    } else {
-      setSelectedBooking(booking);
+const handleViewDetails = (booking) => {
+  if (activeCategory === 'holidays') {
+    setSelectedBooking({
+      ...booking,
+      nights: booking.packageDetails?.nights,
+      days: booking.packageDetails?.days,
+      includes: booking.packageDetails?.tags?.map(tag => tag.name) || []
+    });
+  } else if (activeCategory === 'umrah') {
+    setSelectedBooking({
+      ...booking,
+      includes: [
+        booking.includes_flight && 'Flight',
+        booking.includes_hotel && 'Hotel',
+        booking.includes_transport && 'Transport',
+        booking.includes_visa && 'Visa'
+      ].filter(Boolean)
+    });
+  } else if (activeCategory === 'flights') {
+    setSelectedBooking({
+      ...booking,
+      type: 'Flight',
+      airline: booking.airline,
+      flightNumber: booking.flight_number,
+      departure: booking.departure,
+      arrival: booking.arrival,
+      departureTime: booking.departure_time,
+      arrivalTime: booking.arrival_time,
+      duration: booking.duration,
+      cabinClass: booking.cabin_class,
+      tripType: booking.trip_type,
+      passengers: booking.passengers
+    });
+  } else {
+    setSelectedBooking(booking);
+  }
+  setIsModalOpen(true);
+};
+
+const handleDownload = (bookingId) => {
+  const booking = bookings[activeCategory].find(b => b.id === bookingId);
+  if (!booking) return;
+
+  let content = `Booking Details\n\n`;
+  content += `Booking Number: ${booking.bookingNumber}\n`;
+  content += `Passenger: ${booking.passenger}\n`;
+  content += `Date: ${booking.date}\n`;
+  content += `Price: ${booking.price}\n`;
+  content += `Status: ${booking.status}\n`;
+
+  if (activeCategory === 'flights') {
+    content += `\nFlight Details:\n`;
+    content += `Airline: ${booking.airline}\n`;
+    content += `Flight Number: ${booking.flight_number}\n`;
+    content += `Route: ${booking.departure} to ${booking.arrival}\n`;
+    content += `Departure: ${new Date(booking.departure_time).toLocaleString()}\n`;
+    content += `Arrival: ${new Date(booking.arrival_time).toLocaleString()}\n`;
+    content += `Duration: ${booking.duration}\n`;
+    content += `Cabin Class: ${booking.cabin_class}\n`;
+    content += `Trip Type: ${booking.trip_type}\n`;
+  }
+
+  if (activeCategory === 'holidays') {
+    content += `\nHoliday Details:\n`;
+    content += `Destination: ${booking.destination}\n`;
+    content += `Duration: ${booking.nights} Nights / ${booking.days} Days\n`;
+    content += `Departure Date: ${new Date(booking.departure_date).toLocaleDateString()}\n`;
+    content += `Travelers: ${booking.travelers}\n`;
+    if (booking.custom_request) {
+      content += `Special Requests: ${booking.custom_request}\n`;
     }
-    setIsModalOpen(true);
-  };
+  }
 
-  const handleDownload = (bookingId) => {
-    const booking = bookings[activeCategory].find(b => b.id === bookingId);
-    if (!booking) return;
-
-    let content = `Booking Details\n\n`;
-    content += `Booking Number: ${booking.bookingNumber}\n`;
-    content += `Passenger: ${booking.passenger}\n`;
-    content += `Date: ${booking.date}\n`;
-    content += `Price: ${booking.price}\n`;
-    content += `Status: ${booking.status}\n`;
-
-    if (activeCategory === 'holidays') {
-      content += `\nHoliday Details:\n`;
-      content += `Destination: ${booking.destination}\n`;
-      content += `Duration: ${booking.nights} Nights / ${booking.days} Days\n`;
-      content += `Departure Date: ${new Date(booking.departure_date).toLocaleDateString()}\n`;
-      content += `Travelers: ${booking.travelers}\n`;
-      if (booking.custom_request) {
-        content += `Special Requests: ${booking.custom_request}\n`;
-      }
-    }
-
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `booking-${bookingId}.txt`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `booking-${bookingId}.txt`;
+  link.click();
+  URL.revokeObjectURL(url);
+};
 
   const closeModal = () => {
     setIsModalOpen(false);
@@ -503,6 +581,68 @@ export default function MyBookings() {
                     </>
                   )}
 
+                  {/* In your modal component, add flight details */}
+{activeCategory === 'flights' && selectedBooking && (
+  <>
+    <h3 className="text-lg font-semibold text-[#445494] mt-6 mb-4">Flight Details</h3>
+    <div className="space-y-3">
+      <div>
+        <p className="text-sm font-medium text-gray-500">Airline</p>
+        <p className="text-gray-900">{selectedBooking.airline}</p>
+      </div>
+      <div>
+        <p className="text-sm font-medium text-gray-500">Flight Number</p>
+        <p className="text-gray-900">{selectedBooking.flightNumber}</p>
+      </div>
+      <div>
+        <p className="text-sm font-medium text-gray-500">Route</p>
+        <p className="text-gray-900">{selectedBooking.departure} → {selectedBooking.arrival}</p>
+      </div>
+      <div>
+        <p className="text-sm font-medium text-gray-500">Departure</p>
+        <p className="text-gray-900">
+          {new Date(selectedBooking.departureTime).toLocaleString()}
+        </p>
+      </div>
+      <div>
+        <p className="text-sm font-medium text-gray-500">Arrival</p>
+        <p className="text-gray-900">
+          {new Date(selectedBooking.arrivalTime).toLocaleString()}
+        </p>
+      </div>
+      <div>
+        <p className="text-sm font-medium text-gray-500">Duration</p>
+        <p className="text-gray-900">{selectedBooking.duration}</p>
+      </div>
+      <div>
+        <p className="text-sm font-medium text-gray-500">Cabin Class</p>
+        <p className="text-gray-900">{selectedBooking.cabinClass}</p>
+      </div>
+      <div>
+        <p className="text-sm font-medium text-gray-500">Trip Type</p>
+        <p className="text-gray-900">{selectedBooking.tripType}</p>
+      </div>
+    </div>
+
+    <h3 className="text-lg font-semibold text-[#445494] mt-6 mb-4">Passengers</h3>
+    <div className="space-y-2">
+      {selectedBooking.passengers?.map((passenger, index) => (
+        <div key={index} className="bg-gray-50 rounded-lg p-3">
+          <p className="font-medium">
+            {passenger.given_name} {passenger.family_name}
+          </p>
+          <p className="text-sm text-gray-600">
+            {passenger.type?.charAt(0).toUpperCase() + passenger.type?.slice(1)} • {passenger.email}
+          </p>
+          {passenger.phone_number && (
+            <p className="text-sm text-gray-600">Phone: {passenger.phone_number}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  </>
+)}
+
                   {activeCategory === 'umrah' && (
                     <>
                       <div>
@@ -646,14 +786,17 @@ export default function MyBookings() {
               <div className="border-b border-gray-200">
                 <nav className="flex -mb-px overflow-x-auto">
                   <button
-                    onClick={() => setActiveCategory('flight')}
-                    className={`flex-1 min-w-[100px] py-4 text-center border-b-2 font-medium text-sm flex items-center justify-center gap-2 ${activeCategory === 'flight' ? 'border-[#54ACA4] text-[#54ACA4]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
-                    </svg>
-                    <span className="hidden sm:inline">Flight</span>
-                  </button>
+  onClick={() => setActiveCategory('flights')}
+  className={`flex-1 min-w-[100px] py-4 text-center border-b-2 font-medium text-sm flex items-center justify-center gap-2 ${
+    activeCategory === 'flights' ? 'border-[#54ACA4] text-[#54ACA4]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+  }`}
+>
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+  </svg>
+  <span className="hidden sm:inline">Flights</span>
+</button>
+
                   <button
                     onClick={() => setActiveCategory('hotel')}
                     className={`flex-1 min-w-[100px] py-4 text-center border-b-2 font-medium text-sm flex items-center justify-center gap-2 ${activeCategory === 'hotel' ? 'border-[#54ACA4] text-[#54ACA4]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
@@ -721,19 +864,27 @@ export default function MyBookings() {
                               <div className="flex-1">
                                 <div className="flex flex-col md:flex-row md:justify-between md:items-start">
                                   <div className="mb-3 md:mb-0">
-                                    <h3 className="text-lg font-bold text-[#445494]">
-                                      {activeCategory === 'holidays' && booking.destination}
-                                      {activeCategory === 'flight' && `${booking.departure} to ${booking.destination}`}
-                                      {activeCategory === 'hotel' && booking.hotel}
-                                      {activeCategory === 'visa' && `${booking.type} - ${booking.country}`}
-                                    </h3>
-                                    <p className="text-gray-600 text-sm mt-1">
-                                      <span className="font-medium">Booking #:</span> {booking.bookingNumber}
-                                      <span className="mx-2 hidden md:inline">•</span>
-                                      <br className="md:hidden" />
-                                      <span className="font-medium">Date:</span> {booking.date}
-                                    </p>
-                                  </div>
+                                                                {/* In the booking display section, update the title logic */}
+                              <h3 className="text-lg font-bold text-[#445494]">
+                                {activeCategory === 'holidays' && booking.destination}
+                                {activeCategory === 'flights' && `${booking.departure} to ${booking.arrival}`}
+                                {activeCategory === 'hotel' && booking.hotel}
+                                {activeCategory === 'visa' && `${booking.type} - ${booking.country}`}
+                                {activeCategory === 'umrah' && booking.destination}
+                              </h3>
+                              <p className="text-gray-600 text-sm mt-1">
+                                {activeCategory === 'flights' && `${booking.airline} • ${booking.flight_number}`}
+                                {activeCategory === 'holidays' && 'Holiday Package'}
+                                {activeCategory === 'visa' && 'Visa Application'}
+                                {activeCategory === 'umrah' && 'Umrah Package'}
+                                <span className="mx-2 hidden md:inline">•</span>
+                                <br className="md:hidden" />
+                                <span className="font-medium">Booking #:</span> {booking.bookingNumber}
+                                <span className="mx-2 hidden md:inline">•</span>
+                                <br className="md:hidden" />
+                                <span className="font-medium">Date:</span> {booking.date}
+                              </p>
+                                                                </div>
                                   <div className="text-left md:text-right">
                                     <p className="text-xl font-bold text-[#5A53A7]">{booking.price}</p>
                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -749,25 +900,39 @@ export default function MyBookings() {
                                 </div>
 
                                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                                  <div>
-                                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Passenger</h4>
-                                    <p className="mt-1 text-gray-900">{booking.passenger}</p>
-                                  </div>
-                                  {activeCategory === 'holidays' && (
-                                    <>
-                                      <div>
-                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Departure</h4>
-                                        <p className="mt-1 text-gray-900">
-                                          {new Date(booking.departure_date).toLocaleDateString()}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Travelers</h4>
-                                        <p className="mt-1 text-gray-900">{booking.travelers}</p>
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
+  <div>
+    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Passenger</h4>
+    <p className="mt-1 text-gray-900">{booking.passenger}</p>
+  </div>
+  
+  {activeCategory === 'flights' && (
+    <>
+      <div>
+        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Flight</h4>
+        <p className="mt-1 text-gray-900">{booking.airline} {booking.flight_number}</p>
+      </div>
+      <div>
+        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Class</h4>
+        <p className="mt-1 text-gray-900">{booking.cabin_class}</p>
+      </div>
+    </>
+  )}
+  
+  {activeCategory === 'holidays' && (
+    <>
+      <div>
+        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Departure</h4>
+        <p className="mt-1 text-gray-900">
+          {new Date(booking.departure_date).toLocaleDateString()}
+        </p>
+      </div>
+      <div>
+        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Travelers</h4>
+        <p className="mt-1 text-gray-900">{booking.travelers}</p>
+      </div>
+    </>
+  )}
+</div>
 
                                 <div className="mt-4 flex flex-col sm:flex-row sm:justify-end space-y-2 sm:space-y-0 sm:space-x-3">
                                   <button 

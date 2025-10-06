@@ -1,3 +1,4 @@
+// pages/flights/[destination]/page.js
 "use client";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -40,88 +41,175 @@ const FlightDestinationPage = () => {
     };
   }, [showFilters]);
 
-  // Extract search parameters
-  const from = searchParams.get("from");
-  const to = searchParams.get("to");
-  const departure = searchParams.get("departure");
-  const returnDate = searchParams.get("return");
-  const adults = parseInt(searchParams.get("adults")) || 1;
-  const children = parseInt(searchParams.get("children")) || 0;
-  const infants = parseInt(searchParams.get("infants")) || 0;
-  const flightClass = searchParams.get("class") || "Economy";
 
-  // Build API request payload
-  const buildApiPayload = useCallback(() => {
-    const payload = {
-      slices: [
-        {
-          origin: from,
-          destination: to,
-          departure_date: departure,
-        },
-      ],
-      travelers: {
-        adults: adults,
-        children: children,
-        infants: infants,
-      },
-      cabin_class: flightClass.toLowerCase(),
-      fare_type: "regular", // You can make this dynamic based on HeroSection selection
-    };
+  // Extract search parameters - FIX THIS SECTION
+const flightType = searchParams.get("flight_type") || "one_way";
+const adults = parseInt(searchParams.get("adults")) || 1;
+const children = parseInt(searchParams.get("children")) || 0;
+const infants = parseInt(searchParams.get("infants")) || 0;
+const cabinClass = searchParams.get("cabin_class") || "economy";
 
-    // Add return date for round trip
-    if (returnDate) {
-      payload.return_date = returnDate;
+// Extract parameters based on flight type
+let from, to, departure, returnDate;
+
+
+  const searchParamsObj = {};
+  for (const [key, value] of searchParams.entries()) {
+    searchParamsObj[key] = value;
+  }
+
+if (flightType === "multi_city") {
+  // For multi-city, we'll handle flights differently
+  from = searchParams.get("flights[0][from]");
+  to = searchParams.get("flights[0][to]");
+  departure = searchParams.get("flights[0][departure_date]");
+} else {
+  // For one-way and round-trip
+  from = searchParams.get("origin");
+  to = searchParams.get("destination");
+  departure = searchParams.get("departure_date");
+  returnDate = searchParams.get("return_date");
+}
+
+console.log("Search params:", {
+  flightType,
+  from,
+  to,
+  departure,
+  returnDate,
+  adults,
+  children,
+  infants,
+  cabinClass
+});
+
+
+// In your FlightDestinationPage component
+const buildApiPayload = useCallback(() => {
+  const flightType = searchParams.get("flight_type") || "one_way";
+  
+  const payload = {
+    flight_type: flightType,
+    travelers: {
+      adults: adults,
+      children: children,
+      infants: infants,
+    },
+    cabin_class: cabinClass,
+  };
+
+  if (flightType === "multi_city") {
+    // Extract multi-city flights from URL params
+    const flights = [];
+    let index = 0;
+    
+    while (searchParams.has(`flights[${index}][from]`)) {
+      flights.push({
+        from: searchParams.get(`flights[${index}][from]`),
+        to: searchParams.get(`flights[${index}][to]`),
+        departure_date: searchParams.get(`flights[${index}][departure_date]`)
+      });
+      index++;
     }
+    
+    payload.flights = flights;
+    
+  } else if (flightType === "round_trip") {
+    payload.origin = from;
+    payload.destination = to;
+    payload.departure_date = departure;
+    payload.return_date = returnDate;
+    
+  } else { // one_way
+    payload.origin = from;
+    payload.destination = to;
+    payload.departure_date = departure;
+  }
 
-    return payload;
-  }, [from, to, departure, returnDate, adults, children, infants, flightClass]);
+  console.log("API Payload:", payload);
+  return payload;
+}, [from, to, departure, returnDate, adults, children, infants, cabinClass, searchParams]);
 
-  const fetchFlights = useCallback(async () => {
-    setLoading(true);
-    try {
-      const payload = buildApiPayload();
-      
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/flights/search/`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch flights");
-      }
-
-      const data = await response.json();
-      
-      if (data.status === "success") {
-        setFlights(data.results.itineraries);
-        setFilteredFlights(data.results.itineraries);
-        setSearchData(data.search);
-        setApiFilters(data.filters);
-        
-        // Update local filters with API data
-        setFilters(prev => ({
-          ...prev,
-          priceRange: [data.filters.priceRange.min, data.filters.priceRange.max],
-        }));
-      } else {
-        throw new Error(data.message || "Failed to fetch flights");
-      }
-    } catch (error) {
-      console.error("Error fetching flights:", error);
-      // You might want to show an error state here
-      setFlights([]);
-      setFilteredFlights([]);
-    } finally {
+const fetchFlights = useCallback(async () => {
+  setLoading(true);
+  console.log("Starting flight search...");
+  
+  try {
+    const payload = buildApiPayload();
+    
+    // Validate required parameters
+    if (!payload.origin && !payload.flights) {
+      console.error("Missing required parameters: origin or flights");
       setLoading(false);
+      return;
     }
-  }, [buildApiPayload]);
+
+    console.log("Sending request to API with payload:", payload);
+    
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_BASE_URL}/flights/search/`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+
+    console.log("API Response status:", response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("API Error:", errorText);
+      throw new Error(`Failed to fetch flights: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log("API Response data:", data);
+    
+    if (data.status === "success") {
+      setFlights(data.results.itineraries);
+      setFilteredFlights(data.results.itineraries);
+      setSearchData(data.search);
+      setApiFilters(data.filters);
+      
+      // Update local filters with API data
+      setFilters(prev => ({
+        ...prev,
+        priceRange: [data.filters.priceRange.min, data.filters.priceRange.max],
+      }));
+    } else {
+      throw new Error(data.message || "Failed to fetch flights");
+    }
+  } catch (error) {
+    console.error("Error fetching flights:", error);
+    setFlights([]);
+    setFilteredFlights([]);
+  } finally {
+    setLoading(false);
+    console.log("Flight search completed");
+  }
+}, [buildApiPayload]);
+
+  useEffect(() => {
+  console.log("Parameters check:", { from, to, departure, flightType });
+  
+  // Check if we have the minimum required parameters
+  const hasRequiredParams = flightType === "multi_city" 
+    ? searchParams.has("flights[0][from]")
+    : (from && to && departure);
+
+  if (hasRequiredParams) {
+    console.log("Fetching flights with parameters...");
+    fetchFlights();
+  } else {
+    console.log("Missing required parameters, not fetching flights");
+    setLoading(false);
+  }
+}, [from, to, departure, flightType, fetchFlights, searchParams]);
+
+
 
   const applyFilters = useCallback(() => {
     let results = [...flights];
@@ -190,24 +278,63 @@ const FlightDestinationPage = () => {
     router.push(`/flights/${to}/${flightId}/user-info`);
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-[#5A53A7] to-[#4a8b9a] flex items-center justify-center">
-        <div className="flex flex-col items-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mb-4"></div>
-          <p className="text-white text-lg">Searching for flights...</p>
+if (loading) {
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-[#5A53A7] to-[#4a8b9a] flex items-center justify-center">
+      <div className="flex flex-col items-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mb-4"></div>
+        <p className="text-white text-lg">Searching for flights...</p>
+        <p className="text-white/70 text-sm mt-2">Parameters: {from} → {to} on {departure}</p>
+      </div>
+    </div>
+  );
+}
+
+// Add error state if no flights and not loading
+if (flights.length === 0 && !loading) {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="bg-gradient-to-r px-4 md:px-[190px] from-[#5A53A7] to-[#4a8b9a] text-white py-6 shadow-md">
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-xl md:text-2xl font-bold mb-4">Flight Search</h1>
         </div>
       </div>
-    );
-  }
+      <div className="max-w-4xl mx-auto py-12 px-4 text-center">
+        <div className="bg-white rounded-xl shadow-sm p-8">
+          <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 20a7.962 7.962 0 01-5-1.709" />
+          </svg>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">No Flights Found</h2>
+          <p className="text-gray-600 mb-4">We couldn't find any flights matching your search criteria.</p>
+          <p className="text-sm text-gray-500 mb-6">
+            Parameters: {flightType} | {from} → {to} | {departure}
+          </p>
+          <button
+            onClick={() => router.back()}
+            className="bg-[#5A53A7] text-white px-6 py-2 rounded-lg hover:bg-[#4a4791] transition"
+          >
+            Modify Search
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
   // Format display data from search response or URL params
-  const displayFrom = searchData?.route?.from?.city || from;
-  const displayTo = searchData?.route?.to?.city || to;
-  const displayDeparture = searchData?.dates?.departure || departure;
-  const displayReturn = searchData?.dates?.return || returnDate;
-  const displayTotalTravelers = searchData?.travelers?.total || (adults + children + infants);
-  const displayCabinClass = searchData?.preferences?.cabinClass || flightClass;
+// Format display data from search response or URL params
+const displayFrom = searchData?.route?.[0]?.from || from;
+const displayTo = searchData?.route?.[0]?.to || to;
+const displayDeparture = searchData?.dates?.departure || departure;
+const displayReturn = searchData?.dates?.return || returnDate;
+const displayTotalTravelers = searchData?.travelers?.total || (adults + children + infants);
+const displayCabinClass = searchData?.preferences?.cabinClass || cabinClass;
+
+// For multi-city, show the route differently
+const displayRoute = flightType === "multi_city" 
+  ? `Multi-City (${searchParams.has("flights[0][from]") ? "Multiple" : "0"} Cities)` 
+  : `${displayFrom} → ${displayTo}`;
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -317,10 +444,10 @@ const FlightDestinationPage = () => {
               </div>
             </div>
 
-            <FlightSearchResults
-              flights={filteredFlights}
-              onSelectFlight={handleFlightSelect}
-            />
+             <FlightSearchResults 
+      flights={filteredFlights} 
+      searchParams={searchParamsObj}
+    />
           </div>
         </div>
       </div>

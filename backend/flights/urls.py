@@ -28,8 +28,18 @@ urlpatterns = [
     path("orders/<str:order_id>/services/", views.OrderServicesView.as_view(), name="order-services"),
     #path("orders/<str:order_id>/cancel/", views.CancelOrderView.as_view(), name="cancel-order"),
     
-    #6. payment intents for instant orders and hold payments
-    path("payment-intent/create/", views.CreatePaymentIntentView.as_view(), name="create-payment-intent"),
+    # My Flights endpoints
+    path("my-flights/", views.MyFlightsView.as_view(), name="my-flights"),
+    path("my-flights/<str:order_id>/", views.FlightBookingDetailView.as_view(), name="flight-booking-detail"),
+    path("my-flights/<str:order_id>/cancel/", views.CancelFlightBookingView.as_view(), name="cancel-flight-booking"),
+    
+    # Payment endpoints
+      path("payment-intent/create/", views.CreatePaymentIntentView.as_view(), name="create-payment-intent"),
     path("payment-intent/confirm/", views.ConfirmPaymentIntentView.as_view(), name="confirm-payment-intent"),
     path("hold-order/pay/", views.PayHoldOrderView.as_view(), name="pay-hold-order"),
+    path("payment/success/", views.PaymentSuccessView.as_view(), name="payment-success"),
+    path("payment/webhook/", views.DuffelWebhookView.as_view(), name="duffel-webhook"),
+    
+    # Order management
+    # path("orders/<str:order_id>/payment-status/", views.PaymentStatusView.as_view(), name="payment-status"),
 ]

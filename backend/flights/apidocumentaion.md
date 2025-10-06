@@ -24,8 +24,12 @@ Currently uses API key authentication. Include in request headers:
 Authorization: Bearer YOUR_API_KEY
 Content-Type: application/json
 ```
-
+ 
 ---
+
+## country Search 
+**GET** `http://127.0.0.1:8000/api/flights/locations/?query=london`
+
 
 ## 🔍 Flight Search
 
@@ -59,6 +63,11 @@ Content-Type: application/json
     {
       "origin": "LHR",
       "destination": "JFK",
+      "departure_date": "2025-10-01"
+    },
+        {
+      "origin": "JFK",
+      "destination": "LHR",
       "departure_date": "2025-10-01"
     }
   ],

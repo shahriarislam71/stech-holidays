@@ -1,3 +1,4 @@
+// src/app/(main)/flights/[destination]/user-info/[payment]/page.js
 "use client";
 import React, { useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";

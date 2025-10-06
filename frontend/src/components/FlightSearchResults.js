@@ -1,355 +1,573 @@
+// components/FlightSearchResults.js
 "use client";
-import React, { useState } from "react";
-import { format } from "date-fns";
-import Link from "next/link";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
-const FlightCard = ({ flight, onSelect }) => {
-  const [showDetails, setShowDetails] = useState(false);
+const FlightCard = ({ flight, searchParams }) => {
   const [showPackages, setShowPackages] = useState(false);
+  const [farePackages, setFarePackages] = useState([]);
+  const [loadingPackages, setLoadingPackages] = useState(false);
+  const [packageError, setPackageError] = useState(null);
+  const [selectedPackage, setSelectedPackage] = useState(null);
+  const router = useRouter();
+  const [showDetails, setShowDetails] = useState(false);
 
-  const farePackages = [
-    {
-      name: "Economy Saver",
-      cabinBag: "7 KG /Adult",
-      checkedIn: "20 KG /Adult",
-      cancellation: "As per Airlines Policy",
-      dateChange: "As per Airlines Policy",
-      meal: "Get complementary meal",
-      price: "BDT6,699"
-    },
-    {
-      name: "Economy Value",
-      cabinBag: "7 KG /Adult",
-      checkedIn: "20 KG /Adult",
-      cancellation: "As per Airlines Policy",
-      dateChange: "As per Airlines Policy",
-      meal: "Get complementary meal",
-      price: "BDT8,650"
-    },
-    {
-      name: "Economy Flex",
-      cabinBag: "7 KG /Adult",
-      checkedIn: "20 KG /Adult",
-      cancellation: "As per Airlines Policy",
-      dateChange: "As per Airlines Policy",
-      meal: "Get complementary meal",
-      price: "BDT10,700"
+  // Convert searchParams to a plain object safely
+  const getSearchParamsObject = () => {
+    if (!searchParams) return {};
+    try {
+      // If it's already an object, return it
+      if (typeof searchParams === 'object' && !(searchParams instanceof URLSearchParams)) {
+        return searchParams;
+      }
+      // If it's URLSearchParams, convert to object
+      if (searchParams instanceof URLSearchParams) {
+        const params = {};
+        for (const [key, value] of searchParams.entries()) {
+          params[key] = value;
+        }
+        return params;
+      }
+      return {};
+    } catch (error) {
+      console.error('Error converting searchParams:', error);
+      return {};
     }
-  ];
+  };
+
+  const searchParamsObj = getSearchParamsObject();
+
+  // Fetch fare packages
+  useEffect(() => {
+    const fetchFarePackages = async () => {
+      if (!showPackages || !flight.id) return;
+      
+      setLoadingPackages(true);
+      setPackageError(null);
+      const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+      
+      try {
+        const response = await fetch(`${apiUrl}/flights/offers/${flight.id}/package/`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch packages: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.fares && Array.isArray(data.fares)) {
+          setFarePackages(data.fares);
+        } else {
+          throw new Error('Invalid package data received');
+        }
+      } catch (error) {
+        console.error('Error fetching fare packages:', error);
+        setPackageError(error.message);
+        setFarePackages([]);
+      } finally {
+        setLoadingPackages(false);
+      }
+    };
+
+    fetchFarePackages();
+  }, [showPackages, flight.id]);
+
+  // Reset packages when modal closes
+  useEffect(() => {
+    if (!showPackages) {
+      setFarePackages([]);
+      setPackageError(null);
+    }
+  }, [showPackages]);
 
   // Get airline logo
   const getAirlineLogo = (airlineName) => {
     const logoMap = {
       "Biman Bangladesh Airlines": "/biman-logo.png",
       "Duffel Airways": "/duffel-logo.png",
-      // Add more airline logos as needed
     };
     return logoMap[airlineName] || `https://logo.clearbit.com/${airlineName.toLowerCase().replace(/\s+/g, '')}.com`;
   };
 
-  const mainSegment = flight.segments?.[0] || flight;
+  // Helper function to group segments by journey
+  const getJourneySegments = () => {
+    if (!flight.segments || flight.segments.length === 0) return [];
+    
+    if (flight.tripType === "Round-trip" && flight.segments.length >= 2) {
+      return [
+        {
+          type: "outbound",
+          segments: [flight.segments[0]],
+          summary: `${flight.segments[0].departure.airportCode} → ${flight.segments[0].arrival.airportCode}`
+        },
+        {
+          type: "return", 
+          segments: [flight.segments[1]],
+          summary: `${flight.segments[1].departure.airportCode} → ${flight.segments[1].arrival.airportCode}`
+        }
+      ];
+    }
+    
+    if (flight.tripType === "Multi-city" && flight.segments.length > 0) {
+      return [
+        {
+          type: "multi-city",
+          segments: flight.segments,
+          summary: flight.summary || `Multi-city (${flight.segments.length} flights)`
+        }
+      ];
+    }
+    
+    return [
+      {
+        type: "one-way",
+        segments: flight.segments,
+        summary: flight.summary || `${flight.segments[0].departure.airportCode} → ${flight.segments[flight.segments.length - 1].arrival.airportCode}`
+      }
+    ];
+  };
+  
+  const handleSelectFlight = () => {
+    const destination = searchParamsObj.destination;
+    if (!destination) {
+      alert("Destination information is missing. Please try your search again.");
+      return;
+    }
+
+    const queryParams = new URLSearchParams({
+      offer_id: flight.id,
+      price: flight.totalPrice,
+      airline: flight.airlines?.[0] || 'Unknown Airline',
+      flight_number: flight.segments?.[0]?.flightNumber || '',
+      departure: flight.segments?.[0]?.departure?.airportCode || '',
+      arrival: flight.segments?.[flight.segments.length - 1]?.arrival?.airportCode || '',
+      departure_time: flight.segments?.[0]?.departure?.time || '',
+      arrival_time: flight.segments?.[flight.segments.length - 1]?.arrival?.time || '',
+      duration: flight.totalDuration,
+      cabin_class: flight.cabinClass,
+      travelers: flight.travelers || 1,
+      fare_name: "Standard Fare",
+      ...searchParamsObj
+    });
+
+    router.push(`/flights/${destination}/user-info?${queryParams.toString()}`);
+  };
+
+  const handlePackageSelect = async (pkg) => {
+    setSelectedPackage(pkg);
+    setShowPackages(false);
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+      const destination = searchParamsObj.destination;
+      
+      if (!destination) {
+        alert("Destination information is missing. Please try your search again.");
+        return;
+      }
+
+      // Select the package in backend
+      const response = await fetch(`${apiUrl}/flights/package/select/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          offer_id: flight.id,
+          fare_name: pkg.name
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to select package: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      // Navigate to user info page with all necessary data
+      const queryParams = new URLSearchParams({
+        offer_id: flight.id,
+        fare_name: pkg.name,
+        price: pkg.price,
+        airline: flight.airlines?.[0] || 'Unknown Airline',
+        flight_number: flight.segments?.[0]?.flightNumber || '',
+        departure: flight.segments?.[0]?.departure?.airportCode || '',
+        arrival: flight.segments?.[flight.segments.length - 1]?.arrival?.airportCode || '',
+        departure_time: flight.segments?.[0]?.departure?.time || '',
+        arrival_time: flight.segments?.[flight.segments.length - 1]?.arrival?.time || '',
+        duration: flight.totalDuration,
+        cabin_class: flight.cabinClass,
+        travelers: flight.travelers || 1,
+        ...searchParamsObj
+      });
+
+      router.push(`/flights/${destination}/user-info?${queryParams.toString()}`);
+      
+    } catch (error) {
+      console.error('Error selecting package:', error);
+      alert(`Failed to select package: ${error.message}. Please try again.`);
+      setSelectedPackage(null);
+    }
+  };
+
+  const journeys = getJourneySegments();
 
   return (
-    <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-4 border border-gray-100 hover:shadow-md transition">
-      <div className="p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center">
-            <div className="bg-gray-100 p-2 rounded-lg mr-4">
+    <div className="relative bg-white rounded-2xl mb-8 overflow-hidden shadow-lg border border-gray-200">
+      {/* Left punch hole */}
+      <div className="absolute top-1/2 -left-6 transform -translate-y-1/2 w-12 h-12 bg-gray-50 rounded-full border border-gray-200"></div>
+
+      {/* Right punch hole */}
+      <div className="absolute top-1/2 -right-6 transform -translate-y-1/2 w-12 h-12 bg-gray-50 rounded-full border border-gray-200"></div>
+
+      {/* Ticket Layout */}
+      <div className="flex">
+        {/* Left Section: Flight Journeys */}
+        <div className="flex-1 p-6">
+          {/* Trip Type Header */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center">
               <Image
-                src={getAirlineLogo(flight.airlines?.[0] || flight.airline?.name)}
-                alt={flight.airlines?.[0] || flight.airline?.name}
-                width={32}
-                height={32}
-                className="h-8 w-8 object-contain"
-                onError={(e) => {
-                  e.target.src = "/airline-placeholder.png";
-                }}
+                src={flight.segments?.[0]?.airlineLogo || getAirlineLogo(flight.airlines?.[0])}
+                alt={flight.airlines?.[0] || "Airline"}
+                width={48}
+                height={48}
+                className="mr-3 h-12 w-12 object-contain"
               />
-            </div>
-            <div>
-              <h3 className="font-medium text-gray-800">{flight.airlines?.[0] || flight.airline?.name}</h3>
-              <p className="text-sm text-gray-500">
-                {mainSegment.flightNumber} • {mainSegment.duration || flight.duration}
-              </p>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-2xl font-bold text-[#5A53A7]">{flight.totalPrice || `BDT ${flight.price}`}</p>
-            <p className="text-sm text-gray-500">per person</p>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between py-4 border-t border-b border-gray-100">
-          <div className="text-center">
-            <p className="text-xl font-semibold text-gray-800">
-              {mainSegment.departure?.time || format(flight.departureTime, "h:mm a")}
-            </p>
-            <p className="text-sm text-gray-500">{mainSegment.departure?.airportCode || flight.departureAirport}</p>
-          </div>
-          <div className="flex-1 px-4">
-            <div className="relative">
-              <div className="border-t-2 border-gray-200 border-dashed"></div>
-              <div className="absolute -top-2 left-0 right-0 flex justify-center">
-                <div className="bg-white p-1 rounded-full shadow-xs border border-gray-200">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4 text-[#55C3A9]"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
+              <div>
+                <h3 className="font-bold text-gray-800 text-lg">{flight.airlines?.join(", ")}</h3>
+                <p className="text-xs text-gray-500">{flight.tripType} • {flight.totalDuration}</p>
               </div>
             </div>
-            <p className="text-xs text-center text-gray-500 mt-2">
-              {mainSegment.duration || flight.duration}
-              {mainSegment.stops > 0 ? ` • ${mainSegment.stops} stop${mainSegment.stops > 1 ? "s" : ""}` : " • Non-stop"}
-            </p>
+            <div className="text-right">
+              <p className="text-sm font-medium text-gray-600">{flight.summary}</p>
+            </div>
           </div>
-          <div className="text-center">
-            <p className="text-xl font-semibold text-gray-800">
-              {mainSegment.arrival?.time || format(flight.arrivalTime, "h:mm a")}
-            </p>
-            <p className="text-sm text-gray-500">{mainSegment.arrival?.airportCode || flight.arrivalAirport}</p>
-          </div>
-        </div>
 
-        <div className="flex justify-between items-center pt-4">
-          <button 
-            onClick={() => setShowDetails(true)}
-            className="text-[#5A53A7] text-sm font-medium hover:underline hover:text-[#445494] transition"
+          {/* Journeys */}
+          <div className="space-y-4">
+            {journeys.map((journey, journeyIndex) => (
+              <div key={journeyIndex} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                {/* Journey Header */}
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-medium text-gray-700 capitalize">
+                    {journey.type.replace('-', ' ')} • {journey.segments.length} flight(s)
+                  </span>
+                  <span className="text-xs text-gray-500">{journey.summary}</span>
+                </div>
+
+                {/* Segments for this journey */}
+                <div className="space-y-3">
+                  {journey.segments.map((segment, segmentIndex) => (
+                    <div key={segmentIndex} className="flex items-center justify-between">
+                      <div className="text-center flex-1">
+                        <p className="text-xl font-bold text-gray-900">{segment.departure?.time}</p>
+                        <p className="text-sm font-semibold text-gray-700">{segment.departure?.airportCode}</p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {segment.departure?.airportName}
+                        </p>
+                      </div>
+
+                      <div className="flex-1 mx-4 relative">
+                        <div className="border-t-2 border-dashed border-gray-300"></div>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="bg-white px-2 text-center">
+                            <p className="text-xs font-medium text-gray-700">
+                              {segment.duration}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {segment.flightNumber} • {segment.stops}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-center flex-1">
+                        <p className="text-xl font-bold text-gray-900">{segment.arrival?.time}</p>
+                        <p className="text-sm font-semibold text-gray-700">{segment.arrival?.airportCode}</p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {segment.arrival?.airportName}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Fare Info */}
+          <div className="flex flex-wrap gap-2 mt-5 text-xs">
+            <span className="bg-gray-100 px-2 py-1 rounded-md border">
+              {flight.cabinClass || "Economy"}
+            </span>
+            <span className="bg-gray-100 px-2 py-1 rounded-md border">
+              {flight.fareType || "Regular"}
+            </span>
+            {flight.offerDetails?.conditions?.refund_before_departure?.allowed ? (
+              <span className="bg-green-100 text-green-700 px-2 py-1 rounded-md border border-green-200">
+                ✅ Refundable
+              </span>
+            ) : (
+              <span className="bg-red-100 text-red-700 px-2 py-1 rounded-md border border-red-200">❌ Non-refundable</span>
+            )}
+          </div>
+
+          {/* Show Details Toggle */}
+          <button
+            onClick={() => setShowDetails(!showDetails)}
+            className="mt-4 text-sm text-[#5A53A7] font-medium hover:underline flex items-center"
           >
-            Flight details
-          </button>
-          <button 
-            onClick={() => setShowPackages(true)}
-            className="bg-gradient-to-r from-[#55C3A9] to-[#5A53A7] text-white px-6 py-2 rounded-lg font-medium hover:opacity-90 transition"
-          >
-            View Packages
-          </button>
-        </div>
-      </div>
-
-      {/* Flight Details Modal */}
-      {showDetails && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white p-6 border-b border-gray-100 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-[#445494]">Flight Details</h3>
-              <button 
-                onClick={() => setShowDetails(false)}
-                className="text-gray-500 hover:text-[#5A53A7] transition"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            {showDetails ? (
+              <>
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
                 </svg>
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              <div className="bg-gradient-to-r from-[#55C3A9] to-[#5A53A7] p-4 rounded-lg text-white">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-lg font-bold">{flight.airlines?.[0] || flight.airline?.name} {mainSegment.flightNumber}</h4>
-                    <p className="text-sm opacity-90">{mainSegment.duration || flight.duration} • {mainSegment.stops > 0 ? `${mainSegment.stops} stop(s)` : 'Non-stop'}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold">{format(flight.departureTime || new Date(), "EEE, MMM d")}</p>
-                    <p className="text-sm opacity-90">{mainSegment.departure?.airportCode || flight.departureAirport} to {mainSegment.arrival?.airportCode || flight.arrivalAirport}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h4 className="text-lg font-semibold text-[#445494] mb-4">Flight Itinerary</h4>
-                  <div className="space-y-4">
-                    <div className="flex items-start">
-                      <div className="bg-[#55C3A9] rounded-full p-2 mr-4 mt-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h5 className="font-medium text-gray-800">Departure</h5>
-                        <p className="text-gray-600">{mainSegment.departure?.time || format(flight.departureTime, "h:mm a")} • {mainSegment.departure?.airportCode || flight.departureAirport}</p>
-                        <p className="text-sm text-gray-500 mt-1">Terminal 1 • Check-in closes 45 mins before departure</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start">
-                      <div className="bg-[#5A53A7] rounded-full p-2 mr-4 mt-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.707-10.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L9.414 11H13a1 1 0 100-2H9.414l1.293-1.293z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h5 className="font-medium text-gray-800">In-flight</h5>
-                        <p className="text-gray-600">Duration: {mainSegment.duration || flight.duration}</p>
-                        <p className="text-sm text-gray-500 mt-1">Economy Class • Meal included</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start">
-                      <div className="bg-[#54ACA4] rounded-full p-2 mr-4 mt-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h5 className="font-medium text-gray-800">Arrival</h5>
-                        <p className="text-gray-600">{mainSegment.arrival?.time || format(flight.arrivalTime, "h:mm a")} • {mainSegment.arrival?.airportCode || flight.arrivalAirport}</p>
-                        <p className="text-sm text-gray-500 mt-1">Terminal 2 • Estimated arrival time</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-lg font-semibold text-[#445494] mb-4">Flight Information</h4>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <h5 className="text-sm font-medium text-gray-500">Aircraft</h5>
-                        <p className="text-gray-800">Boeing 737-800</p>
-                      </div>
-                      <div>
-                        <h5 className="text-sm font-medium text-gray-500">Seat Pitch</h5>
-                        <p className="text-gray-800">30 inches</p>
-                      </div>
-                      <div>
-                        <h5 className="text-sm font-medium text-gray-500">Cabin Crew</h5>
-                        <p className="text-gray-800">6 members</p>
-                      </div>
-                      <div>
-                        <h5 className="text-sm font-medium text-gray-500">WiFi</h5>
-                        <p className="text-gray-800">Available</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <h4 className="text-lg font-semibold text-[#445494] mt-6 mb-4">Baggage Information</h4>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Cabin baggage</span>
-                        <span className="font-medium">7 kg (1 piece)</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Checked baggage</span>
-                        <span className="font-medium">20 kg (1 piece)</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Excess baggage fee</span>
-                        <span className="font-medium">BDT 500/kg</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Packages Modal */}
-      {showPackages && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white p-6 border-b border-gray-100 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-[#445494]">Select Fare Package</h3>
-              <button 
-                onClick={() => setShowPackages(false)}
-                className="text-gray-500 hover:text-[#5A53A7] transition"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                Hide Details
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
-              </button>
-            </div>
-            
-            <div className="p-6">
-              <div className="mb-6 flex items-center bg-gradient-to-r from-[#55C3A9] to-[#5A53A7] p-4 rounded-lg text-white">
-                <Image
-                  src={getAirlineLogo(flight.airlines?.[0] || flight.airline?.name)}
-                  alt={flight.airlines?.[0] || flight.airline?.name}
-                  width={40}
-                  height={40}
-                  className="h-10 w-10 object-contain mr-3"
-                  onError={(e) => {
-                    e.target.src = "/airline-placeholder.png";
-                  }}
-                />
-                <div>
-                  <h4 className="font-bold">{flight.airlines?.[0] || flight.airline?.name}</h4>
-                  <p className="text-sm opacity-90">
-                    {format(flight.departureTime || new Date(), "EEE, MMM d")} • {mainSegment.departure?.time || format(flight.departureTime, "h:mm a")} - {mainSegment.arrival?.time || format(flight.arrivalTime, "h:mm a")}
-                  </p>
-                </div>
-              </div>
-              
+                Show All Details
+              </>
+            )}
+          </button>
+
+          {/* Detailed Segments View */}
+          {showDetails && (
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <h4 className="font-medium text-blue-800 mb-3 flex items-center">
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Flight Details
+              </h4>
               <div className="space-y-4">
-                {farePackages.map((pkg, index) => (
-                  <div key={index} className="border border-gray-200 rounded-lg p-5 hover:border-[#5A53A7] transition">
-                    <div className="flex justify-between items-start mb-4">
+                {flight.segments?.map((segment, index) => (
+                  <div key={index} className="border-l-2 border-[#5A53A7] pl-4 bg-white p-3 rounded">
+                    <div className="flex justify-between items-start">
                       <div>
-                        <h4 className="font-bold text-lg text-[#445494]">{pkg.name}</h4>
-                        <p className="text-sm text-gray-600">Best value for money</p>
+                        <p className="font-medium text-gray-800">
+                          {segment.departure?.airportCode} → {segment.arrival?.airportCode}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {segment.airline} {segment.flightNumber}
+                        </p>
                       </div>
-                      <p className="text-xl font-bold text-[#5A53A7]">{pkg.price}</p>
+                      <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded font-medium">
+                        {segment.duration}
+                      </span>
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-4 text-sm mb-5">
-                      <div className="flex items-center">
-                        <div className="bg-[#55C3A9]/10 p-2 rounded-full mr-3">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#55C3A9]" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
-                            <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1v-1a1 1 0 011-1h2a1 1 0 011 1v1a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H19a1 1 0 001-1V5a1 1 0 00-1-1H3z" />
-                          </svg>
-                        </div>
-                        <span>{pkg.cabinBag}</span>
+                    <div className="grid grid-cols-2 gap-4 mt-2 text-sm">
+                      <div>
+                        <p className="font-medium text-gray-700">Departure</p>
+                        <p className="text-gray-600">{segment.departure?.time}</p>
+                        <p className="text-xs text-gray-500">{segment.departure?.airportName}</p>
                       </div>
-                      <div className="flex items-center">
-                        <div className="bg-[#5A53A7]/10 p-2 rounded-full mr-3">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#5A53A7]" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2H4a1 1 0 010-2V4zm3 1h2v2H7V5zm4 0h2v2h-2V5zm-4 3h2v2H7V8zm4 0h2v2h-2V8zm-4 3h2v2H7v-2zm4 0h2v2h-2v-2z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                        <span>{pkg.checkedIn}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <div className="bg-[#54ACA4]/10 p-2 rounded-full mr-3">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#54ACA4]" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                        <span>{pkg.cancellation}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <div className="bg-[#445494]/10 p-2 rounded-full mr-3">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#445494]" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                        <span>{pkg.dateChange}</span>
+                      <div>
+                        <p className="font-medium text-gray-700">Arrival</p>
+                        <p className="text-gray-600">{segment.arrival?.time}</p>
+                        <p className="text-xs text-gray-500">{segment.arrival?.airportName}</p>
                       </div>
                     </div>
-                    
-                    <Link 
-                      href={`/flights/${(mainSegment.departure?.airportCode || flight.departureAirport).toLowerCase()}-${(mainSegment.arrival?.airportCode || flight.arrivalAirport).toLowerCase()}/userInfo`}
-                      className="block w-full bg-gradient-to-r from-[#55C3A9] to-[#5A53A7] text-white text-center py-3 rounded-lg font-medium hover:opacity-90 transition"
-                    >
-                      Continue
-                    </Link>
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Section: Price + CTA */}
+        <div className="w-64 border-l border-dashed border-gray-300 p-6 flex flex-col justify-between bg-gray-50">
+          <div>
+            <p className="text-gray-500 text-sm font-medium">Total Price</p>
+            <p className="text-3xl font-bold text-[#5A53A7] my-2">{flight.totalPrice}</p>
+            <p className="text-xs text-gray-400 mb-4">for {flight.travelers || 1} traveler(s)</p>
+            
+            {/* Additional Price Info */}
+            {flight.offerDetails && (
+              <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200 text-xs text-gray-600">
+                <div className="flex justify-between mb-1">
+                  <span>Base Fare:</span>
+                  <span>{flight.offerDetails.base_amount} {flight.offerDetails.base_currency}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Taxes & Fees:</span>
+                  <span>{flight.offerDetails.tax_amount} {flight.offerDetails.tax_currency}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Selection Status */}
+            {selectedPackage && (
+              <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm font-medium text-green-800 flex items-center">
+                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Package Selected
+                </p>
+                <p className="text-xs text-green-600 mt-1">{selectedPackage.name}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <button
+              onClick={() => setShowPackages(true)}
+              className="w-full bg-gradient-to-r from-[#55C3A9] to-[#5A53A7] text-white text-center py-3 rounded-xl font-semibold hover:opacity-90 transition shadow-md flex items-center justify-center"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+              </svg>
+              {selectedPackage ? `Change Package` : 'View Packages'}
+            </button>
+            
+            <button
+              onClick={handleSelectFlight}
+              className="w-full border-2 border-[#5A53A7] text-[#5A53A7] text-center py-3 rounded-xl font-semibold hover:bg-[#5A53A7] hover:text-white transition flex items-center justify-center"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Select Flight
+            </button>
+
+            <div className="text-center">
+              <p className="text-xs text-gray-500 mt-2">
+                🔒 Secure booking • 📧 E-ticket • 24/7 Support
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Packages Modal */}
+      {showPackages && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-[#55C3A9] to-[#5A53A7] text-white">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-2xl font-bold">Select Your Fare Package</h3>
+                  <p className="text-blue-100 mt-1">Choose the option that best fits your travel needs</p>
+                </div>
+                <button
+                  onClick={() => setShowPackages(false)}
+                  className="text-white hover:text-blue-200 text-2xl p-2 rounded-full hover:bg-white/10 transition"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              {loadingPackages ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-[#5A53A7] mx-auto mb-4"></div>
+                  <p className="text-lg text-gray-600">Loading available packages...</p>
+                  <p className="text-sm text-gray-500 mt-2">Please wait while we fetch the best options for you</p>
+                </div>
+              ) : packageError ? (
+                <div className="text-center py-12">
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
+                    <svg className="w-16 h-16 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h4 className="text-lg font-semibold text-red-800 mb-2">Unable to Load Packages</h4>
+                    <p className="text-red-600 mb-4">{packageError}</p>
+                    <button
+                      onClick={() => setShowPackages(false)}
+                      className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              ) : farePackages.length > 0 ? (
+                <div className="grid gap-6 md:grid-cols-2">
+                  {farePackages.map((pkg, index) => (
+                    <div key={index} className={`border-2 rounded-xl p-6 transition-all hover:shadow-lg ${
+                      selectedPackage?.name === pkg.name 
+                        ? 'border-[#5A53A7] bg-[#5A53A7]/5' 
+                        : 'border-gray-200 hover:border-[#55C3A9]'
+                    }`}>
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h4 className="font-bold text-xl text-gray-800">{pkg.name}</h4>
+                          <p className="text-sm text-gray-600 mt-1">{pkg.description}</p>
+                        </div>
+                        <span className="text-2xl font-bold text-[#5A53A7]">{pkg.price}</span>
+                      </div>
+                      
+                      <div className="space-y-3 text-sm mb-6">
+                        <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                          <span className="font-medium text-gray-600">Cabin Baggage</span>
+                          <span className="font-semibold text-gray-800">{pkg.baggage?.cabin || "As per Airlines Policy"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                          <span className="font-medium text-gray-600">Checked Baggage</span>
+                          <span className="font-semibold text-gray-800">{pkg.baggage?.checked || "As per Airlines Policy"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-2">
+                          <span className="font-medium text-gray-600">Available Seats</span>
+                          <span className={`font-semibold ${
+                            pkg.available_seats === "Limited" ? 'text-orange-600' : 'text-green-600'
+                          }`}>
+                            {pkg.available_seats || "Limited"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={() => handlePackageSelect(pkg)}
+                        className={`w-full py-3 rounded-lg font-bold transition shadow-md ${
+                          selectedPackage?.name === pkg.name
+                            ? 'bg-green-600 text-white hover:bg-green-700'
+                            : 'bg-gradient-to-r from-[#55C3A9] to-[#5A53A7] text-white hover:opacity-90'
+                        }`}
+                      >
+                        {selectedPackage?.name === pkg.name ? (
+                          <span className="flex items-center justify-center">
+                            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                            Selected
+                          </span>
+                        ) : (
+                          'Select Package'
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 max-w-md mx-auto">
+                    <svg className="w-16 h-16 text-yellow-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <h4 className="text-lg font-semibold text-yellow-800 mb-2">No Packages Available</h4>
+                    <p className="text-yellow-700">No fare packages are currently available for this flight.</p>
+                    <p className="text-sm text-yellow-600 mt-2">Please try selecting a different flight or contact support.</p>
+                    <button
+                      onClick={() => setShowPackages(false)}
+                      className="mt-4 bg-yellow-600 text-white px-6 py-2 rounded-lg hover:bg-yellow-700 transition"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -358,42 +576,111 @@ const FlightCard = ({ flight, onSelect }) => {
   );
 };
 
-const FlightSearchResults = ({ flights, onSelectFlight }) => {
-  return (
-    <div className="space-y-4">
-      {flights.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm p-8 text-center">
-          <div className="flex flex-col items-center">
-            <svg
-              className="w-16 h-16 text-gray-300 mb-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1}
-                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-              />
-            </svg>
-            <h3 className="text-lg font-medium text-gray-800 mb-2">
-              No flights found matching your criteria
-            </h3>
-            <p className="text-gray-600 text-center">
-              Try adjusting your filters or search dates to find more options.
+const FlightSearchResults = ({ flights, searchParams }) => {
+  // Convert searchParams to a plain object safely
+  const getSearchParamsObject = () => {
+    if (!searchParams) return {};
+    try {
+      // If it's already an object, return it
+      if (typeof searchParams === 'object' && !(searchParams instanceof URLSearchParams)) {
+        return searchParams;
+      }
+      // If it's URLSearchParams, convert to object
+      if (searchParams instanceof URLSearchParams) {
+        const params = {};
+        for (const [key, value] of searchParams.entries()) {
+          params[key] = value;
+        }
+        return params;
+      }
+      return {};
+    } catch (error) {
+      console.error('Error converting searchParams:', error);
+      return {};
+    }
+  };
+
+  const searchParamsObj = getSearchParamsObject();
+
+  if (!flights || flights.length === 0) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm p-8 text-center">
+        <div className="flex flex-col items-center">
+          <svg
+            className="w-20 h-20 text-gray-300 mb-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1}
+              d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          <h3 className="text-xl font-semibold text-gray-800 mb-3">
+            No Flights Found
+          </h3>
+          <p className="text-gray-600 mb-4 max-w-md mx-auto">
+            We couldn't find any flights matching your search criteria. This could be due to:
+          </p>
+          <ul className="text-sm text-gray-500 text-left max-w-md mx-auto space-y-2 mb-6">
+            <li className="flex items-center">
+              <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Selected dates might be fully booked
+            </li>
+            <li className="flex items-center">
+              <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+              </svg>
+              No direct flights available for your route
+            </li>
+            <li className="flex items-center">
+              <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Try adjusting your travel dates or filters
+            </li>
+          </ul>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md mx-auto">
+            <p className="text-sm text-blue-700">
+              💡 <strong>Tip:</strong> Try searching with different dates or check nearby airports for more options.
             </p>
           </div>
         </div>
-      ) : (
-        flights.map((flight) => (
-          <FlightCard 
-            key={flight.id} 
-            flight={flight} 
-            onSelect={onSelectFlight}
-          />
-        ))
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-lg font-semibold text-gray-800 mb-2 sm:mb-0">
+            {flights.length} Flight{flights.length !== 1 ? 's' : ''} Found
+          </h2>
+          <div className="flex items-center text-sm text-gray-600">
+            <svg className="w-4 h-4 mr-1 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            Sorted by: <span className="font-medium ml-1">Best Value</span>
+          </div>
+        </div>
+        <p className="text-sm text-gray-500 mt-2">
+          Select a flight to continue with your booking
+        </p>
+      </div>
+
+      {flights.map((flight) => (
+        <FlightCard 
+          key={flight.id} 
+          flight={flight} 
+          searchParams={searchParamsObj}
+        />
+      ))}
     </div>
   );
 };
