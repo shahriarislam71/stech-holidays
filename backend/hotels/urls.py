@@ -21,4 +21,13 @@ urlpatterns = [
     path('bookings/<str:booking_id>/', views.GetBookingView.as_view(), name='get-booking'),
     path('bookings/<str:booking_id>/cancel/', views.CancelBookingView.as_view(), name='cancel-booking'),
     path('bookings/', views.ListBookingsView.as_view(), name='list-bookings'),
+
+
+
+
+    # Payment booking ssl commerce
+
+    path('initiate/', views.InitiatePaymentView.as_view(), name='initiate-payment'),
+    path('validate/', views.PaymentValidationView.as_view(), name='validate-payment'),
+    path('confirm/', views.ConfirmBookingAfterPayment.as_view(), name='confirm-booking'),
 ]

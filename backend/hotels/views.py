@@ -7,10 +7,6 @@ from django.conf import settings
 from datetime import datetime
 import logging
 import json
-from .models import HotelBooking
-from django.db import transaction
-from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +20,7 @@ class AccommodationSearchView(APIView):
         try:
             logger.info("🔍 Starting accommodation search")
             
-            # --- Validate required fields ---
+            # Validate required fields
             check_in_date = request.data.get("check_in_date")
             check_out_date = request.data.get("check_out_date")
             
@@ -34,18 +30,17 @@ class AccommodationSearchView(APIView):
                     "message": "check_in_date and check_out_date are required"
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # --- Validate location or accommodation ---
+            # Validate location or accommodation
             location = request.data.get("location")
             accommodation = request.data.get("accommodation")
-            location_name = request.data.get("location_name")  # NEW: user can send a place name
             
-            if not location and not accommodation and not location_name:
+            if not location and not accommodation:
                 return Response({
                     "status": "error", 
-                    "message": "Either location, accommodation, or location_name must be provided"
+                    "message": "Either location or accommodation must be provided"
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # --- Build guests array ---
+            # Build guests array
             guests = []
             travelers = request.data.get("travelers", {})
             adults_count = travelers.get("adults", 1)
@@ -55,7 +50,10 @@ class AccommodationSearchView(APIView):
                 guests.append({"type": "adult"})
             
             for age in children_ages:
-                guests.append({"type": "child", "age": age})
+                guests.append({
+                    "type": "child",
+                    "age": age
+                })
             
             if not guests:
                 return Response({
@@ -63,7 +61,7 @@ class AccommodationSearchView(APIView):
                     "message": "At least one guest is required"
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # --- Initialize search_data ---
+            # Build Duffel request
             search_data = {
                 "data": {
                     "check_in_date": check_in_date,
@@ -75,9 +73,8 @@ class AccommodationSearchView(APIView):
                 }
             }
             
-            # --- Handle location ---
+            # Add location or accommodation to search data
             if location:
-                # User provided coordinates
                 if not location.get("geographic_coordinates"):
                     return Response({
                         "status": "error",
@@ -92,52 +89,23 @@ class AccommodationSearchView(APIView):
                         },
                         "radius": location.get("radius", 5)
                     }
-                except (KeyError, ValueError, TypeError):
+                except (KeyError, ValueError, TypeError) as e:
                     return Response({
                         "status": "error",
                         "message": "Invalid geographic coordinates format"
                     }, status=status.HTTP_400_BAD_REQUEST)
-            
-            elif location_name:
-                # --- NEW: Geocode place name ---
-                try:
-                    geolocator = Nominatim(user_agent="my_accommodation_app")
-                    geo_location = geolocator.geocode(location_name, timeout=10)
-                    
-                    if not geo_location:
-                        return Response({
-                            "status": "error",
-                            "message": f"Could not find coordinates for location_name '{location_name}'"
-                        }, status=status.HTTP_400_BAD_REQUEST)
-                    
-                    search_data["data"]["location"] = {
-                        "geographic_coordinates": {
-                            "latitude": geo_location.latitude,
-                            "longitude": geo_location.longitude
-                        },
-                        "radius": location.get("radius", 5) if location else 5
-                    }
-                    
-                    logger.info(f"🗺️ Resolved '{location_name}' to coordinates: "
-                                f"{geo_location.latitude}, {geo_location.longitude}")
-                
-                except GeocoderServiceError as e:
-                    return Response({
-                        "status": "error",
-                        "message": f"Geocoding service error: {str(e)}"
-                    }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-            
             else:
-                # User provided accommodation id
                 if not accommodation.get("id"):
                     return Response({
                         "status": "error",
                         "message": "Accommodation must contain id"
                     }, status=status.HTTP_400_BAD_REQUEST)
                 
-                search_data["data"]["accommodation"] = {"id": accommodation["id"]}
+                search_data["data"]["accommodation"] = {
+                    "id": accommodation["id"]
+                }
             
-            # --- Duffel API request ---
+            # Duffel API request
             url = "https://api.duffel.com/stays/search"
             headers = {
                 "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}",
@@ -156,6 +124,8 @@ class AccommodationSearchView(APIView):
                 if response.status_code in [200, 201]:
                     data = response.json()
                     all_results = data.get("data", {}).get("results", [])
+                    
+                    logger.info(f"✅ SUCCESS! Found {len(all_results)} accommodations")
                     
                     if not all_results:
                         return Response({
@@ -195,8 +165,10 @@ class AccommodationSearchView(APIView):
                                 },
                                 "photos": [{"url": photo.get("url")} for photo in accommodation_data.get("photos", [])],
                                 "amenities": [
-                                    {"type": amenity.get("type"), "description": amenity.get("description", "")}
-                                    for amenity in accommodation_data.get("amenities", [])
+                                    {
+                                        "type": amenity.get("type"),
+                                        "description": amenity.get("description", "")
+                                    } for amenity in accommodation_data.get("amenities", [])
                                 ],
                                 "pricing": {
                                     "total_amount": float(result.get("cheapest_rate_total_amount", 0)),
@@ -212,6 +184,7 @@ class AccommodationSearchView(APIView):
                             logger.error(f"Error processing accommodation: {str(e)}")
                             continue
                     
+                    # Sort by price
                     accommodations.sort(key=lambda x: x.get("pricing", {}).get("total_amount", 0))
                     
                     return Response({
@@ -224,20 +197,36 @@ class AccommodationSearchView(APIView):
                 else:
                     error_data = response.json()
                     error_msg = error_data.get("errors", [{}])[0].get("title", "Unknown error")
+                    
+                    logger.error(f"❌ Duffel API error {response.status_code}: {error_msg}")
+                    
                     return Response({
                         "status": "error",
                         "message": "Search failed",
                         "error": error_msg
                     }, status=response.status_code)
-            
+                
             except requests.exceptions.Timeout:
-                return Response({"status": "error", "message": "Search timeout"}, status=status.HTTP_504_GATEWAY_TIMEOUT)
-            
+                logger.error("⏰ Duffel API request timeout")
+                return Response({
+                    "status": "error",
+                    "message": "Search timeout"
+                }, status=status.HTTP_504_GATEWAY_TIMEOUT)
+                
             except Exception as e:
-                return Response({"status": "error", "message": "Network error"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+                logger.error(f"🌐 Request error: {str(e)}")
+                return Response({
+                    "status": "error",
+                    "message": "Network error"
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
             
         except Exception as e:
-            return Response({"status": "error", "message": "Internal server error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"💥 Unexpected error: {str(e)}")
+            return Response({
+                "status": "error",
+                "message": "Internal server error"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class HotelOffersView(APIView):
     """
@@ -676,3 +665,156 @@ class ListBookingsView(APIView):
                 "message": "Request failed",
                 "details": str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+
+
+from .models import HotelBooking, PaymentTransaction
+
+logger = logging.getLogger(__name__)
+
+
+class InitiatePaymentView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        quote_id = request.data.get("quote_id")
+        amount = request.data.get("amount")
+        email = request.data.get("email")
+        phone = request.data.get("phone")
+
+        if not all([quote_id, amount, email, phone]):
+            return Response({"error": "Missing required fields"}, status=400)
+
+        tran_id = f"TXN_{uuid.uuid4().hex[:8]}"
+        payment = PaymentTransaction.objects.create(tran_id=tran_id, amount=amount)
+
+        # prepare SSLCommerz payload
+        payload = {
+            "store_id": settings.SSL_STORE_ID,
+            "store_passwd": settings.SSL_STORE_PASS,
+            "total_amount": amount,
+            "currency": "BDT",
+            "tran_id": tran_id,
+            "success_url": settings.SSL_SUCCESS_URL,
+            "fail_url": settings.SSL_FAIL_URL,
+            "cancel_url": settings.SSL_CANCEL_URL,
+            "cus_email": email,
+            "cus_phone": phone,
+        }
+
+        ssl_url = "https://sandbox.sslcommerz.com/gwprocess/v4/api.php"
+        resp = requests.post(ssl_url, data=payload)
+
+        if resp.status_code == 200:
+            data = resp.json()
+            return Response({"GatewayPageURL": data.get("GatewayPageURL"), "tran_id": tran_id})
+        return Response({"error": "SSLCommerz init failed"}, status=500)
+
+
+class PaymentValidationView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        data = request.data
+        tran_id = data.get("tran_id")
+
+        if not tran_id:
+            return Response({"error": "No tran_id"}, status=400)
+
+        try:
+            payment = PaymentTransaction.objects.get(tran_id=tran_id)
+        except PaymentTransaction.DoesNotExist:
+            return Response({"error": "Transaction not found"}, status=404)
+
+        # validate payment from SSLCOMMERZ
+        validation_url = "https://sandbox.sslcommerz.com/validator/api/validationserverAPI.php"
+        params = {
+            "val_id": data.get("val_id"),
+            "store_id": settings.SSL_STORE_ID,
+            "store_passwd": settings.SSL_STORE_PASS,
+            "format": "json"
+        }
+        response = requests.get(validation_url, params=params)
+        validation = response.json()
+
+        if validation.get("status") == "VALID":
+            payment.status = "success"
+            payment.validation_response = validation
+            payment.save()
+            logger.info(f"✅ SSL Payment Validated: {tran_id}")
+            return Response({"message": "Payment verified", "tran_id": tran_id})
+        else:
+            payment.status = "failed"
+            payment.validation_response = validation
+            payment.save()
+            return Response({"error": "Payment not valid"}, status=400)
+
+
+class ConfirmBookingAfterPayment(APIView):
+    """
+    Confirm Duffel booking only after successful SSLCOMMERZ payment
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        tran_id = request.data.get("tran_id")
+        guests = request.data.get("guests", [])
+        email = request.data.get("email")
+        phone_number = request.data.get("phone_number")
+        quote_id = request.data.get("quote_id")
+
+        try:
+            payment = PaymentTransaction.objects.get(tran_id=tran_id, status="success")
+        except PaymentTransaction.DoesNotExist:
+            return Response({"error": "Payment not successful or invalid tran_id"}, status=400)
+
+        # === Create Duffel Booking ===
+        booking_data = {
+            "data": {
+                "quote_id": quote_id,
+                "guests": guests,
+                "email": email,
+                "phone_number": phone_number
+            }
+        }
+
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Duffel-Version": "v2",
+            "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}"
+        }
+
+        url = "https://api.duffel.com/stays/bookings"
+
+        try:
+            response = requests.post(url, json=booking_data, headers=headers, timeout=30)
+            data = response.json()
+
+            if response.status_code == 201:
+                booking_id = data["data"]["id"]
+                with transaction.atomic():
+                    HotelBooking.objects.create(
+                        booking_id=booking_id,
+                        quote_id=quote_id,
+                        email=email,
+                        phone_number=phone_number,
+                        status="confirmed",
+                        payment_status="paid",
+                        transaction=payment,
+                        raw_response=data
+                    )
+                logger.info(f"✅ Booking confirmed and saved: {booking_id}")
+                return Response({"status": "success", "booking": data}, status=201)
+            else:
+                logger.error(f"❌ Duffel booking failed: {data}")
+                return Response({"error": "Duffel booking failed", "details": data}, status=400)
+        except requests.exceptions.RequestException as e:
+            logger.error(f"🌐 Duffel API failed: {str(e)}")
+            return Response({"error": str(e)}, status=500)
+
+
+
+
+#jncjdsnj
