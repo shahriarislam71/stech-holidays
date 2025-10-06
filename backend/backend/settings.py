@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "coreauth",
     "holidays_visa",
     "flights",
+    "hotels",
     
 ]
 
@@ -291,3 +292,11 @@ LOGGING = {
         },
     },
 }
+SSL_STORE_ID = os.getenv("jgpha68da32a8c1bf9", "testbox")
+SSL_STORE_PASS = os.getenv("SSL_STORE_PASS", "qwerty")  # sandbox default password
+
+# Callback URLs (should be reachable in your environment)
+# these are where SSLCommerz will POST after payment
+SSL_SUCCESS_URL = "https://yourdomain.com/api/payments/validate/"
+SSL_FAIL_URL = "https://yourdomain.com/api/payments/validate/"
+SSL_CANCEL_URL = "https://yourdomain.com/api/payments/validate/"
