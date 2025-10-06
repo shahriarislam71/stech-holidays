@@ -1,26 +1,26 @@
-// app/hotels/search/[hotelId]/booking/page.js
 'use client';
 
 import { FiArrowLeft, FiCheck, FiMapPin, FiStar, FiUser, FiPhone, FiMail } from 'react-icons/fi';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 
 export default function BookingConfirmationPage({ params }) {
   const searchParams = useSearchParams();
   const hotelId = params.hotelId;
+  const rateId = searchParams.get('rateId');
   
   // Get booking details from URL params
-  const roomType = searchParams.get('roomType') || 'Junior Suite';
-  const checkIn = searchParams.get('checkIn') || 'Sun, Jun 29, 2025';
-  const checkOut = searchParams.get('checkOut') || 'Mon, Jun 30, 2025';
-  const nights = searchParams.get('nights') || '1';
-  const adults = searchParams.get('adults') || '1';
-  const children = searchParams.get('children') || '0';
-  const price = searchParams.get('price') || '16139';
-  const taxes = searchParams.get('taxes') || '3467';
-  const total = searchParams.get('total') || '16800';
+  const roomType = searchParams.get('roomType') || 'Quadruple Room';
+  const price = searchParams.get('price') || '0';
+  const boardType = searchParams.get('boardType') || 'room_only';
+  const currency = searchParams.get('currency') || 'BDT';
+
+  // State for quote data
+  const [quoteData, setQuoteData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -31,6 +31,45 @@ export default function BookingConfirmationPage({ params }) {
     specialRequests: ''
   });
 
+  // Fetch quote data
+  useEffect(() => {
+    const fetchQuoteData = async () => {
+      if (!rateId) return;
+      
+      try {
+        setLoading(true);
+        const response = await fetch('http://localhost:8000/api/hotels/quotes/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            rate_id: rateId
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch quote data: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+          setQuoteData(data.quote);
+        } else {
+          throw new Error(data.message || 'Failed to fetch quote data');
+        }
+      } catch (err) {
+        console.error('Error fetching quote data:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchQuoteData();
+  }, [rateId]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -39,23 +78,119 @@ export default function BookingConfirmationPage({ params }) {
     }));
   };
 
-  // Mock hotel data
-  const hotel = {
-    name: "Hotel Agrabad",
-    rating: "4.5",
-    location: "Chattogram, Bangladesh",
-    image: "https://images.pexels.com/photos/164595/pexels-photo-164595.jpeg?auto=compress&cs=tinysrgb&dpr=1&w=500",
-    amenities: ["Swimming Pool", "Free WiFi", "Restaurant", "Spa"],
-    roomDetails: {
-      type: "Junior Suite",
-      bedType: "King",
-      capacity: "3",
-      size: "450 sq.ft",
-      smoking: "Non-Smoking",
-      breakfast: "Included",
-      refundable: true
-    }
+  // Helper functions
+  const getBoardTypeDisplay = (boardType) => {
+    const boardTypes = {
+      'room_only': 'Room Only',
+      'breakfast': 'Breakfast Included',
+      'half_board': 'Half Board',
+      'full_board': 'Full Board',
+      'all_inclusive': 'All Inclusive'
+    };
+    return boardTypes[boardType] || boardType;
   };
+
+  const formatPrice = (price, currency = 'BDT') => {
+    return new Intl.NumberFormat('en-BD', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(price);
+  };
+
+  const getBedDisplay = (beds) => {
+    if (!beds || beds.length === 0) return 'Bed information not available';
+    
+    return beds.map(bed => `${bed.count} ${bed.type} bed${bed.count > 1 ? 's' : ''}`).join(', ');
+  };
+
+  // Calculate nights from check-in/check-out dates
+  const calculateNights = () => {
+    if (!quoteData) return 0;
+    
+    const checkIn = new Date(quoteData.check_in_date);
+    const checkOut = new Date(quoteData.check_out_date);
+    const diffTime = Math.abs(checkOut - checkIn);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  // Format date for display
+  const formatDisplayDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
+  };
+
+  // Count adults and children
+  const countGuests = () => {
+    if (!quoteData?.guests) return { adults: 0, children: 0 };
+    
+    const adults = quoteData.guests.filter(guest => guest.type === 'adult').length;
+    const children = quoteData.guests.filter(guest => guest.type === 'child').length;
+    
+    return { adults, children };
+  };
+
+  if (loading) {
+    return (
+      <div className="px-4 md:px-[190px] py-8">
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#5A53A7]"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="px-4 md:px-[190px] py-8">
+        <div className="bg-white rounded-xl shadow-lg p-8 text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            Error Loading Booking Details
+          </h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <Link
+            href={`/hotels/search/${hotelId}`}
+            className="inline-flex items-center px-4 py-2 bg-[#5A53A7] text-white rounded-lg hover:bg-[#4a438f] transition-colors"
+          >
+            <FiArrowLeft className="mr-2" />
+            Back to room selection
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!quoteData) {
+    return (
+      <div className="px-4 md:px-[190px] py-8">
+        <div className="bg-white rounded-xl shadow-lg p-8 text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            No booking data found
+          </h2>
+          <Link
+            href={`/hotels/search/${hotelId}`}
+            className="inline-flex items-center px-4 py-2 bg-[#5A53A7] text-white rounded-lg hover:bg-[#4a438f] transition-colors"
+          >
+            <FiArrowLeft className="mr-2" />
+            Back to room selection
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const hotel = quoteData.accommodation;
+  const nights = calculateNights();
+  const { adults, children } = countGuests();
+  const room = hotel.rooms?.[0];
+  const rate = room?.rates?.[0];
 
   const isFormValid = formData.firstName && formData.lastName && formData.email && formData.phone;
 
@@ -103,12 +238,13 @@ export default function BookingConfirmationPage({ params }) {
               <div className="flex flex-col md:flex-row gap-6">
                 <div className="md:w-1/3">
                   <div className="relative rounded-xl overflow-hidden h-48">
-                    <Image 
-                      src={hotel.image} 
+                    <img 
+                      src={hotel.photos?.[0]?.url || '/hotel-placeholder.jpg'} 
                       alt={hotel.name}
-                      width={500}
-                      height={192}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.src = '/hotel-placeholder.jpg';
+                      }}
                     />
                   </div>
                 </div>
@@ -123,7 +259,10 @@ export default function BookingConfirmationPage({ params }) {
                         </div>
                         <div className="flex items-center text-gray-600 text-sm">
                           <FiMapPin className="mr-1 text-[#5A53A7]" size={14} />
-                          <span>{hotel.location}</span>
+                          <span>{hotel.location?.address ? 
+                            `${hotel.location.address.city_name}, ${hotel.location.address.country_code}` : 
+                            'Location not available'
+                          }</span>
                         </div>
                       </div>
                     </div>
@@ -133,7 +272,8 @@ export default function BookingConfirmationPage({ params }) {
                   <div className="grid grid-cols-3 gap-4 bg-gray-50 rounded-lg p-4 mb-4">
                     <div>
                       <p className="text-xs text-gray-500 uppercase font-medium">Check-In</p>
-                      <p className="font-medium">{checkIn}</p>
+                      <p className="font-medium">{formatDisplayDate(quoteData.check_in_date)}</p>
+                      <p className="text-xs text-gray-500">After {hotel.check_in_information?.check_in_after_time || '2:00 PM'}</p>
                     </div>
                     <div className="text-center">
                       <p className="text-xs text-gray-500 uppercase font-medium">Nights</p>
@@ -141,42 +281,57 @@ export default function BookingConfirmationPage({ params }) {
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-gray-500 uppercase font-medium">Check-Out</p>
-                      <p className="font-medium">{checkOut}</p>
+                      <p className="font-medium">{formatDisplayDate(quoteData.check_out_date)}</p>
+                      <p className="text-xs text-gray-500">Before {hotel.check_in_information?.check_out_before_time || '12:00 PM'}</p>
+                    </div>
+                  </div>
+
+                  {/* Guest count */}
+                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase font-medium">Guests</p>
+                        <p className="font-medium">{adults} Adult{adults > 1 ? 's' : ''}{children > 0 ? `, ${children} Child${children > 1 ? 'ren' : ''}` : ''}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase font-medium">Rooms</p>
+                        <p className="font-medium text-right">{quoteData.rooms}</p>
+                      </div>
                     </div>
                   </div>
 
                   {/* Room details */}
                   <div className="border-t border-gray-200 pt-4">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{hotel.roomDetails.type}</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{room?.name || roomType}</h3>
                     <div className="flex flex-wrap gap-2 mb-3">
                       <span className="bg-green-50 text-green-600 text-xs px-3 py-1 rounded-full flex items-center">
                         <FiCheck className="mr-1" size={12} />
-                        {hotel.roomDetails.breakfast}
+                        {getBoardTypeDisplay(rate?.board_type || boardType)}
                       </span>
-                      {hotel.roomDetails.refundable && (
+                      {rate?.payment_type === 'pay_now' && (
                         <span className="bg-blue-50 text-blue-600 text-xs px-3 py-1 rounded-full flex items-center">
                           <FiCheck className="mr-1" size={12} />
-                          Refundable
+                          Pay Now
                         </span>
                       )}
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
                       <div className="flex items-center">
                         <span className="font-medium mr-1">Bed:</span>
-                        <span>{hotel.roomDetails.bedType}</span>
+                        <span>{getBedDisplay(room?.beds)}</span>
                       </div>
                       <div className="flex items-center">
-                        <span className="font-medium mr-1">Capacity:</span>
-                        <span>{hotel.roomDetails.capacity}</span>
+                        <span className="font-medium mr-1">Guests:</span>
+                        <span>{adults + children}</span>
                       </div>
-                      <div className="flex items-center">
-                        <span className="font-medium mr-1">Size:</span>
-                        <span>{hotel.roomDetails.size}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <span className="font-medium mr-1">Smoking:</span>
-                        <span>{hotel.roomDetails.smoking}</span>
-                      </div>
+                      {rate?.conditions?.some(condition => 
+                        condition.title.includes('Pet Policy') && condition.description.includes('not allowed')
+                      ) && (
+                        <div className="flex items-center">
+                          <span className="font-medium mr-1">Pets:</span>
+                          <span>Not Allowed</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -277,38 +432,59 @@ export default function BookingConfirmationPage({ params }) {
               
               <div className="space-y-3 mb-4">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Rack Rate (1 Room)</span>
-                  <span className="font-medium">BDT 27,473</span>
+                  <span className="text-gray-600">Room Rate ({nights} night{nights > 1 ? 's' : ''})</span>
+                  <span className="font-medium">{formatPrice(parseFloat(price), currency)}</span>
                 </div>
-                <div className="flex justify-between text-green-600">
-                  <span className="text-gray-600">Hotel Offer 51%</span>
-                  <span className="font-medium">-BDT 13,334</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Taxes & Fees</span>
-                  <span className="font-medium">BDT {taxes}</span>
-                </div>
-              </div>
-              
-              <div className="border-t border-gray-200 pt-3 mb-4">
-                <div className="flex justify-between">
-                  <span className="text-gray-600 font-medium">Sub Total</span>
-                  <span className="font-medium">BDT {price}</span>
-                </div>
+                
+                {quoteData.tax_amount && parseFloat(quoteData.tax_amount) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Taxes & Fees</span>
+                    <span className="font-medium">{formatPrice(parseFloat(quoteData.tax_amount), quoteData.tax_currency)}</span>
+                  </div>
+                )}
+                
+                {quoteData.fee_amount && parseFloat(quoteData.fee_amount) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Additional Fees</span>
+                    <span className="font-medium">{formatPrice(parseFloat(quoteData.fee_amount), quoteData.fee_currency)}</span>
+                  </div>
+                )}
               </div>
               
               <div className="border-t border-gray-200 pt-3 mb-6">
                 <div className="flex justify-between">
                   <span className="text-gray-900 font-bold text-lg">Grand Total</span>
-                  <span className="text-[#5A53A7] font-bold text-lg">BDT {total}</span>
+                  <span className="text-[#5A53A7] font-bold text-lg">
+                    {formatPrice(parseFloat(price) + 
+                     (parseFloat(quoteData.tax_amount) || 0) + 
+                     (parseFloat(quoteData.fee_amount) || 0), currency)}
+                  </span>
                 </div>
+                <p className="text-xs text-gray-500 mt-1">Includes all taxes and fees</p>
               </div>
+
+              {/* Payment information */}
+              {rate?.payment_type && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <h4 className="font-semibold text-blue-900 mb-2">Payment Information</h4>
+                  <div className="text-sm text-blue-800 space-y-1">
+                    <p>Payment Type: {rate.payment_type === 'pay_now' ? 'Pay Now' : 'Pay at Hotel'}</p>
+                    {rate.due_at_accommodation_amount && parseFloat(rate.due_at_accommodation_amount) > 0 && (
+                      <p>Due at Hotel: {formatPrice(parseFloat(rate.due_at_accommodation_amount), rate.due_at_accommodation_currency)}</p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <Link 
                 href={{
                   pathname: `/hotels/search/${hotelId}/booking/payment`,
                   query: {
-                    ...Object.fromEntries(searchParams),
+                    rateId: rateId,
+                    roomType: roomType,
+                    price: price,
+                    currency: currency,
+                    boardType: boardType,
                     ...formData
                   }
                 }}
@@ -320,6 +496,13 @@ export default function BookingConfirmationPage({ params }) {
               >
                 Continue to Payment <span className="ml-2">→</span>
               </Link>
+
+              {/* Cancellation policy */}
+              {rate?.conditions?.some(condition => condition.title.includes('Cancellation')) && (
+                <div className="mt-4 text-xs text-gray-500">
+                  <p>Free cancellation available as per hotel policy</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

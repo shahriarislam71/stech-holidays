@@ -37,6 +37,10 @@ const HeroSection = () => {
   const [showToAirports, setShowToAirports] = useState(false);
   const [showTravellerModal, setShowTravellerModal] = useState(false);
   const [departureDate, setDepartureDate] = useState(new Date());
+  const [selectedHotelLat, setSelectedHotelLat] = useState(null);
+  const [selectedHotelLng, setSelectedHotelLng] = useState(null);
+  const [hotelSuggestions, setHotelSuggestions] = useState([]);
+  const [showHotelSuggestions, setShowHotelSuggestions] = useState(false);
   const [returnDate, setReturnDate] = useState(() => {
     const date = new Date();
     date.setDate(date.getDate() + 1);
@@ -375,25 +379,71 @@ const HeroSection = () => {
       }
     }
   };
+  
+  const fetchLocationSuggestions = async (query) => {
+  if (!query || query.length < 3) {
+    setHotelSuggestions([]);
+    return;
+  }
+
+  try {
+    // Using OpenStreetMap Nominatim API for geocoding
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`
+    );
+    const data = await response.json();
+    
+    const suggestions = data.map((place) => ({
+      display_name: place.display_name,
+      lat: parseFloat(place.lat),
+      lon: parseFloat(place.lon),
+      type: place.type,
+      importance: place.importance
+    }));
+    
+    setHotelSuggestions(suggestions);
+  } catch (error) {
+    console.error('Error fetching location suggestions:', error);
+    setHotelSuggestions([]);
+  }
+};
+
+// Update the hotel search query handler
+const handleHotelSearchChange = (value) => {
+  setHotelSearchQuery(value);
+  setSelectedHotelDestination(value);
+  setSelectedHotelLat(null);
+  setSelectedHotelLng(null);
+  
+  if (value.length >= 3) {
+    setShowHotelSuggestions(true);
+    fetchLocationSuggestions(value);
+  } else {
+    setShowHotelSuggestions(false);
+    setHotelSuggestions([]);
+  }
+};
 
   const handleHotelSearch = () => {
-    if (selectedHotelDestination) {
-      const destinationSlug = selectedHotelDestination
-        .toLowerCase()
-        .replace(/\s+/g, "-")
-        .replace(",", "");
+  if (selectedHotelDestination && selectedHotelLat && selectedHotelLng) {
+    const destinationSlug = selectedHotelDestination
+      .toLowerCase()
+      .replace(/\s+/g, "-")
+      .replace(/,/g, "");
 
-      const params = new URLSearchParams();
-      params.append("destination", destinationSlug);
-      params.append("checkIn", checkInDate.toISOString().split("T")[0]);
-      params.append("checkOut", checkOutDate.toISOString().split("T")[0]);
-      params.append("rooms", rooms);
-      params.append("adults", adults);
-      params.append("children", children);
+    const params = new URLSearchParams();
+    params.append("destination", destinationSlug);
+    params.append("lat", selectedHotelLat.toString());
+    params.append("lng", selectedHotelLng.toString());
+    params.append("checkIn", checkInDate.toISOString().split("T")[0]);
+    params.append("checkOut", checkOutDate.toISOString().split("T")[0]);
+    params.append("rooms", rooms.toString());
+    params.append("adults", adults.toString());
+    params.append("children", children.toString());
 
-      router.push(`/hotels/search?${params.toString()}`);
-    }
-  };
+    router.push(`/hotels/search?${params.toString()}`);
+  }
+};
 
   // Updated handleFlightSearch function for HeroSection component
 
@@ -450,12 +500,14 @@ const HeroSection = () => {
     setShowHolidayDestinations(false);
   };
 
-  const handleHotelDestinationSelect = (destination) => {
-    setSelectedHotelDestination(destination);
-    setHotelSearchQuery(destination);
-    setShowHotelDestinations(false);
+  const handleHotelDestinationSelect = (suggestion) => {
+    setSelectedHotelDestination(suggestion.display_name);
+    setSelectedHotelLat(suggestion.lat);
+    setSelectedHotelLng(suggestion.lon);
+    setHotelSearchQuery(suggestion.display_name);
+    setShowHotelSuggestions(false);
+    setHotelSuggestions([]);
   };
-
   const handleUmrahPackageSelect = (pkg) => {
     setSelectedUmrahPackage(pkg);
     setUmrahPackageSearch(pkg.title);
@@ -1370,7 +1422,7 @@ const HeroSection = () => {
             {activeTab === "hotel" && (
               <div>
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 sm:gap-6">
-                  {/* Destination Field */}
+                  {/* Destination Field - Updated with location suggestions */}
                   <div className="relative">
                     <p className="text-white/90 font-medium mb-2 text-sm sm:text-base">
                       Destination
@@ -1378,55 +1430,74 @@ const HeroSection = () => {
                     <div className="relative">
                       <input
                         type="text"
-                        value={selectedHotelDestination}
-                        onChange={(e) => {
-                          setHotelSearchQuery(e.target.value);
-                          setShowHotelDestinations(true);
-                        }}
-                        onFocus={() => setShowHotelDestinations(true)}
-                        onBlur={() =>
-                          setTimeout(() => setShowHotelDestinations(false), 200)
+                        value={hotelSearchQuery}
+                        onChange={(e) =>
+                          handleHotelSearchChange(e.target.value)
                         }
-                        placeholder="Where do you want to stay?"
+                        onFocus={() => {
+                          if (hotelSearchQuery.length >= 3) {
+                            setShowHotelSuggestions(true);
+                          }
+                        }}
+                        onBlur={() =>
+                          setTimeout(() => setShowHotelSuggestions(false), 200)
+                        }
+                        placeholder="Enter destination (e.g., Dhaka, Bangladesh)"
                         className="w-full p-3 rounded-lg border border-white/30 bg-white/10 backdrop-blur-sm text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50 text-sm sm:text-base"
                       />
-                      {showHotelDestinations && (
-                        <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-xl border border-white/30 max-h-60 overflow-y-auto">
-                          {hotelDestinations
-                            .filter((dest) =>
-                              dest
-                                .toLowerCase()
-                                .includes(hotelSearchQuery.toLowerCase())
-                            )
-                            .map((destination) => (
-                              <div
-                                key={destination}
-                                className="p-3 hover:bg-[#5A53A7] hover:text-white cursor-pointer text-[#445494] flex items-center text-sm sm:text-base"
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() =>
-                                  handleHotelDestinationSelect(destination)
-                                }
+
+                      {/* Location suggestions dropdown */}
+                      {showHotelSuggestions && hotelSuggestions.length > 0 && (
+                        <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 max-h-60 overflow-y-auto">
+                          {hotelSuggestions.map((suggestion, index) => (
+                            <div
+                              key={index}
+                              className="p-3 hover:bg-[#5A53A7] hover:text-white cursor-pointer text-gray-800 flex items-start text-sm"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() =>
+                                handleHotelDestinationSelect(suggestion)
+                              }
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-4 w-4 mr-2 mt-0.5 text-gray-500 flex-shrink-0"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
                               >
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  className="h-4 w-4 sm:h-5 sm:w-5 mr-2 text-[#5A53A7]"
-                                  viewBox="0 0 20 20"
-                                  fill="currentColor"
-                                >
-                                  <path
-                                    fillRule="evenodd"
-                                    d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
-                                    clipRule="evenodd"
-                                  />
-                                </svg>
-                                {destination}
+                                <path
+                                  fillRule="evenodd"
+                                  d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              <div>
+                                <div className="font-medium text-sm">
+                                  {suggestion.display_name.split(",")[0]}
+                                </div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  {suggestion.display_name}
+                                </div>
+                                <div className="text-xs text-gray-500 mt-1">
+                                  Lat: {suggestion.lat.toFixed(4)}, Lng:{" "}
+                                  {suggestion.lon.toFixed(4)}
+                                </div>
                               </div>
-                            ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Show selected coordinates when available */}
+                      {selectedHotelLat && selectedHotelLng && (
+                        <div className="absolute -bottom-6 left-0 text-xs text-white/70">
+                          Coordinates: {selectedHotelLat.toFixed(4)},{" "}
+                          {selectedHotelLng.toFixed(4)}
                         </div>
                       )}
                     </div>
                   </div>
 
+                  {/* Rest of the hotel section remains the same */}
                   <div className="flex justify-between">
                     {/* Check-in Date */}
                     <div>
@@ -1503,7 +1574,7 @@ const HeroSection = () => {
                   </div>
                   <div></div>
 
-                  {/* Rooms & Guests */}
+                  {/* Rooms & Guests (unchanged) */}
                   <div className="relative">
                     <p className="text-white/90 font-medium mb-2 text-sm sm:text-base">
                       Rooms & Guests
@@ -1532,6 +1603,7 @@ const HeroSection = () => {
 
                     {showGuestSelector && (
                       <div className="absolute z-10 w-full mt-2 p-4 bg-white rounded-lg shadow-xl border border-white/30">
+                        {/* Guest selector content remains the same */}
                         <div className="mb-4">
                           <div className="flex justify-between items-center mb-2">
                             <span className="text-gray-700 text-sm sm:text-base">
@@ -1632,9 +1704,15 @@ const HeroSection = () => {
                 <div className="mt-6 flex justify-end">
                   <button
                     onClick={handleHotelSearch}
-                    disabled={!selectedHotelDestination}
+                    disabled={
+                      !selectedHotelDestination ||
+                      !selectedHotelLat ||
+                      !selectedHotelLng
+                    }
                     className={`px-6 py-2 sm:px-8 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base ${
-                      selectedHotelDestination
+                      selectedHotelDestination &&
+                      selectedHotelLat &&
+                      selectedHotelLng
                         ? "bg-white text-[#5A53A7] hover:bg-white/90"
                         : "bg-gray-300 text-gray-500 cursor-not-allowed"
                     }`}
@@ -1644,7 +1722,6 @@ const HeroSection = () => {
                 </div>
               </div>
             )}
-
             {/* Holidays Section */}
             {activeTab === "holidays" && (
               <div>

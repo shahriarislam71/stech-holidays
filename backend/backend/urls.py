@@ -19,6 +19,7 @@ urlpatterns = [
     # Include the holidays visa app URLs
     path('api/holidays-visa/', include('holidays_visa.urls')),
     path('api/flights/', include('flights.urls')),
+    path('api/hotels/', include('hotels.urls')),
     
 ]
 

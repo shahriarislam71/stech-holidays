@@ -4,7 +4,7 @@ const nextConfig = {
   images: {
     dangerouslyAllowSVG: true, // Allow SVGs if needed
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
-      domains: ['localhost'],
+    domains: ['localhost'],
     remotePatterns: [
       {
         protocol: 'https',
@@ -51,6 +51,37 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: 'logo.clearbit.com',
+        port: '',
+        pathname: '/**',
+      },
+      // Add Booking.com image domains
+      {
+        protocol: 'https',
+        hostname: 'q-xx.bstatic.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.bstatic.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'q.bstatic.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'r-xx.bstatic.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.bstatic.com',
         port: '',
         pathname: '/**',
       },

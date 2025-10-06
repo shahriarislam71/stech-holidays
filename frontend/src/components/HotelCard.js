@@ -1,26 +1,47 @@
-import Image from 'next/image';
 import Link from 'next/link';
-import React from 'react';
+import React, { useState } from 'react';
 
 const HotelCard = ({ hotel }) => {
-    console.log(hotel)
+  const [imageError, setImageError] = useState(false);
+  
+  // Format price based on currency
+  const formatPrice = (price, currency) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency || 'GBP',
+    }).format(price);
+  };
+
+  // Get first photo or placeholder
+  const mainPhoto = hotel.photos?.[0]?.url || '/hotel-placeholder.jpg';
+  
+  // Format location
+  const location = hotel.location?.address ? 
+    `${hotel.location.address.city_name}, ${hotel.location.address.country_code}` : 
+    'Location not available';
+
+  // Get amenities (limit to 4)
+  const amenities = hotel.amenities?.slice(0, 4).map(a => a.description) || [];
+
+  // Create hotel detail URL using search_result_id
+  const hotelDetailUrl = `/hotels/search/${hotel.search_result_id}`;
+
   return (
     <div className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
       <div className="md:flex">
         <div className="md:flex-shrink-0">
-          <Image
+          <img
             className="h-48 w-full object-cover md:w-64" 
-            src={hotel.image} 
-            alt={hotel.name} 
-            width={256}
-            height={192}
+            src={imageError ? '/hotel-placeholder.jpg' : mainPhoto} 
+            alt={hotel.name}
+            onError={() => setImageError(true)}
           />
         </div>
         <div className="p-6 flex-1">
           <div className="flex justify-between items-start">
             <div>
               <h3 className="text-xl font-semibold text-gray-900">{hotel.name}</h3>
-              <p className="mt-1 text-gray-600">{hotel.location}</p>
+              <p className="mt-1 text-gray-600">{location}</p>
             </div>
             <div className="flex items-center bg-blue-100 px-2 py-1 rounded">
               <span className="text-blue-800 font-medium">{hotel.rating}</span>
@@ -31,27 +52,41 @@ const HotelCard = ({ hotel }) => {
           </div>
           
           <div className="mt-4">
-            <p className="text-gray-700">{hotel.distance}</p>
+            <p className="text-gray-700 line-clamp-2">{hotel.description}</p>
             <div className="mt-2 flex flex-wrap gap-2">
-              {hotel.amenities.slice(0, 4).map((amenity, index) => (
+              {amenities.map((amenity, index) => (
                 <span key={index} className="px-2 py-1 bg-gray-100 text-gray-800 text-sm rounded-full">
                   {amenity}
                 </span>
               ))}
+              {hotel.amenities?.length > 4 && (
+                <span className="px-2 py-1 bg-gray-100 text-gray-800 text-sm rounded-full">
+                  +{hotel.amenities.length - 4} more
+                </span>
+              )}
             </div>
           </div>
           
           <div className="mt-6 flex justify-between items-center">
             <div>
-              <span className="text-2xl font-bold text-gray-900">${hotel.price}</span>
-              <span className="text-gray-600">/night</span>
+              <span className="text-2xl font-bold text-gray-900">
+                {formatPrice(hotel.pricing?.total_amount, hotel.pricing?.currency)}
+              </span>
+              <span className="text-gray-600"> total</span>
+              {hotel.pricing?.due_at_accommodation_amount > 0 && (
+                <div className="text-sm text-gray-500">
+                  {formatPrice(hotel.pricing.due_at_accommodation_amount, hotel.pricing.currency)} at property
+                </div>
+              )}
             </div>
+            
+            {/* View Details Button with search_result_id */}
             <Link 
-            href={`/hotels/search/${hotel.id}`}
-            className="px-4 py-2 bg-gradient-to-r from-[#5A53A7] to-[#55C3A9] text-white rounded-lg hover:opacity-90 transition"
-          >
-            Visit Now
-          </Link>
+              href={hotelDetailUrl}
+              className="px-4 py-2 bg-gradient-to-r from-[#5A53A7] to-[#55C3A9] text-white rounded-lg hover:opacity-90 transition"
+            >
+              View Details
+            </Link>
           </div>
         </div>
       </div>

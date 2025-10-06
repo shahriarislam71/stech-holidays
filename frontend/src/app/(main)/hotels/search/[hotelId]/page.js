@@ -1,7 +1,7 @@
 // app/hotels/search/[hotelId]/page.js
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useRef } from "react";
 import {
   FiArrowLeft,
   FiMapPin,
@@ -10,6 +10,8 @@ import {
   FiChevronUp,
   FiX,
   FiCheck,
+  FiUsers,
+  FiCoffee,
 } from "react-icons/fi";
 import {
   FaSwimmingPool,
@@ -23,17 +25,19 @@ import {
   FaLaptop,
   FaTv,
   FaSnowflake,
+  FaConciergeBell,
+  FaParking,
+  FaSpa,
 } from "react-icons/fa";
 import {
   MdElevator,
   MdRestaurant,
   MdSmokeFree,
   MdLocalCafe,
+  MdRoomService,
 } from "react-icons/md";
 import Link from "next/link";
-import { hotelData } from "@/constants/hotelData";
 import dynamic from "next/dynamic";
-import Image from "next/image";
 
 // Dynamic map import
 const Map = dynamic(() => import("@/components/Map"), {
@@ -45,64 +49,38 @@ const Map = dynamic(() => import("@/components/Map"), {
   ),
 });
 
-// Room data
-const rooms = [
-  {
-    id: 1,
-    type: "Executive Deluxe",
-    image:
-      "/hotels/hotel-image-1.jpg", // Add your room image path
-    bedType: "Queen",
-    capacity: "02",
-    smoking: "Non-Smoking Room",
-    size: "380 sq.ft",
-    prices: [5000, 6000, 8000],
-    facilities: [
-      { icon: <FaTv className="text-[#5A53A7]" />, name: "TV" },
-      { icon: <FaSnowflake className="text-[#5A53A7]" />, name: "AC Room" },
-      { icon: <FaSnowflake className="text-[#5A53A7]" />, name: "AC remote" },
-    ],
-    amenities: [
-      {
-        icon: <FaSnowflake className="text-[#5A53A7]" />,
-        name: "Fresh pillows",
-      },
-      {
-        icon: <FaSnowflake className="text-[#5A53A7]" />,
-        name: "Fresh towels",
-      },
-    ],
-  },
-  {
-    id: 2,
-    type: "Bed And Breakfast",
-    image:
-      "/hotels/hotel-image-2.jpg", // Add your room image path
-    bedType: "King",
-    capacity: "02",
-    smoking: "Non-Smoking Room",
-    size: "420 sq.ft",
-    prices: [7000, 8000, 9000],
-    facilities: [
-      { icon: <FaTv className="text-[#5A53A7]" />, name: "TV" },
-      { icon: <FaSnowflake className="text-[#5A53A7]" />, name: "AC Room" },
-    ],
-    amenities: [
-      {
-        icon: <FaSnowflake className="text-[#5A53A7]" />,
-        name: "Fresh pillows",
-      },
-      {
-        icon: <FaSnowflake className="text-[#5A53A7]" />,
-        name: "Daily cleaning",
-      },
-    ],
-  },
-];
+// Amenity icons mapping
+const amenityIcons = {
+  "Laundry Service": <FaConciergeBell className="text-[#5A53A7]" size={16} />,
+  "Wi-Fi": <FaWifi className="text-[#5A53A7]" size={16} />,
+  Parking: <FaParking className="text-[#5A53A7]" size={16} />,
+  "Business Centre": <FaLaptop className="text-[#5A53A7]" size={16} />,
+  Gym: <FaDumbbell className="text-[#5A53A7]" size={16} />,
+  "Wheelchair Access": <FaWheelchair className="text-[#5A53A7]" size={16} />,
+  Spa: <FaSpa className="text-[#5A53A7]" size={16} />,
+  "24-Hour Front Desk": <FaShieldAlt className="text-[#5A53A7]" size={16} />,
+  "Cash Machine": <FaPrint className="text-[#5A53A7]" size={16} />,
+  Concierge: <FaConciergeBell className="text-[#5A53A7]" size={16} />,
+  "Room Service": <MdRoomService className="text-[#5A53A7]" size={18} />,
+  "Childcare Services": <FiUsers className="text-[#5A53A7]" size={16} />,
+  Lounge: <MdLocalCafe className="text-[#5A53A7]" size={18} />,
+  "Swimming Pool": <FaSwimmingPool className="text-[#5A53A7]" size={16} />,
+  Restaurant: <MdRestaurant className="text-[#5A53A7]" size={18} />,
+  "Hearing Impaired Services": (
+    <FaWheelchair className="text-[#5A53A7]" size={16} />
+  ),
+};
+
+// Exchange rates (approximate, you may want to fetch from an API)
+const EXCHANGE_RATES = {
+  USD: 110,
+  GBP: 140,
+  EUR: 120,
+  BDT: 1,
+};
 
 export default function HotelDetailsPage({ params }) {
   const { hotelId } = use(params);
-  const numericHotelId = Number(hotelId);
 
   const [showDescModal, setShowDescModal] = useState(false);
   const [showFacilitiesModal, setShowFacilitiesModal] = useState(false);
@@ -113,29 +91,176 @@ export default function HotelDetailsPage({ params }) {
   const [selectedPrice, setSelectedPrice] = useState(null);
   const [currentRoomDetails, setCurrentRoomDetails] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [hotel, setHotel] = useState(null);
+  const [roomOffers, setRoomOffers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const roomsSectionRef = useRef(null);
 
   // Check if device is mobile
   useEffect(() => {
     const checkIsMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
-    
+
     checkIsMobile();
-    window.addEventListener('resize', checkIsMobile);
-    
+    window.addEventListener("resize", checkIsMobile);
+
     return () => {
-      window.removeEventListener('resize', checkIsMobile);
+      window.removeEventListener("resize", checkIsMobile);
     };
   }, []);
 
-  // Find the hotel by ID
-  let hotel = null;
-  for (const city of Object.values(hotelData)) {
-    const foundHotel = city.hotels.find((h) => h.id === numericHotelId);
-    if (foundHotel) {
-      hotel = foundHotel;
-      break;
+  // Fetch hotel data from API
+  useEffect(() => {
+    const fetchHotelData = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(
+          `http://localhost:8000/api/hotels/search/${hotelId}`
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch hotel data: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.status === "success") {
+          setHotel(data.hotel);
+          // Filter out rooms with quantity_available = 0
+          const availableRooms = (data.room_offers || []).filter(
+            (room) => room.quantity_available && room.quantity_available > 0
+          );
+          setRoomOffers(availableRooms);
+        } else {
+          throw new Error(data.message || "Failed to fetch hotel data");
+        }
+      } catch (err) {
+        console.error("Error fetching hotel data:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (hotelId) {
+      fetchHotelData();
     }
+  }, [hotelId]);
+
+  // Convert price to BDT
+  const convertToBDT = (price, currency = "GBP") => {
+    const numPrice = parseFloat(price);
+    const rate = EXCHANGE_RATES[currency] || EXCHANGE_RATES["GBP"];
+    return numPrice * rate;
+  };
+
+  // Format price in BDT
+  const formatPrice = (price, currency = "GBP") => {
+    const bdtPrice = convertToBDT(price, currency);
+    return new Intl.NumberFormat("en-BD", {
+      style: "currency",
+      currency: "BDT",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(bdtPrice);
+  };
+
+  // Get bed type display
+  const getBedDisplay = (beds) => {
+    if (!beds || beds.length === 0) return "Bed information not available";
+
+    return beds
+      .map((bed) => `${bed.count} ${bed.type} bed${bed.count > 1 ? "s" : ""}`)
+      .join(", ");
+  };
+
+  // Get board type display
+  const getBoardTypeDisplay = (boardType) => {
+    const boardTypes = {
+      room_only: "Room Only",
+      breakfast: "Breakfast Included",
+      half_board: "Half Board",
+      full_board: "Full Board",
+      all_inclusive: "All Inclusive",
+    };
+    return boardTypes[boardType] || boardType;
+  };
+
+  // Get room image - cycle through available photos
+  const getRoomImage = (roomIndex) => {
+    if (!hotel?.photos || hotel.photos.length === 0) {
+      return "/hotel-placeholder.jpg";
+    }
+
+    // Use different photos for different rooms, cycling through available photos
+    const photoIndex = (roomIndex + 1) % hotel.photos.length;
+    return hotel.photos[photoIndex]?.url || "/hotel-placeholder.jpg";
+  };
+
+  // Group room offers by room type
+  const groupedRoomOffers = roomOffers.reduce((groups, offer) => {
+    const roomName = offer.room_name;
+    if (!groups[roomName]) {
+      groups[roomName] = [];
+    }
+    groups[roomName].push(offer);
+    return groups;
+  }, {});
+
+  // Scroll to rooms section
+  const scrollToRooms = () => {
+    roomsSectionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
+  const toggleSection = (section) => {
+    setExpandedSection(expandedSection === section ? null : section);
+  };
+
+  const handleRoomSelect = (roomOffer) => {
+    setSelectedRoom(roomOffer);
+    setSelectedPrice(roomOffer.total_amount);
+  };
+
+  const openRoomDetails = (roomOffers) => {
+    setCurrentRoomDetails(roomOffers);
+    setShowRoomDetailsModal(true);
+  };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="px-4 md:px-[190px] py-8">
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#5A53A7]"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error && !hotel) {
+    return (
+      <div className="px-4 md:px-[190px] py-8">
+        <div className="bg-white rounded-xl shadow-lg p-8 text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            Error Loading Hotel
+          </h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <Link
+            href="/hotels/search"
+            className="inline-flex items-center px-4 py-2 bg-[#5A53A7] text-white rounded-lg hover:bg-[#4a438f] transition-colors"
+          >
+            <FiArrowLeft className="mr-2" />
+            Back to search results
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   if (!hotel) {
@@ -157,24 +282,6 @@ export default function HotelDetailsPage({ params }) {
     );
   }
 
-  const toggleSection = (section) => {
-    setExpandedSection(expandedSection === section ? null : section);
-  };
-
-  const handleRoomSelect = (room) => {
-    setSelectedRoom(room);
-    setSelectedPrice(null);
-  };
-
-  const handlePriceSelect = (price) => {
-    setSelectedPrice(price);
-  };
-
-  const openRoomDetails = (room) => {
-    setCurrentRoomDetails(room);
-    setShowRoomDetailsModal(true);
-  };
-
   return (
     <div className="px-4 md:px-[190px] py-4 bg-gradient-to-b from-[#f7f7ff] to-white min-h-screen">
       {/* Back button */}
@@ -188,15 +295,19 @@ export default function HotelDetailsPage({ params }) {
         </Link>
 
         {/* Hotel header */}
-        <div className="bg-white rounded-xl shadow-lg px-6 py-2 mb-6 border border-gray-100">
+        <div className="bg-white rounded-xl shadow-lg px-6 py-4 mb-6 border border-gray-100">
           <div className="flex flex-col md:flex-row justify-between items-start gap-4">
-            <div>
+            <div className="flex-1">
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
                 {hotel.name}
               </h1>
               <div className="flex items-center mt-2 text-gray-600">
                 <FiMapPin className="mr-1 text-[#5A53A7]" />
-                <p className="text-sm md:text-base">{hotel.location}</p>
+                <p className="text-sm md:text-base">
+                  {hotel.location?.address
+                    ? `${hotel.location.address.line_one}, ${hotel.location.address.city_name}, ${hotel.location.address.country_code}`
+                    : "Location not available"}
+                </p>
               </div>
             </div>
             <div className="flex items-center bg-blue-100 px-3 py-1 rounded-full">
@@ -204,6 +315,9 @@ export default function HotelDetailsPage({ params }) {
                 {hotel.rating}
               </span>
               <FiStar className="text-yellow-500 fill-yellow-500" />
+              <span className="text-blue-800 text-sm ml-2">
+                ({hotel.review_count} reviews)
+              </span>
             </div>
           </div>
 
@@ -212,10 +326,18 @@ export default function HotelDetailsPage({ params }) {
               <p className="text-gray-500 text-sm md:text-base">
                 Starting from
               </p>
-              <p className="text-2xl md:text-3xl font-bold">${hotel.price}</p>
+              <p className="text-2xl md:text-3xl font-bold">
+                {formatPrice(
+                  roomOffers[0]?.total_amount || 0,
+                  roomOffers[0]?.currency
+                )}
+              </p>
               <p className="text-xs text-gray-500">per night</p>
             </div>
-            <button className="px-6 py-3 bg-gradient-to-r from-[#5A53A7] to-[#55C3A9] text-white rounded-lg hover:opacity-90 transition font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-transform w-full md:w-auto">
+            <button
+              onClick={scrollToRooms}
+              className="px-6 py-3 bg-gradient-to-r from-[#5A53A7] to-[#55C3A9] text-white rounded-lg hover:opacity-90 transition font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-transform w-full md:w-auto"
+            >
               Select Rooms
             </button>
           </div>
@@ -225,10 +347,13 @@ export default function HotelDetailsPage({ params }) {
         <div className="flex flex-col lg:flex-row gap-6 mb-8">
           <div className="lg:w-2/3">
             <div className="relative rounded-xl shadow-lg overflow-hidden h-64 md:h-96">
-              <Image width={100} height={100}
-                src={hotel.image}
+              <img
+                src={hotel.photos?.[0]?.url || "/hotel-placeholder.jpg"}
                 alt={hotel.name}
-                className="w-full rounded object-cover transition-transform duration-500 hover:scale-105"
+                className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                onError={(e) => {
+                  e.target.src = "/hotel-placeholder.jpg";
+                }}
               />
               <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/70 to-transparent flex items-end p-4">
                 <button
@@ -249,20 +374,28 @@ export default function HotelDetailsPage({ params }) {
 
             <div className="space-y-3 mb-4">
               <div className="flex justify-between">
-                <span className="text-gray-600">Rooms:</span>
-                <span className="text-gray-900 font-medium">101</span>
+                <span className="text-gray-600">Rating:</span>
+                <span className="text-gray-900 font-medium">
+                  {hotel.rating}/5
+                </span>
               </div>
-
               <div className="flex justify-between">
-                <span className="text-gray-600">Floors:</span>
-                <span className="text-gray-900 font-medium">8</span>
+                <span className="text-gray-600">Reviews:</span>
+                <span className="text-gray-900 font-medium">
+                  {hotel.review_count}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Score:</span>
+                <span className="text-gray-900 font-medium">
+                  {hotel.review_score}/10
+                </span>
               </div>
             </div>
 
             <div className="mb-4">
               <p className="text-gray-700 text-sm line-clamp-3">
-                Hotel Agrabad with its 4 star guest facilities is the best
-                business and leisure hotel in Chittagong...
+                {hotel.description}
               </p>
 
               <button
@@ -279,19 +412,19 @@ export default function HotelDetailsPage({ params }) {
                 Top Facilities
               </h3>
               <div className="space-y-3">
-                {hotel.amenities.slice(0, 3).map((amenity, index) => (
+                {hotel.amenities?.slice(0, 3).map((amenity, index) => (
                   <div
                     key={index}
                     className="flex items-center bg-gray-50 rounded-lg p-2"
                   >
                     <div className="text-[#5A53A7] mr-3 bg-white p-2 rounded-lg shadow-sm">
-                      {amenity.includes("Pool") && <FaSwimmingPool size={16} />}
-                      {amenity.includes("WiFi") && <FaWifi size={16} />}
-                      {amenity.includes("Restaurant") && (
-                        <FaUtensils size={16} />
+                      {amenityIcons[amenity.description] || (
+                        <FiCoffee size={16} />
                       )}
                     </div>
-                    <span className="text-sm font-medium">{amenity}</span>
+                    <span className="text-sm font-medium">
+                      {amenity.description}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -344,13 +477,14 @@ export default function HotelDetailsPage({ params }) {
                 <div className="flex justify-between items-center bg-gray-50 rounded-lg p-3">
                   <span className="text-gray-600">Check-in:</span>
                   <span className="text-gray-900 font-medium">
-                    From 2:00 PM
+                    From {hotel.check_in_info?.check_in_after_time || "2:00 PM"}
                   </span>
                 </div>
                 <div className="flex justify-between items-center bg-gray-50 rounded-lg p-3">
                   <span className="text-gray-600">Check-out:</span>
                   <span className="text-gray-900 font-medium">
-                    Before 12:00 PM
+                    Before{" "}
+                    {hotel.check_in_info?.check_out_before_time || "12:00 PM"}
                   </span>
                 </div>
               </div>
@@ -386,7 +520,9 @@ export default function HotelDetailsPage({ params }) {
                     />
                   </svg>
                 </div>
-                <h2 className="font-semibold text-gray-900">What&apos;s Nearby</h2>
+                <h2 className="font-semibold text-gray-900">
+                  Location Details
+                </h2>
               </div>
               {expandedSection === "nearby" ? (
                 <FiChevronUp className="text-[#5A53A7]" />
@@ -396,13 +532,25 @@ export default function HotelDetailsPage({ params }) {
             </button>
             {expandedSection === "nearby" && (
               <div className="px-4 pb-4 space-y-3">
-                <div className="flex justify-between items-center bg-gray-50 rounded-lg p-3">
-                  <span className="text-gray-600">Airport:</span>
-                  <span className="text-gray-900 font-medium">16.2 km</span>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <span className="text-gray-600 block mb-2">Address:</span>
+                  <span className="text-gray-900 font-medium">
+                    {hotel.location?.address
+                      ? `${hotel.location.address.line_one}, ${hotel.location.address.city_name}, ${hotel.location.address.postal_code}, ${hotel.location.address.country_code}`
+                      : "Address not available"}
+                  </span>
                 </div>
-                <div className="flex justify-between items-center bg-gray-50 rounded-lg p-3">
-                  <span className="text-gray-600">Railway Station:</span>
-                  <span className="text-gray-900 font-medium">2.6 km</span>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <span className="text-gray-600 block mb-2">Coordinates:</span>
+                  <span className="text-gray-900 font-medium">
+                    {hotel.location?.geographic_coordinates
+                      ? `${hotel.location.geographic_coordinates.latitude.toFixed(
+                          6
+                        )}, ${hotel.location.geographic_coordinates.longitude.toFixed(
+                          6
+                        )}`
+                      : "Coordinates not available"}
+                  </span>
                 </div>
                 <button
                   onClick={() => setShowMapModal(true)}
@@ -417,84 +565,106 @@ export default function HotelDetailsPage({ params }) {
         </div>
 
         {/* Rooms Selection Section */}
-        <div className="flex flex-col lg:flex-row gap-6 mb-8">
+        <div
+          ref={roomsSectionRef}
+          className="flex flex-col lg:flex-row gap-6 mb-8"
+        >
           <div className="lg:w-2/3">
             <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
               <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                Select Your Room
+                Available Rooms
               </h2>
 
-              {rooms.map((room) => (
-                <div key={room.id} className="mb-8 last:mb-0">
-                  <div className="flex flex-col md:flex-row gap-6">
-                    {/* Room Image */}
-                    <div className="md:w-1/3">
-                      <div className="relative rounded-lg overflow-hidden h-48">
-                        <Image width={50} height={50}
-                          src={room.image}
-                          alt={room.type}
-                          className="w-full h-full rounded object-cover"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Room Details */}
-                    <div className="md:w-2/3">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {room.type}
-                      </h3>
-
-                      <div className="flex flex-wrap gap-3 mt-3 text-sm text-gray-600">
-                        <div className="flex items-center">
-                          <span className="font-medium">{room.bedType}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <span>Max Capacity: {room.capacity}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <span>{room.smoking}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <span>{room.size}</span>
+              {Object.entries(groupedRoomOffers).map(
+                ([roomName, offers], roomIndex) => (
+                  <div
+                    key={roomName}
+                    className="mb-8 last:mb-0 border-b border-gray-100 pb-8 last:border-b-0"
+                  >
+                    <div className="flex flex-col md:flex-row gap-6">
+                      {/* Room Image */}
+                      <div className="md:w-1/3">
+                        <div className="relative rounded-lg overflow-hidden h-48">
+                          <img
+                            src={getRoomImage(roomIndex)}
+                            alt={roomName}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.src = "/hotel-placeholder.jpg";
+                            }}
+                          />
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => openRoomDetails(room)}
-                        className="mt-3 text-[#5A53A7] hover:underline text-sm font-medium flex items-center"
-                      >
-                        View Room Details <FiChevronDown className="ml-1" />
-                      </button>
+                      {/* Room Details */}
+                      <div className="md:w-2/3">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          {roomName}
+                        </h3>
 
-                      {/* Price Selection */}
-                      <div className="mt-4">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">
-                          Select Price:
-                        </h4>
-                        <div className="flex flex-wrap gap-2">
-                          {room.prices.map((price, index) => (
-                            <button
-                              key={index}
-                              onClick={() => {
-                                handleRoomSelect(room);
-                                handlePriceSelect(price);
-                              }}
-                              className={`px-4 py-2 rounded-lg border ${
-                                selectedRoom?.id === room.id &&
-                                selectedPrice === price
-                                  ? "border-[#5A53A7] bg-[#5A53A7]/10 text-[#5A53A7]"
-                                  : "border-gray-300 hover:border-[#5A53A7]"
-                              }`}
-                            >
-                              {price} BDT
-                            </button>
-                          ))}
+                        <div className="flex flex-wrap gap-3 mt-3 text-sm text-gray-600">
+                          <div className="flex items-center">
+                            <span className="font-medium">
+                              {getBedDisplay(offers[0]?.beds)}
+                            </span>
+                          </div>
+                          <div className="flex items-center">
+                            <span>
+                              Board:{" "}
+                              {getBoardTypeDisplay(offers[0]?.board_type)}
+                            </span>
+                          </div>
+                          <div className="flex items-center">
+                            <span>
+                              Available:{" "}
+                              {offers[0]?.quantity_available || "N/A"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => openRoomDetails(offers)}
+                          className="mt-3 text-[#5A53A7] hover:underline text-sm font-medium flex items-center"
+                        >
+                          View Room Details <FiChevronDown className="ml-1" />
+                        </button>
+
+                        {/* Price Selection */}
+                        <div className="mt-4">
+                          <h4 className="text-sm font-medium text-gray-700 mb-2">
+                            Select Rate:
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {offers.map((offer, index) => (
+                              <button
+                                key={offer.rate_id}
+                                onClick={() => handleRoomSelect(offer)}
+                                className={`px-4 py-2 rounded-lg border ${
+                                  selectedRoom?.rate_id === offer.rate_id
+                                    ? "border-[#5A53A7] bg-[#5A53A7]/10 text-[#5A53A7]"
+                                    : "border-gray-300 hover:border-[#5A53A7]"
+                                }`}
+                              >
+                                <div className="text-left">
+                                  <div className="font-medium">
+                                    {formatPrice(
+                                      offer.total_amount,
+                                      offer.currency
+                                    )}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {getBoardTypeDisplay(offer.board_type)}
+                                  </div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              )}
             </div>
           </div>
 
@@ -506,21 +676,45 @@ export default function HotelDetailsPage({ params }) {
                   Pricing Summary
                 </h2>
 
-                {selectedRoom && selectedPrice ? (
+                {selectedRoom ? (
                   <>
                     <div className="space-y-4">
                       <div className="flex justify-between">
                         <span className="text-gray-600">Room Type:</span>
-                        <span className="font-medium">{selectedRoom.type}</span>
+                        <span className="font-medium text-right">
+                          {selectedRoom.room_name}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Board Type:</span>
+                        <span className="font-medium">
+                          {getBoardTypeDisplay(selectedRoom.board_type)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Bed Type:</span>
+                        <span className="font-medium text-right">
+                          {getBedDisplay(selectedRoom.beds)}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Price:</span>
-                        <span className="font-medium">{selectedPrice} BDT</span>
+                        <span className="font-medium">
+                          {formatPrice(
+                            selectedRoom.total_amount,
+                            selectedRoom.currency
+                          )}
+                        </span>
                       </div>
                       <div className="border-t border-gray-200 pt-3">
                         <div className="flex justify-between font-semibold">
                           <span>Total:</span>
-                          <span>{selectedPrice} BDT</span>
+                          <span>
+                            {formatPrice(
+                              selectedRoom.total_amount,
+                              selectedRoom.currency
+                            )}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -528,15 +722,14 @@ export default function HotelDetailsPage({ params }) {
                       href={{
                         pathname: `/hotels/search/${hotelId}/booking`,
                         query: {
-                          roomType: selectedRoom?.type,
-                          checkIn: "Sun, Jun 29", // Replace with actual dates
-                          checkOut: "Mon, Jun 30",
-                          nights: "1",
-                          adults: "1",
-                          children: "0",
-                          price: selectedPrice,
-                          taxes: "3467",
-                          total: (parseInt(selectedPrice) + 3467).toString(),
+                          roomType: selectedRoom.room_name,
+                          rateId: selectedRoom.rate_id, // Make sure this is included
+                          price: convertToBDT(
+                            selectedRoom.total_amount,
+                            selectedRoom.currency
+                          ),
+                          currency: "BDT",
+                          boardType: selectedRoom.board_type,
                         },
                       }}
                     >
@@ -547,7 +740,7 @@ export default function HotelDetailsPage({ params }) {
                   </>
                 ) : (
                   <div className="text-center py-8 text-gray-500">
-                    <p>Select a room and price to see summary</p>
+                    <p>Select a room to see summary</p>
                   </div>
                 )}
               </div>
@@ -556,21 +749,20 @@ export default function HotelDetailsPage({ params }) {
         </div>
 
         {/* Mobile Booking Button - Fixed at bottom */}
-        {isMobile && selectedRoom && selectedPrice && (
+        {isMobile && selectedRoom && (
           <div className="fixed bottom-4 right-4 z-40">
             <Link
               href={{
                 pathname: `/hotels/search/${hotelId}/booking`,
                 query: {
-                  roomType: selectedRoom?.type,
-                  checkIn: "Sun, Jun 29",
-                  checkOut: "Mon, Jun 30",
-                  nights: "1",
-                  adults: "1",
-                  children: "0",
-                  price: selectedPrice,
-                  taxes: "3467",
-                  total: (parseInt(selectedPrice) + 3467).toString(),
+                  roomType: selectedRoom.room_name,
+                  rateId: selectedRoom.rate_id, // Make sure this is included
+                  price: convertToBDT(
+                    selectedRoom.total_amount,
+                    selectedRoom.currency
+                  ),
+                  currency: "BDT",
+                  boardType: selectedRoom.board_type,
                 },
               }}
             >
@@ -578,7 +770,6 @@ export default function HotelDetailsPage({ params }) {
                 <FiCheck size={24} />
               </button>
             </Link>
-           
           </div>
         )}
 
@@ -588,7 +779,7 @@ export default function HotelDetailsPage({ params }) {
             <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <div className="sticky top-0 bg-white p-4 border-b flex justify-between items-center">
                 <h2 className="text-xl font-semibold text-gray-900">
-                  Room Details
+                  Room Details - {currentRoomDetails[0]?.room_name}
                 </h2>
                 <button
                   onClick={() => setShowRoomDetailsModal(false)}
@@ -601,77 +792,121 @@ export default function HotelDetailsPage({ params }) {
               <div className="p-6">
                 {/* Room Image */}
                 <div className="relative rounded-lg overflow-hidden h-64 mb-6">
-                  <Image width={50} height={50}
-                    src={currentRoomDetails.image}
-                    alt={currentRoomDetails.type}
-                    className="w-full h-full rounded object-cover"
+                  <img
+                    src={getRoomImage(
+                      Object.keys(groupedRoomOffers).indexOf(
+                        currentRoomDetails[0]?.room_name
+                      )
+                    )}
+                    alt={currentRoomDetails[0]?.room_name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.src = "/hotel-placeholder.jpg";
+                    }}
                   />
                 </div>
 
                 {/* Room Info */}
                 <div className="mb-6">
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    {currentRoomDetails.type}
+                    {currentRoomDetails[0]?.room_name}
                   </h3>
                   <div className="flex flex-wrap gap-3 text-sm text-gray-600">
                     <div className="flex items-center">
                       <span className="font-medium">
-                        {currentRoomDetails.bedType}
+                        {getBedDisplay(currentRoomDetails[0]?.beds)}
                       </span>
                     </div>
-                    <div className="flex items-center">
-                      <span>Max Capacity: {currentRoomDetails.capacity}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <span>{currentRoomDetails.smoking}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <span>{currentRoomDetails.size}</span>
-                    </div>
                   </div>
                 </div>
 
-                {/* Facilities */}
+                {/* Available Rates */}
                 <div className="mb-6">
                   <h4 className="text-lg font-semibold text-gray-900 mb-3">
-                    Facilities & Services
+                    Available Rates
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {currentRoomDetails.facilities.map((facility, index) => (
+                  <div className="space-y-3">
+                    {currentRoomDetails.map((offer, index) => (
                       <div
-                        key={index}
-                        className="flex items-center bg-gray-50 rounded-lg p-3"
+                        key={offer.rate_id}
+                        className="border border-gray-200 rounded-lg p-4 hover:border-[#5A53A7] transition-colors"
                       >
-                        <div className="mr-3 bg-white p-2 rounded-lg shadow-sm">
-                          {facility.icon}
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <h5 className="font-medium text-gray-900">
+                              {getBoardTypeDisplay(offer.board_type)}
+                            </h5>
+                            <p className="text-sm text-gray-600">
+                              {getBedDisplay(offer.beds)}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-lg font-bold text-[#5A53A7]">
+                              {formatPrice(offer.total_amount, offer.currency)}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Available: {offer.quantity_available}
+                            </p>
+                          </div>
                         </div>
-                        <span className="font-medium text-gray-800">
-                          {facility.name}
-                        </span>
+
+                        {/* Conditions */}
+                        {offer.conditions && offer.conditions.length > 0 && (
+                          <div className="mt-3 bg-gray-50 rounded-lg p-3">
+                            <h6 className="text-sm font-semibold text-gray-900 mb-2">
+                              Terms & Conditions
+                            </h6>
+                            <div className="space-y-2">
+                              {offer.conditions.map((condition, idx) => (
+                                <div
+                                  key={idx}
+                                  className="text-xs text-gray-600"
+                                >
+                                  <p className="font-medium text-gray-800">
+                                    {condition.title}
+                                  </p>
+                                  <p className="mt-1">
+                                    {condition.description}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <button
+                          onClick={() => {
+                            handleRoomSelect(offer);
+                            setShowRoomDetailsModal(false);
+                          }}
+                          className="w-full mt-3 px-4 py-2 bg-[#5A53A7] text-white rounded-lg hover:bg-[#4a438f] transition-colors text-sm"
+                        >
+                          Select This Rate
+                        </button>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Amenities */}
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">
-                    Amenities Extras
+                {/* Payment Info */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-semibold text-gray-900 mb-2">
+                    Payment Information
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {currentRoomDetails.amenities.map((amenity, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center bg-gray-50 rounded-lg p-3"
-                      >
-                        <div className="mr-3 bg-white p-2 rounded-lg shadow-sm">
-                          {amenity.icon}
-                        </div>
-                        <span className="font-medium text-gray-800">
-                          {amenity.name}
-                        </span>
-                      </div>
-                    ))}
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <p>
+                      Payment Type:{" "}
+                      {currentRoomDetails[0]?.payment_type === "pay_now"
+                        ? "Pay Now"
+                        : "Pay Later"}
+                    </p>
+                    <p>
+                      Due at Property:{" "}
+                      {formatPrice(
+                        currentRoomDetails[0]?.due_at_accommodation_amount || 0,
+                        currentRoomDetails[0]?.currency
+                      )}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -706,28 +941,26 @@ export default function HotelDetailsPage({ params }) {
               <div className="p-6">
                 <div className="flex justify-between mb-6 bg-gradient-to-r from-[#5A53A7] to-[#55C3A9] text-white p-4 rounded-lg">
                   <div>
-                    <p className="text-sm">Number of Rooms</p>
-                    <p className="text-2xl font-bold">101</p>
+                    <p className="text-sm">Rating</p>
+                    <p className="text-2xl font-bold">{hotel.rating}/5</p>
                   </div>
                   <div>
-                    <p className="text-sm">Number of Floors</p>
-                    <p className="text-2xl font-bold">8</p>
+                    <p className="text-sm">Review Score</p>
+                    <p className="text-2xl font-bold">
+                      {hotel.review_score}/10
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm">Reviews</p>
+                    <p className="text-2xl font-bold">{hotel.review_count}</p>
                   </div>
                 </div>
                 <div className="space-y-4 text-gray-700">
-                  <p className="leading-relaxed">
-                    Hotel Agrabad with its 4 star guest facilities is the best
-                    business and leisure hotel in Chittagong. Hosting their
-                    guests in the 101 rooms and suites designed specifically
-                    with the world&apos;s luxury and comfort in mind.
-                  </p>
-                  <p className="leading-relaxed">
-                    The hotel houses four different multi-cuisine restaurants to
-                    ensure the satisfaction of the taste-buds of guests from all
-                    around the world. For leisure and entertainment, guests can
-                    take advantage of the fully equipped fitness centre, the six
-                    lane swimming pool and rejuvenate at the authentic Thai spa.
-                  </p>
+                  {hotel.description?.split("\n").map((paragraph, index) => (
+                    <p key={index} className="leading-relaxed">
+                      {paragraph}
+                    </p>
+                  ))}
                 </div>
               </div>
               <div className="sticky bottom-0 bg-white p-4 border-t flex justify-end">
@@ -759,101 +992,17 @@ export default function HotelDetailsPage({ params }) {
               </div>
               <div className="p-6">
                 <div className="space-y-8">
-                  <FacilityCategory
-                    title="General"
-                    items={[
-                      {
-                        icon: (
-                          <MdElevator className="text-[#5A53A7]" size={18} />
+                  {hotel.amenities && (
+                    <FacilityCategory
+                      title="Hotel Amenities"
+                      items={hotel.amenities.map((amenity) => ({
+                        icon: amenityIcons[amenity.description] || (
+                          <FiCoffee size={16} />
                         ),
-                        name: "Elevator",
-                      },
-                      {
-                        icon: (
-                          <MdRestaurant className="text-[#5A53A7]" size={18} />
-                        ),
-                        name: "Restaurant",
-                      },
-                      {
-                        icon: (
-                          <FaWheelchair className="text-[#5A53A7]" size={16} />
-                        ),
-                        name: "Disability Friendly",
-                      },
-                      {
-                        icon: <FaWifi className="text-[#5A53A7]" size={16} />,
-                        name: "Wi-Fi",
-                      },
-                      {
-                        icon: (
-                          <MdLocalCafe className="text-[#5A53A7]" size={18} />
-                        ),
-                        name: "Cafe",
-                      },
-                    ]}
-                  />
-
-                  <FacilityCategory
-                    title="Fitness & Wellness"
-                    items={[
-                      {
-                        icon: (
-                          <FaSwimmingPool
-                            className="text-[#5A53A7]"
-                            size={16}
-                          />
-                        ),
-                        name: "Swimming Pool",
-                      },
-                      {
-                        icon: (
-                          <FaDumbbell className="text-[#5A53A7]" size={16} />
-                        ),
-                        name: "Gym",
-                      },
-                    ]}
-                  />
-
-                  <FacilityCategory
-                    title="Security & Safety"
-                    items={[
-                      {
-                        icon: (
-                          <FaShieldAlt className="text-[#5A53A7]" size={16} />
-                        ),
-                        name: "24 Hour Security",
-                      },
-                      {
-                        icon: (
-                          <FaFireExtinguisher
-                            className="text-[#5A53A7]"
-                            size={16}
-                          />
-                        ),
-                        name: "Fire Safety",
-                      },
-                      {
-                        icon: (
-                          <MdSmokeFree className="text-[#5A53A7]" size={18} />
-                        ),
-                        name: "Smoke Detector",
-                      },
-                    ]}
-                  />
-
-                  <FacilityCategory
-                    title="Business Facilities"
-                    items={[
-                      {
-                        icon: <FaPrint className="text-[#5A53A7]" size={16} />,
-                        name: "Printer",
-                      },
-                      {
-                        icon: <FaLaptop className="text-[#5A53A7]" size={16} />,
-                        name: "Computer",
-                      },
-                    ]}
-                  />
+                        name: amenity.description,
+                      }))}
+                    />
+                  )}
                 </div>
               </div>
               <div className="sticky bottom-0 bg-white p-4 border-t flex justify-end">
@@ -885,23 +1034,50 @@ export default function HotelDetailsPage({ params }) {
               </div>
               <div className="p-6">
                 <div className="h-96 rounded-lg overflow-hidden mb-6 border border-gray-200">
-                  <Map location={hotel.location} />
+                  {hotel.location?.geographic_coordinates ? (
+                    <Map
+                      location={
+                        hotel.location.address
+                          ? `${hotel.location.address.city_name}, ${hotel.location.address.country_code}`
+                          : "Hotel Location"
+                      }
+                      coordinates={hotel.location.geographic_coordinates}
+                    />
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-gray-500">
+                      Map not available
+                    </div>
+                  )}
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <h3 className="font-medium text-gray-900 mb-1">
                     {hotel.name}
                   </h3>
-                  <p className="text-gray-600 text-sm mb-4">{hotel.location}</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white p-3 rounded-lg shadow-sm">
-                      <p className="text-xs text-gray-500">Airport</p>
-                      <p className="font-medium">16.2 km</p>
+                  <p className="text-gray-600 text-sm mb-4">
+                    {hotel.location?.address
+                      ? `${hotel.location.address.line_one}, ${hotel.location.address.city_name}, ${hotel.location.address.postal_code}, ${hotel.location.address.country_code}`
+                      : "Address not available"}
+                  </p>
+                  {hotel.location?.geographic_coordinates && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-white p-3 rounded-lg shadow-sm">
+                        <p className="text-xs text-gray-500">Latitude</p>
+                        <p className="font-medium">
+                          {hotel.location.geographic_coordinates.latitude.toFixed(
+                            6
+                          )}
+                        </p>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg shadow-sm">
+                        <p className="text-xs text-gray-500">Longitude</p>
+                        <p className="font-medium">
+                          {hotel.location.geographic_coordinates.longitude.toFixed(
+                            6
+                          )}
+                        </p>
+                      </div>
                     </div>
-                    <div className="bg-white p-3 rounded-lg shadow-sm">
-                      <p className="text-xs text-gray-500">Railway</p>
-                      <p className="font-medium">2.6 km</p>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
               <div className="sticky bottom-0 bg-white p-4 border-t flex justify-end">
