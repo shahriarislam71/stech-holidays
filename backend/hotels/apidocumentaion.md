@@ -97,7 +97,7 @@ POST /api/hotels/bookings/confirm-payment/
 }
 This complete implementation provides the entire booking flow without using serializers or models, focusing purely on the view logic and URL routing.
 
-6. payments/initiate/
+6. {base_url}hotels/payments/initiate/
 Request :
 {
   "total_amount": 773.20,
@@ -124,4 +124,4 @@ Request :
 }
 Resposne :
 
-{"success":true,"tran_id":"TXN_CF4A810AD077","payment_url":"https://sandbox.sslcommerz.com/EasyCheckOut/testcde56813ca417127379c87cab98fb624948"}
+{"success":true,"tran_id":"TXN_DCFEBCB8F158","quote_id":"quo_0000Ayvt7Gv5nQ5fw5Ih0K","payment_url":"https://sandbox.sslcommerz.com/EasyCheckOut/testcde7eeedc497ded4511ed2988ca15a55c85"}
