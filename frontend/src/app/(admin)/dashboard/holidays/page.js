@@ -53,7 +53,7 @@ export default function HolidaysAdminPage() {
         const token = localStorage.getItem('authToken');
         
         // Fetch packages
-        const packagesRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/holiday-packages/`, {
+        const packagesRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-packages/`, {
           headers: {
             'Authorization': `Token ${token}`
           }
@@ -62,7 +62,7 @@ export default function HolidaysAdminPage() {
         setPackages(packagesData);
 
         // Fetch bookings
-        const bookingsRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/holiday-bookings/`, {
+        const bookingsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-bookings/`, {
   headers: {
     'Authorization': `Token ${token}`
   }
@@ -95,7 +95,7 @@ if (!bookingsRes.ok) {
     e.preventDefault();
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/holiday-packages/`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-packages/`, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${token}`,
@@ -137,7 +137,7 @@ if (!bookingsRes.ok) {
     e.preventDefault();
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/holiday-packages/${currentPackage.id}/`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-packages/${currentPackage.id}/`, {
         method: 'PUT',
         headers: {
           'Authorization': `Token ${token}`,
@@ -163,7 +163,7 @@ if (!bookingsRes.ok) {
     if (window.confirm('Are you sure you want to delete this package?')) {
       try {
         const token = localStorage.getItem('authToken');
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/holiday-packages/${id}/`, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-packages/${id}/`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Token ${token}`
@@ -185,7 +185,7 @@ if (!bookingsRes.ok) {
   const handleUpdateBookingStatus = async (bookingId, status) => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/holiday-bookings/${bookingId}/`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-bookings/${bookingId}/`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Token ${token}`,

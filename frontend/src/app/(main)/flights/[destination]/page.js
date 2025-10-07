@@ -7,6 +7,26 @@ import FlightSearchFilters from "@/components/FlightSearchFilters";
 import { format } from "date-fns";
 import { FiFilter, FiX } from "react-icons/fi";
 
+// Currency conversion: GBP to BDT (approximate rate: 1 GBP = 155 BDT)
+const GBP_TO_BDT = 155;
+
+const convertGBPToBDT = (gbpAmount) => {
+  return Math.round(gbpAmount * GBP_TO_BDT);
+};
+
+// Helper function to convert price string from GBP to BDT
+const convertPriceString = (priceString) => {
+  if (!priceString) return priceString;
+  // Extract number from string like "£500" or "GBP 500"
+  const match = priceString.match(/[\d,.]+/);
+  if (match) {
+    const amount = parseFloat(match[0].replace(/,/g, ''));
+    const bdtAmount = convertGBPToBDT(amount);
+    return `৳${bdtAmount.toLocaleString()}`;
+  }
+  return priceString;
+};
+
 const FlightDestinationPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -17,13 +37,13 @@ const FlightDestinationPage = () => {
   const [apiFilters, setApiFilters] = useState({});
   const [filters, setFilters] = useState({
     airlines: [],
-    priceRange: [0, 1000],
+    priceRange: [0, 155000], // 1000 GBP * 155
     departureTimes: [],
     stops: [],
   });
   const [showFilters, setShowFilters] = useState(false);
   const filtersRef = useRef(null);
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
   // Close filters when clicking outside
   useEffect(() => {
@@ -42,180 +62,202 @@ const FlightDestinationPage = () => {
     };
   }, [showFilters]);
 
+  // Extract search parameters
+  const flightType = searchParams.get("flight_type") || "one_way";
+  const adults = parseInt(searchParams.get("adults")) || 1;
+  const children = parseInt(searchParams.get("children")) || 0;
+  const infants = parseInt(searchParams.get("infants")) || 0;
+  const cabinClass = searchParams.get("cabin_class") || "economy";
 
-  // Extract search parameters - FIX THIS SECTION
-const flightType = searchParams.get("flight_type") || "one_way";
-const adults = parseInt(searchParams.get("adults")) || 1;
-const children = parseInt(searchParams.get("children")) || 0;
-const infants = parseInt(searchParams.get("infants")) || 0;
-const cabinClass = searchParams.get("cabin_class") || "economy";
-
-// Extract parameters based on flight type
-let from, to, departure, returnDate;
-
+  // Extract parameters based on flight type
+  let from, to, departure, returnDate;
 
   const searchParamsObj = {};
   for (const [key, value] of searchParams.entries()) {
     searchParamsObj[key] = value;
   }
 
-if (flightType === "multi_city") {
-  // For multi-city, we'll handle flights differently
-  from = searchParams.get("flights[0][from]");
-  to = searchParams.get("flights[0][to]");
-  departure = searchParams.get("flights[0][departure_date]");
-} else {
-  // For one-way and round-trip
-  from = searchParams.get("origin");
-  to = searchParams.get("destination");
-  departure = searchParams.get("departure_date");
-  returnDate = searchParams.get("return_date");
-}
-
-console.log("Search params:", {
-  flightType,
-  from,
-  to,
-  departure,
-  returnDate,
-  adults,
-  children,
-  infants,
-  cabinClass
-});
-
-
-// In your FlightDestinationPage component
-const buildApiPayload = useCallback(() => {
-  const flightType = searchParams.get("flight_type") || "one_way";
-  
-  const payload = {
-    flight_type: flightType,
-    travelers: {
-      adults: adults,
-      children: children,
-      infants: infants,
-    },
-    cabin_class: cabinClass,
-  };
-
   if (flightType === "multi_city") {
-    // Extract multi-city flights from URL params
-    const flights = [];
-    let index = 0;
-    
-    while (searchParams.has(`flights[${index}][from]`)) {
-      flights.push({
-        from: searchParams.get(`flights[${index}][from]`),
-        to: searchParams.get(`flights[${index}][to]`),
-        departure_date: searchParams.get(`flights[${index}][departure_date]`)
-      });
-      index++;
-    }
-    
-    payload.flights = flights;
-    
-  } else if (flightType === "round_trip") {
-    payload.origin = from;
-    payload.destination = to;
-    payload.departure_date = departure;
-    payload.return_date = returnDate;
-    
-  } else { // one_way
-    payload.origin = from;
-    payload.destination = to;
-    payload.departure_date = departure;
+    // For multi-city, we'll handle flights differently
+    from = searchParams.get("flights[0][from]");
+    to = searchParams.get("flights[0][to]");
+    departure = searchParams.get("flights[0][departure_date]");
+  } else {
+    // For one-way and round-trip
+    from = searchParams.get("origin");
+    to = searchParams.get("destination");
+    departure = searchParams.get("departure_date");
+    returnDate = searchParams.get("return_date");
   }
 
-  console.log("API Payload:", payload);
-  return payload;
-}, [from, to, departure, returnDate, adults, children, infants, cabinClass, searchParams]);
+  console.log("Search params:", {
+    flightType,
+    from,
+    to,
+    departure,
+    returnDate,
+    adults,
+    children,
+    infants,
+    cabinClass
+  });
 
-const fetchFlights = useCallback(async () => {
-  setLoading(true);
-  console.log("Starting flight search...");
-  
-  try {
-    const payload = buildApiPayload();
+  // Build API payload
+  const buildApiPayload = useCallback(() => {
+    const flightType = searchParams.get("flight_type") || "one_way";
     
-    // Validate required parameters
-    if (!payload.origin && !payload.flights) {
-      console.error("Missing required parameters: origin or flights");
-      setLoading(false);
-      return;
-    }
+    const payload = {
+      flight_type: flightType,
+      travelers: {
+        adults: adults,
+        children: children,
+        infants: infants,
+      },
+      cabin_class: cabinClass,
+    };
 
-    console.log("Sending request to API with payload:", payload);
-    
-    const response = await fetch(
-      `${apiUrl}/flights/search/`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      }
-    );
-
-    console.log("API Response status:", response.status);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("API Error:", errorText);
-      throw new Error(`Failed to fetch flights: ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log("API Response data:", data);
-    
-    if (data.status === "success") {
-      setFlights(data.results.itineraries);
-      setFilteredFlights(data.results.itineraries);
-      setSearchData(data.search);
-      setApiFilters(data.filters);
+    if (flightType === "multi_city") {
+      // Extract multi-city flights from URL params
+      const flights = [];
+      let index = 0;
       
-      // Update local filters with API data
-      setFilters(prev => ({
-        ...prev,
-        priceRange: [data.filters.priceRange.min, data.filters.priceRange.max],
-      }));
-    } else {
-      throw new Error(data.message || "Failed to fetch flights");
+      while (searchParams.has(`flights[${index}][from]`)) {
+        flights.push({
+          from: searchParams.get(`flights[${index}][from]`),
+          to: searchParams.get(`flights[${index}][to]`),
+          departure_date: searchParams.get(`flights[${index}][departure_date]`)
+        });
+        index++;
+      }
+      
+      payload.flights = flights;
+      
+    } else if (flightType === "round_trip") {
+      payload.origin = from;
+      payload.destination = to;
+      payload.departure_date = departure;
+      payload.return_date = returnDate;
+      
+    } else { // one_way
+      payload.origin = from;
+      payload.destination = to;
+      payload.departure_date = departure;
     }
-  } catch (error) {
-    console.error("Error fetching flights:", error);
-    setFlights([]);
-    setFilteredFlights([]);
-  } finally {
-    setLoading(false);
-    console.log("Flight search completed");
-  }
-}, [buildApiPayload]);
+
+    console.log("API Payload:", payload);
+    return payload;
+  }, [from, to, departure, returnDate, adults, children, infants, cabinClass, searchParams]);
+
+  const fetchFlights = useCallback(async () => {
+    setLoading(true);
+    console.log("Starting flight search...");
+    
+    try {
+      const payload = buildApiPayload();
+      
+      // Validate required parameters
+      if (!payload.origin && !payload.flights) {
+        console.error("Missing required parameters: origin or flights");
+        setLoading(false);
+        return;
+      }
+
+      console.log("Sending request to API with payload:", payload);
+      
+      const response = await fetch(
+        `${apiUrl}/flights/search/`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      console.log("API Response status:", response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("API Error:", errorText);
+        throw new Error(`Failed to fetch flights: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("API Response data:", data);
+      
+      if (data.status === "success") {
+        // Convert flight prices from GBP to BDT
+        const flightsWithBDT = data.results.itineraries.map(flight => ({
+          ...flight,
+          priceAmount: convertGBPToBDT(flight.priceAmount),
+          originalPriceGBP: flight.priceAmount,
+          totalPrice: convertPriceString(flight.totalPrice),
+          currency: 'BDT',
+          // Convert offer details if present
+          offerDetails: flight.offerDetails ? {
+            ...flight.offerDetails,
+            base_amount: `৳${convertGBPToBDT(parseFloat(flight.offerDetails.base_amount?.replace(/[^0-9.]/g, '') || 0)).toLocaleString()}`,
+            tax_amount: `৳${convertGBPToBDT(parseFloat(flight.offerDetails.tax_amount?.replace(/[^0-9.]/g, '') || 0)).toLocaleString()}`,
+            base_currency: 'BDT',
+            tax_currency: 'BDT'
+          } : null
+        }));
+        
+        setFlights(flightsWithBDT);
+        setFilteredFlights(flightsWithBDT);
+        setSearchData(data.search);
+        
+        // Convert API filter price ranges to BDT
+        const convertedApiFilters = {
+          ...data.filters,
+          priceRange: {
+            min: convertGBPToBDT(data.filters.priceRange.min),
+            max: convertGBPToBDT(data.filters.priceRange.max),
+            currency: 'BDT'
+          }
+        };
+        setApiFilters(convertedApiFilters);
+        
+        // Update local filters with API data (converted to BDT)
+        setFilters(prev => ({
+          ...prev,
+          priceRange: [convertedApiFilters.priceRange.min, convertedApiFilters.priceRange.max],
+        }));
+      } else {
+        throw new Error(data.message || "Failed to fetch flights");
+      }
+    } catch (error) {
+      console.error("Error fetching flights:", error);
+      setFlights([]);
+      setFilteredFlights([]);
+    } finally {
+      setLoading(false);
+      console.log("Flight search completed");
+    }
+  }, [buildApiPayload]);
 
   useEffect(() => {
-  console.log("Parameters check:", { from, to, departure, flightType });
-  
-  // Check if we have the minimum required parameters
-  const hasRequiredParams = flightType === "multi_city" 
-    ? searchParams.has("flights[0][from]")
-    : (from && to && departure);
+    console.log("Parameters check:", { from, to, departure, flightType });
+    
+    // Check if we have the minimum required parameters
+    const hasRequiredParams = flightType === "multi_city" 
+      ? searchParams.has("flights[0][from]")
+      : (from && to && departure);
 
-  if (hasRequiredParams) {
-    console.log("Fetching flights with parameters...");
-    fetchFlights();
-  } else {
-    console.log("Missing required parameters, not fetching flights");
-    setLoading(false);
-  }
-}, [from, to, departure, flightType, fetchFlights, searchParams]);
-
-
+    if (hasRequiredParams) {
+      console.log("Fetching flights with parameters...");
+      fetchFlights();
+    } else {
+      console.log("Missing required parameters, not fetching flights");
+      setLoading(false);
+    }
+  }, [from, to, departure, flightType, fetchFlights, searchParams]);
 
   const applyFilters = useCallback(() => {
     let results = [...flights];
 
-    // Filter by price range
+    // Filter by price range (now in BDT)
     results = results.filter(
       (flight) =>
         flight.priceAmount >= filters.priceRange[0] &&
@@ -279,63 +321,61 @@ const fetchFlights = useCallback(async () => {
     router.push(`/flights/${to}/${flightId}/user-info`);
   };
 
-if (loading) {
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-[#5A53A7] to-[#4a8b9a] flex items-center justify-center">
-      <div className="flex flex-col items-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mb-4"></div>
-        <p className="text-white text-lg">Searching for flights...</p>
-        <p className="text-white/70 text-sm mt-2">Parameters: {from} → {to} on {departure}</p>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-[#5A53A7] to-[#4a8b9a] flex items-center justify-center">
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white mb-4"></div>
+          <p className="text-white text-lg">Searching for flights...</p>
+          <p className="text-white/70 text-sm mt-2">Parameters: {from} → {to} on {departure}</p>
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
-// Add error state if no flights and not loading
-if (flights.length === 0 && !loading) {
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-gradient-to-r px-4 md:px-[190px] from-[#5A53A7] to-[#4a8b9a] text-white py-6 shadow-md">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-xl md:text-2xl font-bold mb-4">Flight Search</h1>
+  // Add error state if no flights and not loading
+  if (flights.length === 0 && !loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-gradient-to-r px-4 md:px-[190px] from-[#5A53A7] to-[#4a8b9a] text-white py-6 shadow-md">
+          <div className="max-w-7xl mx-auto">
+            <h1 className="text-xl md:text-2xl font-bold mb-4">Flight Search</h1>
+          </div>
+        </div>
+        <div className="max-w-4xl mx-auto py-12 px-4 text-center">
+          <div className="bg-white rounded-xl shadow-sm p-8">
+            <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 20a7.962 7.962 0 01-5-1.709" />
+            </svg>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">No Flights Found</h2>
+            <p className="text-gray-600 mb-4">We couldn't find any flights matching your search criteria.</p>
+            <p className="text-sm text-gray-500 mb-6">
+              Parameters: {flightType} | {from} → {to} | {departure}
+            </p>
+            <button
+              onClick={() => router.back()}
+              className="bg-[#5A53A7] text-white px-6 py-2 rounded-lg hover:bg-[#4a4791] transition"
+            >
+              Modify Search
+            </button>
+          </div>
         </div>
       </div>
-      <div className="max-w-4xl mx-auto py-12 px-4 text-center">
-        <div className="bg-white rounded-xl shadow-sm p-8">
-          <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 20a7.962 7.962 0 01-5-1.709" />
-          </svg>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">No Flights Found</h2>
-          <p className="text-gray-600 mb-4">We couldn't find any flights matching your search criteria.</p>
-          <p className="text-sm text-gray-500 mb-6">
-            Parameters: {flightType} | {from} → {to} | {departure}
-          </p>
-          <button
-            onClick={() => router.back()}
-            className="bg-[#5A53A7] text-white px-6 py-2 rounded-lg hover:bg-[#4a4791] transition"
-          >
-            Modify Search
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+    );
+  }
 
   // Format display data from search response or URL params
-// Format display data from search response or URL params
-const displayFrom = searchData?.route?.[0]?.from || from;
-const displayTo = searchData?.route?.[0]?.to || to;
-const displayDeparture = searchData?.dates?.departure || departure;
-const displayReturn = searchData?.dates?.return || returnDate;
-const displayTotalTravelers = searchData?.travelers?.total || (adults + children + infants);
-const displayCabinClass = searchData?.preferences?.cabinClass || cabinClass;
+  const displayFrom = searchData?.route?.[0]?.from || from;
+  const displayTo = searchData?.route?.[0]?.to || to;
+  const displayDeparture = searchData?.dates?.departure || departure;
+  const displayReturn = searchData?.dates?.return || returnDate;
+  const displayTotalTravelers = searchData?.travelers?.total || (adults + children + infants);
+  const displayCabinClass = searchData?.preferences?.cabinClass || cabinClass;
 
-// For multi-city, show the route differently
-const displayRoute = flightType === "multi_city" 
-  ? `Multi-City (${searchParams.has("flights[0][from]") ? "Multiple" : "0"} Cities)` 
-  : `${displayFrom} → ${displayTo}`;
-
+  // For multi-city, show the route differently
+  const displayRoute = flightType === "multi_city" 
+    ? `Multi-City (${searchParams.has("flights[0][from]") ? "Multiple" : "0"} Cities)` 
+    : `${displayFrom} → ${displayTo}`;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -445,10 +485,10 @@ const displayRoute = flightType === "multi_city"
               </div>
             </div>
 
-             <FlightSearchResults 
-      flights={filteredFlights} 
-      searchParams={searchParamsObj}
-    />
+            <FlightSearchResults 
+              flights={filteredFlights} 
+              searchParams={searchParamsObj}
+            />
           </div>
         </div>
       </div>

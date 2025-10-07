@@ -61,7 +61,7 @@ const handleSubmit = async (e) => {
       throw new Error('Authentication required');
     }
 
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/holiday-bookings/`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-bookings/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -81,11 +81,7 @@ const handleSubmit = async (e) => {
     if (response.ok) {
       const data = await response.json();
       
-      // Update user profile if phone number was changed
-      if (phone && (!user.phone || user.phone !== phone)) {
-        await updateProfile({ phone_number: phone });
-      }
-      
+   
       // Show success toast
       toast.success('Your holiday package has been booked successfully!', {
         position: "top-center",
@@ -427,7 +423,7 @@ const BookingPage = () => {
           throw new Error('Package ID is missing');
         }
 
-        const apiUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/holiday-packages/${id}/`;
+        const apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-packages/${id}/`;
         console.log('Fetching package from:', apiUrl);
         
         const response = await fetch(apiUrl);

@@ -13,7 +13,7 @@ export default function MyBookings() {
   const { user } = useAuth({ redirectToLogin: false });
   const [activeTab, setActiveTab] = useState('current');
   const [activeCategory, setActiveCategory] = useState(
-    searchParams.get('tab') || 'holidays'
+    searchParams.get('tab') || 'flight'
   );
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -23,9 +23,187 @@ export default function MyBookings() {
     hotel: [],
     holidays: [],
     visa: [],
-    umrah: [] ,
+    umrah: [],
   });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Fetch all flight bookings
+  const fetchAllFlights = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/flights/my-flights/`,
+        {
+          headers: {
+            'Authorization': `Token ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.map(booking => ({
+          id: booking.id || booking.data?.id,
+          bookingNumber: booking.booking_reference || booking.data?.booking_reference || `FL${(booking.id || booking.data?.id).toString().slice(-6)}`,
+          date: new Date(booking.created_at || booking.data?.created_at || new Date()).toLocaleDateString(),
+          departure: booking.origin || booking.data?.slices?.[0]?.origin?.iata_code || 'N/A',
+          destination: booking.destination || booking.data?.slices?.[0]?.destination?.iata_code || 'N/A',
+          departure_time: booking.departure_date || booking.data?.slices?.[0]?.segments?.[0]?.departing_at,
+          arrival_time: booking.arrival_date || booking.data?.slices?.[0]?.segments?.[0]?.arriving_at,
+          airline: booking.airline || booking.data?.slices?.[0]?.segments?.[0]?.operating_carrier?.name || 'Unknown Airline',
+          flightNumber: booking.flight_number || booking.data?.slices?.[0]?.segments?.[0]?.marketing_carrier_flight_number || 'N/A',
+          status: booking.status || 'Confirmed',
+          price: booking.total_amount ? `GBP ${booking.total_amount}` : `${booking.data?.total_currency || 'GBP'} ${booking.data?.total_amount || '0'}`,
+          passenger: booking.passenger_name || (booking.data?.passengers?.[0]?.given_name + ' ' + booking.data?.passengers?.[0]?.family_name) || 'N/A',
+          email: booking.email || booking.data?.passengers?.[0]?.email || 'N/A',
+          image: '/flight-booking.jpg',
+          passengers: booking.passengers || booking.data?.passengers || [],
+          cabin_class: booking.cabin_class || booking.data?.slices?.[0]?.segments?.[0]?.passengers?.[0]?.cabin_class || 'Economy',
+          slices: booking.data?.slices || [],
+          conditions: booking.data?.conditions,
+          payment_status: booking.data?.payment_status
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching all flights:', error);
+      return [];
+    }
+  };
+
+  // Fetch all hotel bookings
+  const fetchAllHotels = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/hotels/Allbookings/`,
+        {
+          headers: {
+            'Authorization': `Token ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.map(booking => ({
+          id: booking.id,
+          bookingNumber: booking.reference || `HT${booking.id.toString().slice(-6)}`,
+          date: new Date(booking.confirmed_at || booking.created_at || new Date()).toLocaleDateString(),
+          hotel: booking.accommodation?.name || 'Unknown Hotel',
+          location: booking.accommodation?.location?.address ? 
+            `${booking.accommodation.location.address.city_name}, ${booking.accommodation.location.address.country_code}` : 
+            'N/A',
+          check_in: booking.check_in_date,
+          check_out: booking.check_out_date,
+          status: booking.status || 'Confirmed',
+          price: `GBP ${booking.total_amount || '0'}`,
+          passenger: booking.guests?.[0] ? `${booking.guests[0].given_name} ${booking.guests[0].family_name}` : 'N/A',
+          email: booking.email || 'N/A',
+          image: booking.accommodation?.photos?.[0]?.url || '/hotel-booking.jpg',
+          rooms: booking.rooms || 1,
+          guests: booking.guests?.length || 1,
+          accommodation: booking.accommodation,
+          guest_types: booking.guest_types
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching all hotels:', error);
+      return [];
+    }
+  };
+
+  // Fetch flight booking details
+  const fetchFlightBooking = async (orderId) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/flights/orders/${orderId}`,
+        {
+          headers: {
+            'Authorization': `Token ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const flightData = await response.json();
+        return {
+          id: flightData.data?.id || orderId,
+          bookingNumber: flightData.data?.booking_reference || `FL${orderId.slice(-6)}`,
+          date: new Date(flightData.data?.created_at || new Date()).toLocaleDateString(),
+          departure: flightData.data?.slices?.[0]?.origin?.iata_code || 'N/A',
+          destination: flightData.data?.slices?.[0]?.destination?.iata_code || 'N/A',
+          departure_time: flightData.data?.slices?.[0]?.segments?.[0]?.departing_at,
+          arrival_time: flightData.data?.slices?.[0]?.segments?.[0]?.arriving_at,
+          airline: flightData.data?.slices?.[0]?.segments?.[0]?.operating_carrier?.name || 'Unknown Airline',
+          flightNumber: flightData.data?.slices?.[0]?.segments?.[0]?.marketing_carrier_flight_number || 'N/A',
+          status: 'Confirmed',
+          price: `${flightData.data?.total_currency || 'GBP'} ${flightData.data?.total_amount || '0'}`,
+          passenger: flightData.data?.passengers?.[0]?.given_name + ' ' + flightData.data?.passengers?.[0]?.family_name,
+          email: flightData.data?.passengers?.[0]?.email || 'N/A',
+          image: '/flight-booking.jpg',
+          passengers: flightData.data?.passengers || [],
+          cabin_class: flightData.data?.slices?.[0]?.segments?.[0]?.passengers?.[0]?.cabin_class || 'Economy',
+          slices: flightData.data?.slices || [],
+          conditions: flightData.data?.conditions,
+          payment_status: flightData.data?.payment_status
+        };
+      }
+      throw new Error('Failed to fetch flight booking');
+    } catch (error) {
+      console.error('Error fetching flight booking:', error);
+      return null;
+    }
+  };
+
+  // Fetch hotel booking details
+  const fetchHotelBooking = async (bookingId) => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/hotels/bookings/${bookingId}`,
+        {
+          headers: {
+            'Authorization': `Token ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const hotelData = await response.json();
+        return {
+          id: hotelData.id || bookingId,
+          bookingNumber: hotelData.reference || `HT${bookingId.slice(-6)}`,
+          date: new Date(hotelData.confirmed_at || hotelData.created_at || new Date()).toLocaleDateString(),
+          hotel: hotelData.accommodation?.name || 'Unknown Hotel',
+          location: hotelData.accommodation?.location?.address ? 
+            `${hotelData.accommodation.location.address.city_name}, ${hotelData.accommodation.location.address.country_code}` : 
+            'N/A',
+          check_in: hotelData.check_in_date,
+          check_out: hotelData.check_out_date,
+          status: hotelData.status || 'Confirmed',
+          price: `GBP ${hotelData.total_amount || '0'}`,
+          passenger: hotelData.guests?.[0] ? `${hotelData.guests[0].given_name} ${hotelData.guests[0].family_name}` : 'N/A',
+          email: hotelData.email || 'N/A',
+          image: hotelData.accommodation?.photos?.[0]?.url || '/hotel-booking.jpg',
+          rooms: hotelData.rooms || 1,
+          guests: hotelData.guests?.length || 1,
+          accommodation: hotelData.accommodation,
+          guest_types: hotelData.guest_types
+        };
+      }
+      throw new Error('Failed to fetch hotel booking');
+    } catch (error) {
+      console.error('Error fetching hotel booking:', error);
+      return null;
+    }
+  };
 
   const handleCancelBooking = async (bookingId) => {
     if (window.confirm('Are you sure you want to cancel this booking?')) {
@@ -34,9 +212,9 @@ export default function MyBookings() {
         let endpoint = '';
         
         if (activeCategory === 'holidays') {
-          endpoint = `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/holiday-bookings/${bookingId}/cancel/`;
+          endpoint = `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-bookings/${bookingId}/cancel/`;
         } else if (activeCategory === 'umrah') {
-          endpoint = `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/umrah-bookings/${bookingId}/cancel/`;
+          endpoint = `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/umrah-bookings/${bookingId}/cancel/`;
         } else {
           throw new Error('Cancellation not supported for this booking type');
         }
@@ -54,7 +232,6 @@ export default function MyBookings() {
 
         if (response.ok) {
           toast.success('Booking cancelled successfully');
-          // Refresh bookings
           fetchBookings();
         } else {
           const errorData = await response.json();
@@ -72,10 +249,51 @@ export default function MyBookings() {
       const token = localStorage.getItem('authToken');
       if (!token) return;
 
+      // Check if we have a specific booking ID to fetch
+      const specificBookingId = searchParams.get('booking_id');
+      const specificCategory = searchParams.get('tab') || activeCategory;
+
+      if (specificBookingId && specificCategory === 'flight') {
+        const flightBooking = await fetchFlightBooking(specificBookingId);
+        if (flightBooking) {
+          setBookings(prev => ({
+            ...prev,
+            flight: [flightBooking]
+          }));
+        }
+      } else if (specificBookingId && specificCategory === 'hotel') {
+        const hotelBooking = await fetchHotelBooking(specificBookingId);
+        if (hotelBooking) {
+          setBookings(prev => ({
+            ...prev,
+            hotel: [hotelBooking]
+          }));
+        }
+      } else {
+        // Fetch all bookings for the active category
+        if (activeCategory === 'flight') {
+          const allFlights = await fetchAllFlights();
+          // Sort by date (newest first)
+          const sortedFlights = allFlights.sort((a, b) => new Date(b.date) - new Date(a.date));
+          setBookings(prev => ({
+            ...prev,
+            flight: sortedFlights
+          }));
+        } else if (activeCategory === 'hotel') {
+          const allHotels = await fetchAllHotels();
+          // Sort by date (newest first)
+          const sortedHotels = allHotels.sort((a, b) => new Date(b.date) - new Date(a.date));
+          setBookings(prev => ({
+            ...prev,
+            hotel: sortedHotels
+          }));
+        }
+      }
+
       // Fetch holiday bookings
       if (activeCategory === 'holidays') {
         const holidayResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/user/holiday-bookings/`,
+          `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/user/holiday-bookings/`,
           {
             headers: {
               'Authorization': `Token ${token}`
@@ -84,9 +302,8 @@ export default function MyBookings() {
         );
         if (holidayResponse.ok) {
           const holidayData = await holidayResponse.json();
-          setBookings(prev => ({
-            ...prev,
-            holidays: holidayData.map(booking => ({
+          const sortedHolidays = holidayData
+            .map(booking => ({
               ...booking,
               id: booking.id,
               bookingNumber: `HL${booking.id.toString().padStart(6, '0')}`,
@@ -102,6 +319,11 @@ export default function MyBookings() {
               travelers: booking.travelers,
               custom_request: booking.custom_request
             }))
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+          
+          setBookings(prev => ({
+            ...prev,
+            holidays: sortedHolidays
           }));
         }
       }
@@ -109,7 +331,7 @@ export default function MyBookings() {
       // Fetch visa applications
       if (activeCategory === 'visa') {
         const visaResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/user/visa-applications/`,
+          `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/user/visa-applications/`,
           {
             headers: {
               'Authorization': `Token ${token}`
@@ -118,9 +340,8 @@ export default function MyBookings() {
         );
         if (visaResponse.ok) {
           const visaData = await visaResponse.json();
-          setBookings(prev => ({
-            ...prev,
-            visa: visaData.map(application => ({
+          const sortedVisa = visaData
+            .map(application => ({
               ...application,
               id: application.id,
               bookingNumber: application.reference_number,
@@ -142,6 +363,11 @@ export default function MyBookings() {
               documents: application.documents || [],
               payment_status: application.payment_status || 'unknown'
             }))
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+          
+          setBookings(prev => ({
+            ...prev,
+            visa: sortedVisa
           }));
         }
       }
@@ -149,7 +375,7 @@ export default function MyBookings() {
       // Fetch Umrah bookings
       if (activeCategory === 'umrah') {
         const umrahResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/user/umrah-bookings/`,
+          `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/user/umrah-bookings/`,
           {
             headers: {
               'Authorization': `Token ${token}`
@@ -158,9 +384,8 @@ export default function MyBookings() {
         );
         if (umrahResponse.ok) {
           const umrahData = await umrahResponse.json();
-          setBookings(prev => ({
-            ...prev,
-            umrah: umrahData.map(booking => ({
+          const sortedUmrah = umrahData
+            .map(booking => ({
               ...booking,
               id: booking.id,
               bookingNumber: `UM${booking.id.toString().padStart(6, '0')}`,
@@ -182,6 +407,11 @@ export default function MyBookings() {
               includes_transport: booking.package?.includes_transport || false,
               includes_visa: booking.package?.includes_visa || false
             }))
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+          
+          setBookings(prev => ({
+            ...prev,
+            umrah: sortedUmrah
           }));
         }
       }
@@ -193,27 +423,24 @@ export default function MyBookings() {
     }
   };
 
-  // Fetch real bookings data
+  // Check for booking success message and specific booking
+  useEffect(() => {
+    const bookingId = searchParams.get('booking_id');
+    const tab = searchParams.get('tab');
+    
+    if (tab) {
+      setActiveCategory(tab);
+    }
+    
+    if (bookingId) {
+      fetchBookings();
+    }
+  }, [searchParams]);
+
+  // Fetch bookings when category changes
   useEffect(() => {
     fetchBookings();
   }, [activeCategory]);
-
-  // Check for booking success message
-  useEffect(() => {
-    if (searchParams.get('booking_success')) {
-      toast.success('Your booking was successful!', {
-        position: "top-center",
-        autoClose: 5000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-      });
-      
-      // Clean up the URL
-      window.history.replaceState({}, '', '/profile/my-bookings?tab=holidays');
-    }
-  }, [searchParams]);
 
   const handleViewDetails = (booking) => {
     if (activeCategory === 'holidays') {
@@ -233,6 +460,37 @@ export default function MyBookings() {
           booking.includes_visa && 'Visa'
         ].filter(Boolean)
       });
+    } else if (activeCategory === 'flight') {
+      setSelectedBooking({
+        ...booking,
+        flightDetails: {
+          airline: booking.airline,
+          flightNumber: booking.flightNumber,
+          departure: booking.departure,
+          destination: booking.destination,
+          departureTime: booking.departure_time,
+          arrivalTime: booking.arrival_time,
+          cabinClass: booking.cabin_class,
+          passengers: booking.passengers,
+          slices: booking.slices,
+          conditions: booking.conditions,
+          payment_status: booking.payment_status
+        }
+      });
+    } else if (activeCategory === 'hotel') {
+      setSelectedBooking({
+        ...booking,
+        hotelDetails: {
+          hotel: booking.hotel,
+          location: booking.location,
+          checkIn: booking.check_in,
+          checkOut: booking.check_out,
+          rooms: booking.rooms,
+          guests: booking.guests,
+          accommodation: booking.accommodation,
+          guest_types: booking.guest_types
+        }
+      });
     } else {
       setSelectedBooking(booking);
     }
@@ -250,7 +508,40 @@ export default function MyBookings() {
     content += `Price: ${booking.price}\n`;
     content += `Status: ${booking.status}\n`;
 
-    if (activeCategory === 'holidays') {
+    if (activeCategory === 'flight') {
+      content += `\nFlight Details:\n`;
+      content += `Airline: ${booking.airline}\n`;
+      content += `Flight: ${booking.flightNumber}\n`;
+      content += `Route: ${booking.departure} to ${booking.destination}\n`;
+      content += `Departure: ${new Date(booking.departure_time).toLocaleString()}\n`;
+      content += `Arrival: ${new Date(booking.arrival_time).toLocaleString()}\n`;
+      content += `Cabin Class: ${booking.cabin_class}\n`;
+      
+      // Add slice information
+      if (booking.slices && booking.slices.length > 0) {
+        content += `\nJourney Details:\n`;
+        booking.slices.forEach((slice, index) => {
+          content += `Segment ${index + 1}:\n`;
+          content += `  From: ${slice.origin?.iata_code} (${slice.origin?.name})\n`;
+          content += `  To: ${slice.destination?.iata_code} (${slice.destination?.name})\n`;
+          content += `  Departure: ${new Date(slice.segments?.[0]?.departing_at).toLocaleString()}\n`;
+          content += `  Arrival: ${new Date(slice.segments?.[0]?.arriving_at).toLocaleString()}\n`;
+        });
+      }
+    } else if (activeCategory === 'hotel') {
+      content += `\nHotel Details:\n`;
+      content += `Hotel: ${booking.hotel}\n`;
+      content += `Location: ${booking.location}\n`;
+      content += `Check-in: ${new Date(booking.check_in).toLocaleDateString()}\n`;
+      content += `Check-out: ${new Date(booking.check_out).toLocaleDateString()}\n`;
+      content += `Rooms: ${booking.rooms}\n`;
+      content += `Guests: ${booking.guests}\n`;
+      
+      if (booking.accommodation) {
+        content += `Address: ${booking.accommodation.location?.address?.line_one}, ${booking.accommodation.location?.address?.city_name}, ${booking.accommodation.location?.address?.postal_code}\n`;
+        content += `Rating: ${booking.accommodation.rating}/5\n`;
+      }
+    } else if (activeCategory === 'holidays') {
       content += `\nHoliday Details:\n`;
       content += `Destination: ${booking.destination}\n`;
       content += `Duration: ${booking.nights} Nights / ${booking.days} Days\n`;
@@ -401,16 +692,18 @@ export default function MyBookings() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
                     <div className="absolute bottom-4 left-4 text-white">
                       <h3 className="text-xl font-bold">
-                        {activeCategory === 'holidays' && selectedBooking.destination}
                         {activeCategory === 'flight' && `${selectedBooking.departure} to ${selectedBooking.destination}`}
                         {activeCategory === 'hotel' && selectedBooking.hotel}
+                        {activeCategory === 'holidays' && selectedBooking.destination}
                         {activeCategory === 'visa' && `${selectedBooking.type} - ${selectedBooking.country}`}
+                        {activeCategory === 'umrah' && selectedBooking.destination}
                       </h3>
                       <p className="text-sm opacity-90">
-                        {activeCategory === 'holidays' && 'Holiday Package'}
                         {activeCategory === 'flight' && `${selectedBooking.airline} ${selectedBooking.flightNumber}`}
                         {activeCategory === 'hotel' && selectedBooking.location}
+                        {activeCategory === 'holidays' && 'Holiday Package'}
                         {activeCategory === 'visa' && selectedBooking.type}
+                        {activeCategory === 'umrah' && 'Umrah Package'}
                       </p>
                     </div>
                   </div>
@@ -430,8 +723,10 @@ export default function MyBookings() {
                     <div>
                       <p className="text-sm font-medium text-gray-500">Status</p>
                       <p className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        selectedBooking.status === 'Confirmed' || selectedBooking.status === 'Approved'
+                        selectedBooking.status === 'Confirmed' || selectedBooking.status === 'Approved' || selectedBooking.status === 'confirmed'
                           ? 'bg-green-100 text-green-800' 
+                          : selectedBooking.status === 'cancelled'
+                          ? 'bg-red-100 text-red-800'
                           : 'bg-yellow-100 text-yellow-800'
                       }`}>
                         {selectedBooking.status}
@@ -457,6 +752,103 @@ export default function MyBookings() {
                     </div>
                   </div>
 
+                  {/* Flight Details */}
+                  {activeCategory === 'flight' && selectedBooking.flightDetails && (
+                    <>
+                      <h3 className="text-lg font-semibold text-[#445494] mt-6 mb-4">Flight Details</h3>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Airline</p>
+                          <p className="text-gray-900">{selectedBooking.flightDetails.airline}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Flight Number</p>
+                          <p className="text-gray-900">{selectedBooking.flightDetails.flightNumber}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Route</p>
+                          <p className="text-gray-900">{selectedBooking.flightDetails.departure} → {selectedBooking.flightDetails.destination}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Departure</p>
+                          <p className="text-gray-900">
+                            {new Date(selectedBooking.flightDetails.departureTime).toLocaleString()}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Arrival</p>
+                          <p className="text-gray-900">
+                            {new Date(selectedBooking.flightDetails.arrivalTime).toLocaleString()}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Cabin Class</p>
+                          <p className="text-gray-900 capitalize">{selectedBooking.flightDetails.cabinClass}</p>
+                        </div>
+                        {selectedBooking.flightDetails.slices && selectedBooking.flightDetails.slices.length > 1 && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-500">Journey Type</p>
+                            <p className="text-gray-900">Round Trip</p>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Hotel Details */}
+                  {activeCategory === 'hotel' && selectedBooking.hotelDetails && (
+                    <>
+                      <h3 className="text-lg font-semibold text-[#445494] mt-6 mb-4">Hotel Details</h3>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Hotel</p>
+                          <p className="text-gray-900">{selectedBooking.hotelDetails.hotel}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Location</p>
+                          <p className="text-gray-900">{selectedBooking.hotelDetails.location}</p>
+                        </div>
+                        {selectedBooking.hotelDetails.accommodation?.location?.address && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-500">Address</p>
+                            <p className="text-gray-900">
+                              {selectedBooking.hotelDetails.accommodation.location.address.line_one},<br />
+                              {selectedBooking.hotelDetails.accommodation.location.address.city_name},<br />
+                              {selectedBooking.hotelDetails.accommodation.location.address.postal_code}
+                            </p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Check-in</p>
+                          <p className="text-gray-900">
+                            {new Date(selectedBooking.hotelDetails.checkIn).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Check-out</p>
+                          <p className="text-gray-900">
+                            {new Date(selectedBooking.hotelDetails.checkOut).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Rooms</p>
+                          <p className="text-gray-900">{selectedBooking.hotelDetails.rooms}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-500">Guests</p>
+                          <p className="text-gray-900">{selectedBooking.hotelDetails.guests}</p>
+                        </div>
+                        {selectedBooking.hotelDetails.accommodation?.rating && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-500">Hotel Rating</p>
+                            <p className="text-gray-900">{selectedBooking.hotelDetails.accommodation.rating}/5</p>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Holiday Details */}
                   {activeCategory === 'holidays' && (
                     <>
                       <h3 className="text-lg font-semibold text-[#445494] mt-6 mb-4">Holiday Details</h3>
@@ -503,10 +895,11 @@ export default function MyBookings() {
                     </>
                   )}
 
+                  {/* Umrah Details */}
                   {activeCategory === 'umrah' && (
                     <>
                       <div>
-                        <h3 className="text-lg font-semibold text-[#445494] mb-4">Umrah Details</h3>
+                        <h3 className="text-lg font-semibold text-[#445494] mt-6 mb-4">Umrah Details</h3>
                         <div className="space-y-3">
                           <div>
                             <p className="text-sm font-medium text-gray-500">Duration</p>
@@ -722,10 +1115,11 @@ export default function MyBookings() {
                                 <div className="flex flex-col md:flex-row md:justify-between md:items-start">
                                   <div className="mb-3 md:mb-0">
                                     <h3 className="text-lg font-bold text-[#445494]">
-                                      {activeCategory === 'holidays' && booking.destination}
                                       {activeCategory === 'flight' && `${booking.departure} to ${booking.destination}`}
                                       {activeCategory === 'hotel' && booking.hotel}
+                                      {activeCategory === 'holidays' && booking.destination}
                                       {activeCategory === 'visa' && `${booking.type} - ${booking.country}`}
+                                      {activeCategory === 'umrah' && booking.destination}
                                     </h3>
                                     <p className="text-gray-600 text-sm mt-1">
                                       <span className="font-medium">Booking #:</span> {booking.bookingNumber}
@@ -733,11 +1127,21 @@ export default function MyBookings() {
                                       <br className="md:hidden" />
                                       <span className="font-medium">Date:</span> {booking.date}
                                     </p>
+                                    {activeCategory === 'flight' && (
+                                      <p className="text-gray-600 text-sm mt-1">
+                                        <span className="font-medium">Airline:</span> {booking.airline} {booking.flightNumber}
+                                      </p>
+                                    )}
+                                    {activeCategory === 'hotel' && (
+                                      <p className="text-gray-600 text-sm mt-1">
+                                        <span className="font-medium">Location:</span> {booking.location}
+                                      </p>
+                                    )}
                                   </div>
                                   <div className="text-left md:text-right">
                                     <p className="text-xl font-bold text-[#5A53A7]">{booking.price}</p>
                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                      booking.status === 'confirmed' 
+                                      booking.status === 'confirmed' || booking.status === 'Confirmed'
                                         ? 'bg-green-100 text-green-800'
                                         : booking.status === 'cancelled'
                                           ? 'bg-red-100 text-red-800'
@@ -753,6 +1157,34 @@ export default function MyBookings() {
                                     <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Passenger</h4>
                                     <p className="mt-1 text-gray-900">{booking.passenger}</p>
                                   </div>
+                                  {activeCategory === 'flight' && (
+                                    <>
+                                      <div>
+                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Departure</h4>
+                                        <p className="mt-1 text-gray-900">
+                                          {new Date(booking.departure_time).toLocaleDateString()}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Cabin Class</h4>
+                                        <p className="mt-1 text-gray-900 capitalize">{booking.cabin_class}</p>
+                                      </div>
+                                    </>
+                                  )}
+                                  {activeCategory === 'hotel' && (
+                                    <>
+                                      <div>
+                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Check-in</h4>
+                                        <p className="mt-1 text-gray-900">
+                                          {new Date(booking.check_in).toLocaleDateString()}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Rooms</h4>
+                                        <p className="mt-1 text-gray-900">{booking.rooms}</p>
+                                      </div>
+                                    </>
+                                  )}
                                   {activeCategory === 'holidays' && (
                                     <>
                                       <div>

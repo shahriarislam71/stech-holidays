@@ -8,7 +8,7 @@ export default function LoginPage() {
   const { isLoading, errorMsg, initGoogleLogin } = useAuth({ redirectToLogin: false });
 
   // Initialize Google Login button once on mount
-useEffect(() => {
+  useEffect(() => {
     // Only initialize Google after we're done checking auth status
     if (!isLoading) {
       const timer = setTimeout(() => {
@@ -17,18 +17,15 @@ useEffect(() => {
       
       return () => clearTimeout(timer);
     }
-}, [isLoading, initGoogleLogin]);
+  }, [isLoading, initGoogleLogin]);
 
-  
-
-  // In LoginPage.js
-if (isLoading) {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <p>Loading authentication...</p>
-    </div>
-  );
-}
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Loading authentication...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#D1F1E7] to-[#8E8CE8] flex flex-col items-center justify-center px-6 py-12 sm:py-20">

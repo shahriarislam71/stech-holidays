@@ -104,3 +104,38 @@ class DuffleMarkup(models.Model):
 
     def __str__(self):
         return f"{self.percentage}% Markup"
+    
+
+# flights/models.py (or payments/models.py)
+from django.db import models
+from django.utils import timezone
+
+class FlightPaymentTransaction(models.Model):
+    # Replace the existing STATUS_CHOICES with these:
+    STATUS_CHOICES = [
+        ('initiated', 'Initiated'),
+        ('ssl_success', 'SSL Payment Success'),
+        ('payment_success_offer_expired', 'Payment Success - Offer Expired'),
+        ('payment_success_order_failed', 'Payment Success - Order Failed'),
+        ('complete_success', 'Complete Success'),
+        ('failed', 'Failed'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    tran_id = models.CharField(max_length=100, unique=True)
+    order_id = models.CharField(max_length=100, null=True, blank=True)   # Duffel order id (if created)
+    duffel_offer_id = models.CharField(max_length=100, null=True, blank=True)  # ADD THIS FIELD - which offer was used
+    checkout_data = models.JSONField(default=dict, blank=True)           # original payload (passengers, order_payload, etc.)
+    initiation_response = models.JSONField(null=True, blank=True)
+    ipn_data = models.JSONField(null=True, blank=True)
+    redirect_data = models.JSONField(null=True, blank=True)  # ADD THIS FIELD - store SSL redirect data
+    redirect_received_at = models.DateTimeField(null=True, blank=True)  # ADD THIS FIELD
+    val_id = models.CharField(max_length=255, null=True, blank=True)
+    amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    currency = models.CharField(max_length=6, default='BDT')
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='initiated')  # Increased max_length to 30
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.tran_id} | {self.status}"

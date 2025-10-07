@@ -38,13 +38,10 @@ Content-Type: application/json
 ## One way:
 ```json
 {
-  "slices": [
-    {
-      "origin": "LHR",
-      "destination": "JFK",
-      "departure_date": "2025-10-01"
-    }
-  ],
+  "flight_type": "one_way",
+  "origin": "LHR",
+  "destination": "JFK",
+  "departure_date": "2025-10-11",
   "travelers": {
     "adults": 2,
     "children": 1,
@@ -53,6 +50,7 @@ Content-Type: application/json
   "cabin_class": "economy",
   "fare_type": "regular"
 }
+
 ```
 ## ROUNDTRIP
 
@@ -612,3 +610,32 @@ Search → Select Flight → Choose Fare → Passenger Details → Payment → C
 - Test payment flow on mobile devices
 0.56+
 This documentation provides everything frontend developers need to integrate the flights booking system seamlessly! 🎉AQ2 
+
+
+
+
+{
+  "total_amount": 601.07,
+  "currency": "GBP",
+  "offer_id": "off_0000Ayy5HMBl7xlQVxLr8L",
+  "passenger_ids": ["pas_0000Ayy5HLuk9E9XfBOGby"], 
+  "passengers": [
+    {
+      "title": "mr",
+      "given_name": "John",
+      "family_name": "Doe",
+      "born_on": "1990-05-15",
+      "gender": "m",
+      "email": "john@example.com",
+      "phone_number": "+8801710000000"
+    }
+  ],
+  "cus_name": "John Doe",
+  "email": "john@example.com",
+  "cus_phone": "01710000000",
+  "cus_add1": "House 12, Road 3",
+  "cus_city": "Dhaka",
+  "cus_state": "Dhaka",
+  "cus_postcode": "1207",
+  "cus_country": "Bangladesh"
+}

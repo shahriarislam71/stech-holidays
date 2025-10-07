@@ -16,7 +16,7 @@ export default function VisaCountryPage() {
     const fetchVisaCountry = async () => {
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-countries/${country}/`
+          `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-countries/${country}/`
         );
         if (!response.ok) throw new Error('Country not found');
         const data = await response.json();

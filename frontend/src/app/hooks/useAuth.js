@@ -1,76 +1,101 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'react-toastify';
 
 export default function useAuth({ redirectToLogin = true, adminOnly = false } = {}) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [googleLoaded, setGoogleLoaded] = useState(false);
 
   // Fetch user profile
-
-const fetchUser = async () => {
-  setIsLoading(true);
-  setErrorMsg('');
-  try {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      setIsLoading(false);
-      return null;  // Return null instead of throwing error
-    }
-
-    const response = await fetch('http://localhost:8000/api/auth/profile/', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Token ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch user');
-    }
-
-    const userData = await response.json();
-    setUser(userData);
-    return userData;
-  } catch (error) {
-    console.error('fetchUser error:', error.message);
-    setUser(null);
-    setErrorMsg(error.message);
-    return null;
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-
-// In useAuth.js
-useEffect(() => {
-  const checkAuth = async () => {
-    if (redirectToLogin) {
-      const userData = await fetchUser();
-      if (userData) {
-        router.push('/profile');
-      } else if (redirectToLogin) {
-        router.push('/login');
+  const fetchUser = async () => {
+    setIsLoading(true);
+    setErrorMsg('');
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        setIsLoading(false);
+        return null;
       }
-    } else {
-      // Always try to fetch user, but don't redirect
-      await fetchUser();
+
+      const response = await fetch('http://localhost:8000/api/auth/profile/', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Token ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch user');
+      }
+
+      const userData = await response.json();
+      setUser(userData);
+      return userData;
+    } catch (error) {
+      console.error('fetchUser error:', error.message);
+      setUser(null);
+      setErrorMsg(error.message);
+      return null;
+    } finally {
       setIsLoading(false);
     }
   };
 
-  checkAuth();
-}, [redirectToLogin, router]);
+  // Handle redirect after successful login
+  const handleSuccessfulLogin = async () => {
+    const userData = await fetchUser();
+    
+    if (userData) {
+      // Check for redirect parameter
+      const redirectUrl = searchParams.get('redirect');
+      
+      if (redirectUrl) {
+        // Decode and redirect to the original page
+        router.push(decodeURIComponent(redirectUrl));
+      } else {
+        // Check for pending booking
+        const pendingBooking = localStorage.getItem('pendingBooking');
+        if (pendingBooking) {
+          localStorage.removeItem('pendingBooking');
+          const bookingData = JSON.parse(pendingBooking);
+          router.push(`/holidays/${bookingData.destination}/${bookingData.packageId}/book`);
+        } else {
+          // Default redirect to profile
+          router.push('/profile');
+        }
+      }
+    }
+  };
 
+  // Check auth status on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (redirectToLogin) {
+        const userData = await fetchUser();
+        if (!userData && redirectToLogin) {
+          // Get current path for redirect
+          const currentPath = window.location.pathname + window.location.search;
+          // Only redirect to login if we're not already on login page
+          if (!currentPath.includes('/login')) {
+            router.push(`/login?redirect=${encodeURIComponent(currentPath)}`);
+          }
+        }
+      } else {
+        // Always try to fetch user, but don't redirect
+        await fetchUser();
+        setIsLoading(false);
+      }
+    };
 
+    checkAuth();
+  }, [redirectToLogin, router]);
 
   // Initialize Google Sign-In
   const initGoogleLogin = () => {
@@ -89,126 +114,109 @@ useEffect(() => {
     }
   };
 
-const renderGoogleLogin = () => {
-  if (googleLoaded || !window.google) return;
+  const renderGoogleLogin = () => {
+    if (googleLoaded || !window.google) return;
 
-  const btnDiv = document.getElementById('google-btn');
-  if (!btnDiv) {
-    console.warn('Google button container not found');
-    return;
-  }
+    const btnDiv = document.getElementById('google-btn');
+    if (!btnDiv) {
+      console.warn('Google button container not found');
+      return;
+    }
 
-  try {
-    window.google.accounts.id.initialize({
-      client_id: '1046154388534-g632sm5bqumahr72i0184j4sg00c2o3e.apps.googleusercontent.com',
-      callback: handleGoogleResponse,
-      auto_select: false,
-      ux_mode: 'popup',
-    });
+    try {
+      window.google.accounts.id.initialize({
+        client_id: '1046154388534-g632sm5bqumahr72i0184j4sg00c2o3e.apps.googleusercontent.com',
+        callback: handleGoogleResponse,
+        auto_select: false,
+        ux_mode: 'popup',
+      });
 
-    window.google.accounts.id.renderButton(btnDiv, {
-      theme: 'filled_blue',
-      size: 'large',
-      width: 320,
-      text: 'continue_with',
-      shape: 'pill',
-    });
+      window.google.accounts.id.renderButton(btnDiv, {
+        theme: 'filled_blue',
+        size: 'large',
+        width: 320,
+        text: 'continue_with',
+        shape: 'pill',
+      });
 
-    setGoogleLoaded(true);
-  } catch (error) {
-    console.error('Error rendering Google button:', error);
-    toast.error('Failed to load Google Sign-In');
-  }
-};
+      setGoogleLoaded(true);
+    } catch (error) {
+      console.error('Error rendering Google button:', error);
+      toast.error('Failed to load Google Sign-In');
+    }
+  };
 
   // Handle Google login response
-const handleGoogleResponse = async (response) => {
-  try {
-    setIsLoading(true);
-    setErrorMsg('');
+  const handleGoogleResponse = async (response) => {
+    try {
+      setIsLoading(true);
+      setErrorMsg('');
 
-    const res = await fetch('http://localhost:8000/api/auth/social/google/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ access_token: response.credential }),
-    });
+      const res = await fetch('http://localhost:8000/api/auth/social/google/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ access_token: response.credential }),
+      });
 
-    if (res.ok) {
-      const data = await res.json();
-      localStorage.setItem('authToken', data.token);
-      await fetchUser();
-      
-      // Check for pending booking
-      const pendingBooking = localStorage.getItem('pendingBooking');
-      if (pendingBooking) {
-        localStorage.removeItem('pendingBooking');
-        const bookingData = JSON.parse(pendingBooking);
-        // Redirect to booking confirmation or auto-submit
-        router.push(`/holidays/${bookingData.destination}/${bookingData.packageId}/book`);
+      if (res.ok) {
+        const data = await res.json();
+        localStorage.setItem('authToken', data.token);
+        await handleSuccessfulLogin();
       } else {
-        router.push('/profile');
+        const err = await res.json();
+        setErrorMsg(err.detail || 'Google login failed');
+        toast.error(err.detail || 'Login failed');
       }
-    } else {
-      const err = await res.json();
-      setErrorMsg(err.detail || 'Google login failed');
-      toast.error(err.detail || 'Login failed');
+    } catch (err) {
+      setErrorMsg('Network error: ' + err.message);
+      toast.error('Network error');
+    } finally {
+      setIsLoading(false);
     }
-  } catch (err) {
-    setErrorMsg('Network error: ' + err.message);
-    toast.error('Network error');
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   // Logout function
-const logout = () => {
-  localStorage.removeItem('authToken');
-  setUser(null);
-  window.location.href = '/login';
-};
-
+  const logout = () => {
+    localStorage.removeItem('authToken');
+    setUser(null);
+    // Redirect to home page after logout
+    window.location.href = '/';
+  };
 
   // Update user profile
-const updateProfile = async (data) => {
-  try {
-    setIsLoading(true);
-    const token = localStorage.getItem('authToken');
-    if (!token) throw new Error('No token found');
+  const updateProfile = async (data) => {
+    try {
+      setIsLoading(true);
+      const token = localStorage.getItem('authToken');
+      if (!token) throw new Error('No token found');
 
-    const response = await fetch('http://localhost:8000/api/auth/profile/', {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Token ${token}`,  
-      },
-      body: JSON.stringify(data),
-    });
+      const response = await fetch('http://localhost:8000/api/auth/profile/', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Token ${token}`,  
+        },
+        body: JSON.stringify(data),
+      });
 
-    if (response.ok) {
-      const updatedUser = await response.json();
-      setUser(updatedUser);
-      toast.success('Profile updated successfully');
-      return true;
-    } else {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to update profile');
+      if (response.ok) {
+        const updatedUser = await response.json();
+        setUser(updatedUser);
+        toast.success('Profile updated successfully');
+        return true;
+      } else {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to update profile');
+      }
+    } catch (error) {
+      toast.error(error.message);
+      throw error;
+    } finally {
+      setIsLoading(false);
     }
-  } catch (error) {
-    toast.error(error.message);
-    throw error;
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-
-  
-  // Check auth status on mount
-
-
+  };
 
   return {
     user,
@@ -218,6 +226,7 @@ const updateProfile = async (data) => {
     logout,
     initGoogleLogin,
     updateProfile,
-    fetchUser, // Add fetchUser to allow manual refresh
+    fetchUser,
+    handleSuccessfulLogin,
   };
 }

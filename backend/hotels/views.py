@@ -942,7 +942,7 @@ class PaymentSuccessView(APIView):
                     raw_response=data_resp,
                 )
                 print(f"✅ HotelBooking created successfully: {booking_id}")
-                return redirect(f'{frontend_url}/payment/success?tran_id={tran_id}&quote_id={quote_id}')
+                return redirect(f"{frontend_url}/payment/success?tran_id={tran_id}&order_id={booking_id}&paid=true&booking_type=hotel")
 
             # ⚠️ Duffel booking failed
             print(f"⚠️ Duffel booking failed with status {response.status_code}: {data_resp}")

@@ -132,7 +132,7 @@ const HeroSection = () => {
     const fetchUmrahPackages = async () => {
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/umrah-packages-list/`
+          `${apiUrl}/holidays-visa/umrah-packages-list/`
         );
         if (!response.ok) {
           throw new Error("Failed to fetch Umrah packages");
@@ -371,7 +371,7 @@ const handleMultiCityAirportSelect = (id, field, airport) => {
       setIsLoadingDestinations(true);
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/holiday-destinations/`
+          `${apiUrl}/holidays-visa/holiday-destinations/`
         );
         if (!response.ok) {
           throw new Error("Failed to fetch destinations");
@@ -394,7 +394,7 @@ const handleMultiCityAirportSelect = (id, field, airport) => {
       setIsLoadingVisaCountries(true);
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-destinations/`
+          `${apiUrl}/holidays-visa/visa-destinations/`
         );
         if (!response.ok) {
           throw new Error("Failed to fetch visa countries");

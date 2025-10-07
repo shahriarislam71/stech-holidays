@@ -1,8 +1,26 @@
 // components/FlightSearchResults.js
 "use client";
 import React, { useState, useEffect } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
+
+// Currency conversion: GBP to BDT
+const GBP_TO_BDT = 155;
+
+const convertGBPToBDT = (gbpAmount) => {
+  return Math.round(gbpAmount * GBP_TO_BDT);
+};
+
+const convertPriceString = (priceString) => {
+  if (!priceString) return priceString;
+  // Extract number from string like "£500" or "GBP 500"
+  const match = priceString.match(/[\d,.]+/);
+  if (match) {
+    const amount = parseFloat(match[0].replace(/,/g, ''));
+    const bdtAmount = convertGBPToBDT(amount);
+    return `৳${bdtAmount.toLocaleString()}`;
+  }
+  return priceString;
+};
 
 const FlightCard = ({ flight, searchParams }) => {
   const [showPackages, setShowPackages] = useState(false);
@@ -38,6 +56,16 @@ const FlightCard = ({ flight, searchParams }) => {
 
   const searchParamsObj = getSearchParamsObject();
 
+  // Get passenger IDs from flight data
+  const getPassengerIds = () => {
+    if (flight.passengers && Array.isArray(flight.passengers)) {
+      return flight.passengers.map(passenger => passenger.id);
+    }
+    return [];
+  };
+
+  const passengerIds = getPassengerIds();
+
   // Fetch fare packages
   useEffect(() => {
     const fetchFarePackages = async () => {
@@ -62,7 +90,13 @@ const FlightCard = ({ flight, searchParams }) => {
         const data = await response.json();
         
         if (data.fares && Array.isArray(data.fares)) {
-          setFarePackages(data.fares);
+          // Convert package prices from GBP to BDT
+          const convertedFares = data.fares.map(fare => ({
+            ...fare,
+            price: convertPriceString(fare.price),
+            originalPriceGBP: fare.price
+          }));
+          setFarePackages(convertedFares);
         } else {
           throw new Error('Invalid package data received');
         }
@@ -153,6 +187,7 @@ const FlightCard = ({ flight, searchParams }) => {
       cabin_class: flight.cabinClass,
       travelers: flight.travelers || 1,
       fare_name: "Standard Fare",
+      passenger_ids: passengerIds.join(','), // Add passenger IDs
       ...searchParamsObj
     });
 
@@ -191,7 +226,7 @@ const FlightCard = ({ flight, searchParams }) => {
 
       const result = await response.json();
       
-      // Navigate to user info page with all necessary data
+      // Navigate to user info page with all necessary data including passenger IDs
       const queryParams = new URLSearchParams({
         offer_id: flight.id,
         fare_name: pkg.name,
@@ -205,6 +240,7 @@ const FlightCard = ({ flight, searchParams }) => {
         duration: flight.totalDuration,
         cabin_class: flight.cabinClass,
         travelers: flight.travelers || 1,
+        passenger_ids: passengerIds.join(','), // Add passenger IDs
         ...searchParamsObj
       });
 
@@ -234,12 +270,15 @@ const FlightCard = ({ flight, searchParams }) => {
           {/* Trip Type Header */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center">
-              <Image
+              <img
                 src={flight.segments?.[0]?.airlineLogo || getAirlineLogo(flight.airlines?.[0])}
                 alt={flight.airlines?.[0] || "Airline"}
                 width={48}
                 height={48}
                 className="mr-3 h-12 w-12 object-contain"
+                onError={(e) => {
+                  e.target.src = getAirlineLogo(flight.airlines?.[0]);
+                }}
               />
               <div>
                 <h3 className="font-bold text-gray-800 text-lg">{flight.airlines?.join(", ")}</h3>
@@ -398,11 +437,11 @@ const FlightCard = ({ flight, searchParams }) => {
               <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200 text-xs text-gray-600">
                 <div className="flex justify-between mb-1">
                   <span>Base Fare:</span>
-                  <span>{flight.offerDetails.base_amount} {flight.offerDetails.base_currency}</span>
+                  <span>{flight.offerDetails.base_amount}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Taxes & Fees:</span>
-                  <span>{flight.offerDetails.tax_amount} {flight.offerDetails.tax_currency}</span>
+                  <span>{flight.offerDetails.tax_amount}</span>
                 </div>
               </div>
             )}
@@ -453,7 +492,7 @@ const FlightCard = ({ flight, searchParams }) => {
 
       {/* Packages Modal */}
       {showPackages && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/70 bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-[#55C3A9] to-[#5A53A7] text-white">
               <div className="flex justify-between items-center">

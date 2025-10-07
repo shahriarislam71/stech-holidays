@@ -42,4 +42,7 @@ urlpatterns = [
     
     # Order management
     # path("orders/<str:order_id>/payment-status/", views.PaymentStatusView.as_view(), name="payment-status"),
+    
+    path("payments/initiate/", views.InitiateFlightPaymentView.as_view(), name="flights-initiate-payment"),
+    path("payments/success/", views.FlightPaymentSuccessView.as_view(), name="flights-payment-success"),
 ]

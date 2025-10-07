@@ -115,7 +115,7 @@ export default function HotelSearchPage() {
 
       console.log('Sending hotel search request:', JSON.stringify(requestBody, null, 2));
 
-      const response = await fetch('http://localhost:8000/api/hotels/search/', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/hotels/search/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

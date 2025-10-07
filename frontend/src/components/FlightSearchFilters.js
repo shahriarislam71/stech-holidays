@@ -1,3 +1,4 @@
+// components/FlightSearchFilters.js
 import React from "react";
 
 const FlightSearchFilters = ({ filters, onFilterChange, apiFilters, onApply }) => {
@@ -40,7 +41,7 @@ const FlightSearchFilters = ({ filters, onFilterChange, apiFilters, onApply }) =
           <input
             type="range"
             min={apiFilters?.priceRange?.min || 0}
-            max={apiFilters?.priceRange?.max || 1000}
+            max={apiFilters?.priceRange?.max || 155000}
             value={filters.priceRange[1]}
             onChange={(e) =>
               onFilterChange({
@@ -55,21 +56,21 @@ const FlightSearchFilters = ({ filters, onFilterChange, apiFilters, onApply }) =
             style={{
               background: `linear-gradient(to right, #5A53A7 0%, #5A53A7 ${
                 ((filters.priceRange[1] - (apiFilters?.priceRange?.min || 0)) /
-                  ((apiFilters?.priceRange?.max || 1000) - (apiFilters?.priceRange?.min || 0))) *
+                  ((apiFilters?.priceRange?.max || 155000) - (apiFilters?.priceRange?.min || 0))) *
                 100
               }%, #e5e7eb ${
                 ((filters.priceRange[1] - (apiFilters?.priceRange?.min || 0)) /
-                  ((apiFilters?.priceRange?.max || 1000) - (apiFilters?.priceRange?.min || 0))) *
+                  ((apiFilters?.priceRange?.max || 155000) - (apiFilters?.priceRange?.min || 0))) *
                 100
               }%, #e5e7eb 100%)`
             }}
           />
           <div className="flex justify-between text-sm text-gray-600">
             <span>
-              {apiFilters?.priceRange?.currency || "BDT"} {Math.round(apiFilters?.priceRange?.min || 0)}
+              ৳{Math.round(apiFilters?.priceRange?.min || 0).toLocaleString()}
             </span>
             <span>
-              {apiFilters?.priceRange?.currency || "BDT"} {Math.round(filters.priceRange[1])}
+              ৳{Math.round(filters.priceRange[1]).toLocaleString()}
             </span>
           </div>
         </div>
@@ -156,7 +157,7 @@ const FlightSearchFilters = ({ filters, onFilterChange, apiFilters, onApply }) =
           onClick={() =>
             onFilterChange({
               airlines: [],
-              priceRange: [apiFilters?.priceRange?.min || 0, apiFilters?.priceRange?.max || 1000],
+              priceRange: [apiFilters?.priceRange?.min || 0, apiFilters?.priceRange?.max || 155000],
               departureTimes: [],
               stops: [],
             })

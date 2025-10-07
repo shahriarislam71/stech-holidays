@@ -62,7 +62,7 @@ const BookingForm = ({ packageData, onClose, destination }) => {
         throw new Error('Authentication required');
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/umrah-bookings/`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/umrah-bookings/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -417,7 +417,7 @@ const BookingPage = () => {
         }
 
         const packageId = id.split('-')[0]; // Extract ID from URL
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/umrah-packages/${id}/`);        
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/umrah-packages/${id}/`);        
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData.detail || 'Failed to fetch package');

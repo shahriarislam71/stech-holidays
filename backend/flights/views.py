@@ -18,13 +18,16 @@ from .serializers import (
 )
 import logging
 logger = logging.getLogger(__name__)
-from .models import Order, Passenger, Payment, OrderPassenger 
+from .models import Order, Passenger, Payment, OrderPassenger , FlightPaymentTransaction
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from datetime import datetime, date
 import re
 import phonenumbers
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt  # since you are using csrf_exempt
 
+from rest_framework.permissions import AllowAny
 
 def _fmt_dt(dt_string):
     """Format datetime string to readable format"""
@@ -551,6 +554,8 @@ class FlightListView(APIView):
             "stops": ["non_stop", "1_stop", "2_plus_stops"],
             "durations": ["short", "medium", "long"]
         }
+
+
 
 class FlightDetailsView(APIView):
     """
@@ -1347,6 +1352,368 @@ class SelectPackageView(APIView):
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# flights/views/payments.py
+import uuid
+import json
+import requests
+from decimal import Decimal
+from datetime import datetime, date
+
+from django.conf import settings
+from django.shortcuts import redirect
+from django.utils import timezone
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
+
+from .models import FlightPaymentTransaction, Order, Passenger, OrderPassenger, Payment
+  # your Duffel wrapper used in OrderCreationView
+
+# Helper to return ssl url
+def ssl_url(sandbox=True):
+    return "https://sandbox.sslcommerz.com/gwprocess/v4/api.php" if sandbox else "https://securepay.sslcommerz.com/gwprocess/v4/api.php"
+
+# Helper for Duffel headers (same as you used)
+def duffel_headers():
+    return {
+        "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Duffel-Version": "v2"
+    }
+class InitiateFlightPaymentView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        print("🔵 [START] InitiateFlightPaymentView")
+        data = request.data
+        print("📩 Incoming data:", dict(data))
+
+        # Required at initiation
+        required = ["total_amount", "currency", "offer_id", "passenger_ids"]
+        missing = [f for f in required if not data.get(f)]
+        if missing:
+            print("❌ Missing fields at initiation:", missing)
+            return Response({"success": False, "error": f"Missing fields: {', '.join(missing)}"}, status=400)
+
+        # Parse total_amount
+        try:
+            total_amount = Decimal(str(data["total_amount"]))
+        except Exception as e:
+            return Response({"success": False, "error": f"Invalid total_amount: {str(e)}"}, status=400)
+
+        # Transaction ID
+        tran_id = f"TXN_{uuid.uuid4().hex[:10].upper()}"
+        print(f"🆔 Transaction ID: {tran_id}")
+
+        passenger_ids = data.get("passenger_ids", [])
+        passengers_detail = data.get("passengers", [])
+
+        # Persist checkout_data for success callback
+        checkout_payload = {
+            "offer_id": data.get("offer_id"),
+            "passenger_ids": passenger_ids,
+            "passengers_detail": passengers_detail,   # <-- renamed for consistency
+            "total_amount": str(total_amount),
+            "currency": data.get("currency"),
+            "cus_name": data.get("cus_name"),
+            "email": data.get("email"),
+            "cus_phone": data.get("cus_phone"),
+            "cus_add1": data.get("cus_add1"),
+            "cus_city": data.get("cus_city"),
+            "cus_state": data.get("cus_state"),
+            "cus_postcode": data.get("cus_postcode"),
+            "cus_country": data.get("cus_country"),
+        }
+
+        # SSLCommerz payload
+        payload = {
+            "store_id": settings.SSL_STORE_ID,
+            "store_passwd": settings.SSL_STORE_PASS,
+            "total_amount": f"{total_amount:.2f}",
+            "currency": data.get("currency", "BDT"),
+            "tran_id": tran_id,
+            "success_url": request.build_absolute_uri("/api/flights/payments/success/"),
+            "fail_url": request.build_absolute_uri("/api/flights/payments/fail/"),
+            "cancel_url": request.build_absolute_uri("/api/flights/payments/cancel/"),
+            "ipn_url": request.build_absolute_uri("/api/flights/payments/ipn/"),
+            "cus_name": data.get("cus_name", "Guest"),
+            "cus_email": data.get("email", ""),
+            "cus_phone": data.get("cus_phone", ""),
+            "cus_add1": data.get("cus_add1", ""),
+            "cus_city": data.get("cus_city", ""),
+            "cus_state": data.get("cus_state", ""),
+            "cus_postcode": data.get("cus_postcode", ""),
+            "cus_country": data.get("cus_country", ""),
+            "product_name": "Flight Booking",
+            "product_category": "Travel",
+            "product_profile": "service",
+            "shipping_method": "NO"
+        }
+
+        try:
+            r = requests.post(ssl_url(getattr(settings, "SSL_SANDBOX", True)), data=payload, timeout=20)
+            r_data = r.json()
+        except Exception as e:
+            return Response({"success": False, "error": str(e)}, status=502)
+
+        if r_data.get("status") != "SUCCESS":
+            return Response({"success": False, "error": r_data.get("failedreason", "SSL init failed")}, status=400)
+
+        # Save transaction
+        tx = FlightPaymentTransaction.objects.create(
+            tran_id=tran_id,
+            amount=total_amount,
+            currency=data.get("currency"),
+            status="initiated",
+            checkout_data=checkout_payload,
+            initiation_response=r_data
+        )
+        print("💾 Saved FlightPaymentTransaction:", tx.id)
+
+        return Response({
+            "success": True,
+            "tran_id": tran_id,
+            "offer_id": data.get("offer_id"),
+            "passenger_ids": passenger_ids,
+            "payment_url": r_data.get("GatewayPageURL"),
+            "passengers_detail": passengers_detail
+        })
+
+
+
+# flights/views/payment_success.py
+from django.conf import settings
+from django.shortcuts import redirect
+from django.utils import timezone
+from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny
+import json
+
+from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny
+from django.shortcuts import redirect
+from django.utils import timezone
+from django.conf import settings
+import json
+
+from .models import FlightPaymentTransaction
+
+class FlightPaymentSuccessView(APIView):
+    permission_classes = [AllowAny]
+
+    def handle_success_payment(self, data):
+        print("🔵 [START] handle_success_payment")
+        print("📩 Callback data:", dict(data))
+
+        tran_id = data.get("tran_id")
+        if isinstance(tran_id, list):
+            tran_id = tran_id[0] if tran_id else None
+
+        frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
+        if not tran_id:
+            return redirect(f"{frontend_url}/payment/fail?error=no_tran")
+
+        # Fetch transaction
+        try:
+            tx = FlightPaymentTransaction.objects.get(tran_id=tran_id)
+        except FlightPaymentTransaction.DoesNotExist:
+            return redirect(f"{frontend_url}/payment/fail?error=not_found")
+
+        # Update transaction with SSL redirect data
+        tx.redirect_data = dict(data)
+        tx.redirect_received_at = timezone.now()
+        tx.status = "ssl_success"  # Mark SSL payment as successful
+        tx.val_id = data.get("val_id") or tx.val_id
+        tx.save()
+
+        checkout = tx.checkout_data or {}
+        original_offer_id = checkout.get("offer_id")
+        passenger_ids = checkout.get("passenger_ids", [])
+        passengers_detail = checkout.get("passengers_detail", [])
+
+        if not original_offer_id:
+            return redirect(f"{frontend_url}/payment/fail?tran_id={tran_id}&error=missing_offer")
+
+        duffel_manager = DuffelOrderManager()
+        
+        # Try to use original offer
+        current_offer_id = original_offer_id
+        offer_data = None
+        
+        try:
+            print(f"🔄 Fetching original offer: {original_offer_id}")
+            offer_resp = duffel_manager.get_offer_details(original_offer_id)
+            offer_data = offer_resp.get("data", {})
+            print("✅ Original offer is still valid")
+        except Exception as e:
+            print(f"❌ Original offer failed: {str(e)}")
+            # Offer is expired - handle this specific case
+            print("💰 Payment was successful but offer expired")
+            
+            # Update transaction to reflect this specific error
+            tx.status = "payment_success_offer_expired"
+            tx.save()
+            
+            # Redirect to special offer-expired page
+            return redirect(
+                f"{frontend_url}/payment/offer-expired?"
+                f"tran_id={tran_id}&"
+                f"payment_status=success&"
+                f"offer_status=expired&"
+                f"amount={data.get('amount', [''])[0]}&"
+                f"currency={data.get('currency', [''])[0]}"
+            )
+
+        if not offer_data:
+            return redirect(f"{frontend_url}/payment/fail?tran_id={tran_id}&error=invalid_offer_data")
+
+        # Get the exact amount from the offer
+        offer_total_amount = offer_data.get("total_amount")
+        offer_total_currency = offer_data.get("total_currency")
+        
+        if not offer_total_amount:
+            print("❌ No total_amount in offer data")
+            return redirect(f"{frontend_url}/payment/fail?tran_id={tran_id}&error=invalid_offer_amount")
+
+        print(f"💰 Using offer amount: {offer_total_amount} {offer_total_currency}")
+
+        # Build validated passengers payload
+        passengers_payload = []
+        for idx, p in enumerate(passengers_detail):
+            passenger_id = passenger_ids[idx] if idx < len(passenger_ids) else f"pas_{uuid.uuid4().hex[:10]}"
+            
+            # Validate passenger data
+            required_fields = ['given_name', 'family_name', 'born_on', 'email']
+            for field in required_fields:
+                if not p.get(field):
+                    return redirect(f"{frontend_url}/payment/fail?tran_id={tran_id}&error=missing_passenger_data")
+
+            cleaned_docs = self.clean_identity_documents(p.get("identity_documents", []))
+            cleaned_phone = self.clean_phone_number(p.get("phone_number"))
+
+            passengers_payload.append({
+                "id": passenger_id,
+                "title": p.get("title", "mr").lower(),
+                "given_name": p.get("given_name"),
+                "family_name": p.get("family_name"),
+                "born_on": p.get("born_on"),
+                "gender": (p.get("gender") or "").lower()[:1],
+                "email": p.get("email"),
+                "phone_number": cleaned_phone,
+                "identity_documents": cleaned_docs
+            })
+
+        # Build order with current offer
+        order_body = {
+            "data": {
+                "type": "instant",
+                "selected_offers": [current_offer_id],
+                "passengers": passengers_payload,
+                "payments": [{
+                    "type": "balance",
+                    "amount": str(offer_total_amount),
+                    "currency": offer_total_currency
+                }]
+            }
+        }
+
+        print("🧾 Sending Duffel order payload:")
+        print(json.dumps(order_body, indent=2))
+
+        # Create Duffel order
+        try:
+            duffel_resp = duffel_manager._make_request("POST", "/air/orders", order_body)
+            duffel_data = duffel_resp.get("data") or {}
+            print("✅ Duffel order created:", duffel_data.get("id"))
+            
+            # Save local order
+            try:
+                order_creator = OrderCreationView()
+                saved_order = order_creator._save_order_to_database(
+                    duffel_data, passengers_detail or [], checkout.get("metadata", {})
+                )
+                print("💾 Local order saved:", saved_order.id)
+            except Exception as e:
+                print("⚠️ Local order save failed:", e)
+                # Still proceed since Duffel order was created successfully
+
+            # Link transaction → order and mark as complete success
+            tx.order_id = duffel_data.get("id")
+            tx.duffel_offer_id = current_offer_id
+            tx.status = "complete_success"
+            tx.save()
+
+            return redirect(f"{frontend_url}/payment/success?tran_id={tran_id}&order_id={tx.order_id}&paid=true&booking_type=flight")
+
+        except Exception as e:
+            print("❌ Duffel order creation failed:", str(e))
+            # Mark transaction as payment success but order failed
+            tx.status = "payment_success_order_failed"
+            tx.save()
+            
+            error_msg = str(e).lower()
+            if "expired" in error_msg or "no longer available" in error_msg:
+                return redirect(
+                    f"{frontend_url}/payment/offer-expired?"
+                    f"tran_id={tran_id}&"
+                    f"payment_status=success&"
+                    f"offer_status=expired&"
+                    f"amount={data.get('amount', [''])[0]}&"
+                    f"currency={data.get('currency', [''])[0]}"
+                )
+            else:
+                return redirect(f"{frontend_url}/payment/fail?tran_id={tran_id}&error=order_creation_failed")
+
+    def clean_identity_documents(self, docs):
+        """Ensure Duffel identity_documents meet validation rules."""
+        cleaned = []
+        for doc in docs:
+            new_doc = dict(doc)
+            uid = str(new_doc.get("unique_identifier", "")).strip()
+            if len(uid) > 15:
+                print(f"⚠️ Trimming long unique_identifier '{uid}' → '{uid[:15]}'")
+                new_doc["unique_identifier"] = uid[:15]
+            cleaned.append(new_doc)
+        return cleaned
+
+    def clean_phone_number(self, phone):
+        """Duffel requires E.164 format (+countrycode...)."""
+        if not phone:
+            return None
+        phone = str(phone).strip()
+        if not phone.startswith("+"):
+            print(f"⚠️ Invalid phone '{phone}', auto-correcting...")
+            digits = "".join([c for c in phone if c.isdigit()])
+            phone = f"+{digits}"
+        return phone[:20]
+
+    def post(self, request):
+        print("🟢 POST: Payment success callback received")
+        return self.handle_success_payment(request.data)
+
+    def get(self, request):
+        print("🟢 GET: Payment success redirect received")
+        return self.handle_success_payment(request.GET)
+
+
+
 class DuffelOrderManager:
     """Centralized manager for Duffel order operations"""
     
@@ -1447,70 +1814,6 @@ class DuffelOrderManager:
 
 
 
-class DuffelOrderManager:
-    """Centralized manager for Duffel order operations"""
-    
-    def __init__(self):
-        self.base_url = "https://api.duffel.com"
-        self.headers = {
-            "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}",
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "Duffel-Version": "v2",
-            "User-Agent": "FlightBooking/1.0"
-        }
-        self.timeout = 130
-
-    def _make_request(self, method: str, endpoint: str, data: dict = None):
-        """Make authenticated request to Duffel API"""
-        url = f"{self.base_url}{endpoint}"
-        try:
-            response = requests.request(
-                method=method,
-                url=url,
-                headers=self.headers,
-                json=data,  # directly pass payload
-                timeout=self.timeout
-            )
-            logger.info(f"Duffel API {method} {endpoint}: {response.status_code}")
-            print("1. Repoonse checking at DuffelOrderManager._make_request:" , response.json())
-            if response.status_code in [200, 201]:
-                return response.json()
-            else:
-                logger.error(f"API error {response.status_code}: {response.text}")
-                response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Request failed for {endpoint}: {str(e)}")
-            raise
-
-    def validate_passenger(self, p: dict):
-        errors = []
-        required = ["given_name", "family_name", "born_on", "gender", "email", "phone_number"]
-        for f in required:
-            if not p.get(f):
-                errors.append(f"Missing field {f}")
-        # Email format check
-        if p.get("email") and "@" not in p["email"]:
-            errors.append("Invalid email")
-        # Born date
-        try:
-            datetime.strptime(p.get("born_on",""), "%Y-%m-%d")
-        except ValueError:
-            errors.append("born_on must be YYYY-MM-DD")
-        return errors
-
-    def validate_payment(self, p: dict):
-        errors = []
-        if p.get("type") not in ["balance", "card", "arc_bsp_cash"]:
-            errors.append("Invalid payment type")
-        if not p.get("amount"):
-            errors.append("Missing payment amount")
-        if not p.get("currency"):
-            errors.append("Missing currency")
-        return errors
-
-
-
 
 class OrderCreationView(APIView):
     """Creates order in Duffel and saves to local database with validation"""
@@ -1518,11 +1821,15 @@ class OrderCreationView(APIView):
     def __init__(self):
         super().__init__()
         self.order_manager = DuffelOrderManager()
+        print("🔹 OrderCreationView initialized")
 
     def post(self, request): 
         try:
             payload = request.data.get("data")
+            print("📩 Received payload:", payload)
+
             if not payload:
+                print("⚠️ Payload missing 'data'")
                 return Response(
                     {"status": "error", "message": "Missing 'data'", "error_code": "MISSING_FIELD"},
                     status=400
@@ -1530,6 +1837,7 @@ class OrderCreationView(APIView):
 
             # Validate all data before processing
             validation_result = self._validate_order_data(payload)
+            print("🔍 Validation result:", validation_result)
             if not validation_result["is_valid"]:
                 return Response(
                     {
@@ -1546,18 +1854,24 @@ class OrderCreationView(APIView):
             metadata = payload.get("metadata", {})
             order_type = payload.get("type", "instant")
 
+            print(f"✈️ Selected offers: {selected_offers}, passengers: {len(passengers)}, order_type: {order_type}")
+
             if not selected_offers or not passengers:
+                print("⚠️ Missing selected_offers or passengers")
                 return Response(
                     {"status": "error", "message": "Missing selected_offers or passengers", "error_code": "MISSING_FIELD"},
                     status=400
                 )
 
             offer_id = selected_offers[0]
+            print(f"🆔 Fetching offer details for offer_id: {offer_id}")
 
             # Fetch offer details from Duffel
             offer_details = self.order_manager._make_request("GET", f"/air/offers/{offer_id}")
+            print("📦 Offer details fetched:", offer_details)
             offer_data = offer_details.get("data", {})
             slice_passengers = offer_data.get("slices", [])[0].get("segments", [])[0].get("passengers", [])
+            print(f"👥 Slice passengers from Duffel: {slice_passengers}")
 
             # Build passenger payload for Duffel API
             passenger_payloads = []
@@ -1575,6 +1889,7 @@ class OrderCreationView(APIView):
                 if idx < len(slice_passengers):
                     p_data["id"] = slice_passengers[idx]["passenger_id"]
                 passenger_payloads.append(p_data)
+                print(f"👤 Prepared passenger payload {idx}:", p_data)
 
             # Build order data for Duffel API
             order_data = {
@@ -1582,10 +1897,8 @@ class OrderCreationView(APIView):
                 "passengers": passenger_payloads,
                 "type": order_type
             }
-
             if metadata:
                 order_data["metadata"] = metadata
-
             if order_type == "instant":
                 order_data["payments"] = [{
                     "type": "balance",
@@ -1593,15 +1906,17 @@ class OrderCreationView(APIView):
                     "currency": offer_data.get("total_currency")
                 }]
 
+            print("🛠️ Final order data to send to Duffel:", order_data)
+
             # Create order in Duffel
             duffel_result = self.order_manager._make_request("POST", "/air/orders", {"data": order_data})
             duffel_order_data = duffel_result.get("data", {})
-            
-            print("Duffel order created successfully:", duffel_order_data.get("id"))
-            
+            print("✅ Duffel order created successfully:", duffel_order_data.get("id"))
+
             # Save to local database
             saved_order = self._save_order_to_database(duffel_order_data, passengers, metadata)
-            
+            print("💾 Order saved to local DB:", saved_order.id)
+
             return Response({
                 "status": "success",
                 "message": "Order created successfully",
@@ -1619,341 +1934,14 @@ class OrderCreationView(APIView):
 
         except Exception as e:
             logger.error(f"Order creation failed: {str(e)}", exc_info=True)
+            print("❌ Order creation failed:", str(e))
             return Response(
                 {"status": "error", "message": "Internal server error", "error": str(e)}, 
                 status=500
             )
 
-    def _validate_order_data(self, payload):
-        """Comprehensive validation for order data"""
-        errors = {}
-        
-        # Validate selected_offers
-        selected_offers = payload.get("selected_offers", [])
-        if not selected_offers:
-            errors["selected_offers"] = ["At least one offer must be selected"]
-        elif len(selected_offers) > 1:
-            errors["selected_offers"] = ["Only one offer can be selected at a time"]
+    # Add prints inside _validate_order_data, _validate_passenger, _validate_identity_document, _prepare_identity_documents, and _save_order_to_database as needed
 
-        # Validate passengers
-        passengers = payload.get("passengers", [])
-        if not passengers:
-            errors["passengers"] = ["At least one passenger is required"]
-        else:
-            for idx, passenger in enumerate(passengers):
-                passenger_errors = self._validate_passenger(passenger, idx)
-                if passenger_errors:
-                    errors[f"passenger_{idx}"] = passenger_errors
-
-        # Validate order type
-        order_type = payload.get("type", "instant")
-        if order_type not in ["instant", "hold"]:
-            errors["type"] = ["Order type must be either 'instant' or 'hold'"]
-
-        return {
-            "is_valid": len(errors) == 0,
-            "errors": errors
-        }
-
-    def _validate_passenger(self, passenger, index):
-        """Validate individual passenger data"""
-        errors = {}
-        
-        # Required fields validation
-        required_fields = ["title", "given_name", "family_name", "born_on", "gender", "type"]
-        for field in required_fields:
-            if not passenger.get(field):
-                errors[field] = f"This field is required"
-
-        # Name validation
-        given_name = passenger.get("given_name", "").strip()
-        family_name = passenger.get("family_name", "").strip()
-        
-        if given_name and len(given_name) < 2:
-            errors["given_name"] = "Given name must be at least 2 characters long"
-        if family_name and len(family_name) < 2:
-            errors["family_name"] = "Family name must be at least 2 characters long"
-        
-        if given_name and not re.match(r'^[a-zA-Z\s\-\.\']+$', given_name):
-            errors["given_name"] = "Given name can only contain letters, spaces, hyphens, dots and apostrophes"
-        
-        if family_name and not re.match(r'^[a-zA-Z\s\-\.\']+$', family_name):
-            errors["family_name"] = "Family name can only contain letters, spaces, hyphens, dots and apostrophes"
-
-        # Date of birth validation
-        born_on = passenger.get("born_on")
-        if born_on:
-            try:
-                birth_date = datetime.strptime(born_on, "%Y-%m-%d").date()
-                today = date.today()
-                
-                # Check if date is in future
-                if birth_date > today:
-                    errors["born_on"] = "Date of birth cannot be in the future"
-                
-                # Check if passenger is at least 1 day old (realistic minimum)
-                if birth_date >= today:
-                    errors["born_on"] = "Invalid date of birth"
-                    
-                # Calculate age for passenger type validation
-                age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-                passenger_type = passenger.get("type", "adult")
-                
-                if passenger_type == "adult" and age < 18:
-                    errors["born_on"] = "Adult passengers must be 18 years or older"
-                elif passenger_type == "child" and (age < 2 or age >= 12):
-                    errors["born_on"] = "Child passengers must be between 2 and 11 years old"
-                elif passenger_type == "infant" and age >= 2:
-                    errors["born_on"] = "Infant passengers must be under 2 years old"
-                    
-            except ValueError:
-                errors["born_on"] = "Invalid date format. Use YYYY-MM-DD"
-
-        # Email validation
-        email = passenger.get("email", "").strip()
-        if email:
-            try:
-                validate_email(email)
-            except ValidationError:
-                errors["email"] = "Enter a valid email address"
-
-        # Phone number validation
-        phone_number = passenger.get("phone_number", "").strip()
-        if phone_number:
-            try:
-                # Try to parse with international format
-                parsed_number = phonenumbers.parse(phone_number, None)
-                if not phonenumbers.is_valid_number(parsed_number):
-                    errors["phone_number"] = "Enter a valid phone number"
-            except:
-                # Basic validation for non-international numbers
-                if not re.match(r'^[\+\d\s\-\(\)]{10,20}$', phone_number):
-                    errors["phone_number"] = "Enter a valid phone number"
-
-        # Gender validation
-        gender = passenger.get("gender")
-        if gender and gender not in ["m", "f"]:
-            errors["gender"] = "Gender must be 'm' or 'f'"
-
-        # Title validation
-        title = passenger.get("title")
-        valid_titles = ["mr", "ms", "mrs", "miss", "dr"]
-        if title and title not in valid_titles:
-            errors["title"] = f"Title must be one of: {', '.join(valid_titles)}"
-
-        # Passenger type validation
-        passenger_type = passenger.get("type")
-        valid_types = ["adult", "child", "infant"]
-        if passenger_type and passenger_type not in valid_types:
-            errors["type"] = f"Passenger type must be one of: {', '.join(valid_types)}"
-
-        # Identity documents validation
-        identity_documents = passenger.get("identity_documents", [])
-        if not identity_documents:
-            errors["identity_documents"] = ["At least one identity document is required"]
-        else:
-            for doc_idx, document in enumerate(identity_documents):
-                doc_errors = self._validate_identity_document(document, doc_idx)
-                if doc_errors:
-                    errors[f"identity_document_{doc_idx}"] = doc_errors
-
-        return errors
-
-    def _validate_identity_document(self, document, index):
-        """Validate identity document data"""
-        errors = {}
-        
-        # Document type validation
-        doc_type = document.get("type")
-        valid_types = ["passport", "known_traveler_number", "passenger_redress_number"]
-        if not doc_type:
-            errors["type"] = "Document type is required"
-        elif doc_type not in valid_types:
-            errors["type"] = f"Document type must be one of: {', '.join(valid_types)}"
-
-        # Document number validation
-        number = document.get("number", "").strip()
-        if not number:
-            errors["number"] = "Document number is required"
-        elif len(number) < 3:
-            errors["number"] = "Document number must be at least 3 characters long"
-        elif not re.match(r'^[a-zA-Z0-9\-\s]+$', number):
-            errors["number"] = "Document number can only contain letters, numbers, hyphens and spaces"
-
-        # Issuing country validation
-        issuing_country = document.get("issuing_country_code", "").strip()
-        if not issuing_country:
-            errors["issuing_country_code"] = "Issuing country is required"
-        elif len(issuing_country) != 2:
-            errors["issuing_country_code"] = "Country code must be 2 characters (e.g., BD, US, GB)"
-
-        # Expiry date validation
-        expires_on = document.get("expires_on")
-        if expires_on:
-            try:
-                expiry_date = datetime.strptime(expires_on, "%Y-%m-%d").date()
-                today = date.today()
-                
-                if expiry_date <= today:
-                    errors["expires_on"] = "Document must not be expired"
-                
-                # Check if expiry is within reasonable range (not too far in future)
-                max_future_date = today.replace(year=today.year + 20)
-                if expiry_date > max_future_date:
-                    errors["expires_on"] = "Expiry date is too far in the future"
-                    
-            except ValueError:
-                errors["expires_on"] = "Invalid date format. Use YYYY-MM-DD"
-        else:
-            errors["expires_on"] = "Expiry date is required"
-
-        # Unique identifier - generate if not provided
-        unique_identifier = document.get("unique_identifier", "").strip()
-        if not unique_identifier:
-            # You can generate one based on document type and number
-            doc_type = document.get("type", "passport")
-            doc_number = document.get("number", "").strip()
-            if doc_type and doc_number:
-                document["unique_identifier"] = f"{doc_type}_{doc_number}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-            else:
-                errors["unique_identifier"] = "Unique identifier is required"
-
-        return errors
-
-    def _prepare_identity_documents(self, identity_documents):
-        """Prepare identity documents for Duffel API"""
-        prepared_docs = []
-        
-        for doc in identity_documents:
-            prepared_doc = {
-                "type": doc.get("type"),
-                "number": doc.get("number", "").strip(),
-                "issuing_country_code": doc.get("issuing_country_code", "").strip().upper(),
-                "expires_on": doc.get("expires_on"),
-            }
-            
-            # Ensure unique_identifier is provided and valid (MAX 15 CHARACTERS)
-            unique_identifier = doc.get("unique_identifier", "").strip()
-            if not unique_identifier or len(unique_identifier) > 15:
-                # Generate a short unique identifier (max 15 chars)
-                doc_type = doc.get("type", "passport")[:3]  # First 3 chars of type
-                doc_number = doc.get("number", "").strip()[:8]  # First 8 chars of number
-                timestamp = str(int(datetime.now().timestamp()))[-4:]  # Last 4 digits of timestamp
-                
-                # Combine to create max 15 char identifier
-                unique_identifier = f"{doc_type}{doc_number}{timestamp}"[:15]
-                
-                prepared_doc["unique_identifier"] = unique_identifier
-                prepared_docs.append(prepared_doc)
-                
-            return prepared_docs
-        
-    def _prepare_identity_documents(self, identity_documents):
-        """Prepare identity documents for Duffel API"""
-        prepared_docs = []
-        
-        for doc in identity_documents:
-            prepared_doc = {
-                "type": doc.get("type"),
-                "number": doc.get("number", "").strip(),
-                "issuing_country_code": doc.get("issuing_country_code", "").strip().upper(),
-                "expires_on": doc.get("expires_on"),
-            }
-            
-            # Ensure unique_identifier is provided and valid (MAX 15 CHARACTERS)
-            unique_identifier = doc.get("unique_identifier", "").strip()
-            if not unique_identifier or len(unique_identifier) > 15:
-                # Generate a short unique identifier (max 15 chars)
-                doc_type = doc.get("type", "passport")[:3]  # First 3 chars of type
-                doc_number = doc.get("number", "").strip()[:8]  # First 8 chars of number
-                timestamp = str(int(datetime.now().timestamp()))[-4:]  # Last 4 digits of timestamp
-                
-                # Combine to create max 15 char identifier
-                unique_identifier = f"{doc_type}{doc_number}{timestamp}"[:15]
-            
-            prepared_doc["unique_identifier"] = unique_identifier
-            prepared_docs.append(prepared_doc)
-            
-        return prepared_docs
-    
-    def _save_order_to_database(self, duffel_order_data, original_passengers, metadata):
-        """Save order and passengers to local database with transaction safety"""
-        from django.db import transaction
-        
-        try:
-            with transaction.atomic():
-                # Extract order details
-                order_id = duffel_order_data.get("id")
-                order_type = duffel_order_data.get("type", "instant")
-                total_amount = duffel_order_data.get("total_amount")
-                total_currency = duffel_order_data.get("total_currency")
-                booking_reference = duffel_order_data.get("booking_reference")
-                
-                print(f"Saving order {order_id} to database...")
-                
-                # Create or update Order
-                order, created = Order.objects.update_or_create(
-                    id=order_id,
-                    defaults={
-                        'type': order_type,
-                        'total_amount': total_amount,
-                        'total_currency': total_currency,
-                        'booking_reference': booking_reference,
-                        'metadata': metadata,
-                        'duffel_data': duffel_order_data  # Store full Duffel data
-                    }
-                )
-                
-                # Save passengers with their types
-                duffel_passengers = duffel_order_data.get("passengers", [])
-                
-                for idx, duffel_passenger in enumerate(duffel_passengers):
-                    # Get corresponding original passenger data
-                    original_passenger = original_passengers[idx] if idx < len(original_passengers) else {}
-                    passenger_type = duffel_passenger.get("type", "adult")
-                    
-                    passenger, p_created = Passenger.objects.update_or_create(
-                        id=duffel_passenger.get("id"),
-                        defaults={
-                            'title': duffel_passenger.get("title", ""),
-                            'given_name': duffel_passenger.get("given_name", ""),
-                            'family_name': duffel_passenger.get("family_name", ""),
-                            'born_on': duffel_passenger.get("born_on"),
-                            'gender': duffel_passenger.get("gender", ""),
-                            'email': original_passenger.get("email"),
-                            'phone_number': original_passenger.get("phone_number"),
-                            'identity_documents': original_passenger.get("identity_documents", [])
-                        }
-                    )
-                    
-                    # Create order-passenger relationship with type
-                    OrderPassenger.objects.update_or_create(
-                        order=order,
-                        passenger=passenger,
-                        defaults={'passenger_type': passenger_type}
-                    )
-                
-                # Save payment information if available
-                payments = duffel_order_data.get("payments", [])
-                for payment_data in payments:
-                    Payment.objects.update_or_create(
-                        id=payment_data.get("id"),
-                        defaults={
-                            'order': order,
-                            'type': payment_data.get("type"),
-                            'amount': payment_data.get("amount"),
-                            'currency': payment_data.get("currency"),
-                            'status': payment_data.get("status", "completed"),
-                            'duffel_data': payment_data
-                        }
-                    )
-                
-                print(f"Order {order_id} saved to database with {len(duffel_passengers)} passengers")
-                return order
-                
-        except Exception as e:
-            logger.error(f"Failed to save order to database: {str(e)}")
-            raise
 
 
 

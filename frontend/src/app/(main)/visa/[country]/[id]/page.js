@@ -38,14 +38,14 @@ const VisaSubmissionPage = () => {
         
         // Fetch country details
         const countryResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-countries/${country}/`
+          `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-countries/${country}/`
         );
         if (!countryResponse.ok) throw new Error('Failed to load country details');
         const countryData = await countryResponse.json();
         
         // Fetch visa types
         const visaTypesResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-countries/${country}/visa-types/`
+          `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-countries/${country}/visa-types/`
         );
         if (!visaTypesResponse.ok) throw new Error('Failed to load visa types');
         const visaTypesData = await visaTypesResponse.json();
@@ -112,7 +112,7 @@ const VisaSubmissionPage = () => {
       }
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-applications/`,
+        `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-applications/`,
         {
           method: 'POST',
           headers: {

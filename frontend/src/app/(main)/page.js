@@ -19,7 +19,7 @@ export default function Home() {
     const fetchPopularDestinations = async () => {
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/locations/popular-destinations/`
+          `${process.env.NEXT_PUBLIC_API_URL}/locations/popular-destinations/`
         );
         if (!response.ok) {
           throw new Error('Failed to fetch destinations');

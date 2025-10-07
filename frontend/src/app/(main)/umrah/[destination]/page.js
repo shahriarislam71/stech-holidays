@@ -371,7 +371,7 @@ const UmrahDestinationPage = () => {
   useEffect(() => {
     const fetchUmrahPackages = async () => {
       try {
-        let url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/umrah-packages/`;
+        let url = `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/umrah-packages/`;
         
         // Add filters to URL
         const params = new URLSearchParams();

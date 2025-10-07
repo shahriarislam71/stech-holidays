@@ -117,7 +117,7 @@ export default function HotelDetailsPage({ params }) {
       try {
         setLoading(true);
         const response = await fetch(
-          `http://localhost:8000/api/hotels/search/${hotelId}`
+          `${process.env.NEXT_PUBLIC_API_URL}/hotels/search/${hotelId}`
         );
 
         if (!response.ok) {

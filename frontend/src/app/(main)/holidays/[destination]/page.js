@@ -165,7 +165,7 @@ const HolidayDestinationPage = () => {
   useEffect(() => {
     const fetchHolidayPackages = async () => {
       try {
-        let url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/holiday-packages/?destination_slug=${destination}`;
+        let url = `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-packages/?destination_slug=${destination}`;
         
         // Add filters to URL
         if (filters.minPrice) url += `&min_price=${filters.minPrice}`;
@@ -193,7 +193,7 @@ const HolidayDestinationPage = () => {
     const fetchDestinations = async () => {
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/holiday-destinations/`
+          `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-destinations/`
         );
         if (!response.ok) throw new Error('Failed to fetch destinations');
         const data = await response.json();
