@@ -1,0 +1,20 @@
+[33m4a99da7[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m HEAD@{0}: checkout: moving from rafi to main
+[33m5584055[m[33m ([m[1;31morigin/rafi[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mrafi[m[33m)[m HEAD@{1}: reset: moving to HEAD
+[33m5584055[m[33m ([m[1;31morigin/rafi[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mrafi[m[33m)[m HEAD@{2}: reset: moving to origin/rafi
+[33m5584055[m[33m ([m[1;31morigin/rafi[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mrafi[m[33m)[m HEAD@{3}: checkout: moving from main to rafi
+[33m4a99da7[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m HEAD@{4}: reset: moving to HEAD
+[33m4a99da7[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m HEAD@{5}: checkout: moving from rafi to main
+[33m5584055[m[33m ([m[1;31morigin/rafi[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mrafi[m[33m)[m HEAD@{6}: reset: moving to HEAD
+[33m5584055[m[33m ([m[1;31morigin/rafi[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mrafi[m[33m)[m HEAD@{7}: reset: moving to origin/main
+[33m5584055[m[33m ([m[1;31morigin/rafi[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mrafi[m[33m)[m HEAD@{8}: checkout: moving from 5584055b02743a20716389dbde769851b2f85b7d to rafi
+[33m5584055[m[33m ([m[1;31morigin/rafi[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mrafi[m[33m)[m HEAD@{9}: checkout: moving from main to origin/main
+[33m4a99da7[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m HEAD@{10}: commit: integrate hotels api
+[33me64bac8[m HEAD@{11}: commit: integrate flight api
+[33mfbe7c09[m HEAD@{12}: commit: Replaced backend folder with origin/fullstack version
+[33m4a13ee2[m HEAD@{13}: commit: make it mobile responsive
+[33m50efd6a[m HEAD@{14}: pull origin fullstack: Fast-forward
+[33mae03eaa[m HEAD@{15}: commit: complited flight part and added flight dashboard
+[33m1e0e711[m HEAD@{16}: commit: created Flight, Hotel, Holiday's, Visa, Promotion page and also add the navigations
+[33mfd4dd8b[m HEAD@{17}: Branch: renamed refs/heads/master to refs/heads/main
+[33mfd4dd8b[m HEAD@{19}: commit: completed home page
+[33ma2389d0[m HEAD@{20}: commit (initial): Initial commit from Create Next App

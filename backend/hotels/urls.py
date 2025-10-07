@@ -24,10 +24,15 @@ urlpatterns = [
 
 
 
+    
+    path('payments/initiate/', views.InitiatePaymentView.as_view(), name='initiate-payment'),
+    path('payments/ipn/', views.PaymentIPNView.as_view(), name='payment-ipn'),
+    path('payments/success/', views.PaymentSuccessView.as_view(), name='payment-success'),
+    path('payments/fail/', views.PaymentFailView.as_view(), name='payment-fail'),
+    path('payments/cancel/', views.PaymentCancelView.as_view(), name='payment-cancel'),
+
+
 
     # Payment booking ssl commerce
 
-    path('initiate/', views.InitiatePaymentView.as_view(), name='initiate-payment'),
-    path('validate/', views.PaymentValidationView.as_view(), name='validate-payment'),
-    path('confirm/', views.ConfirmBookingAfterPayment.as_view(), name='confirm-booking'),
 ]

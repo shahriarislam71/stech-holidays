@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -41,6 +41,7 @@ const HeroSection = () => {
   const [selectedHotelLng, setSelectedHotelLng] = useState(null);
   const [hotelSuggestions, setHotelSuggestions] = useState([]);
   const [showHotelSuggestions, setShowHotelSuggestions] = useState(false);
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
   const [returnDate, setReturnDate] = useState(() => {
     const date = new Date();
     date.setDate(date.getDate() + 1);
@@ -58,6 +59,27 @@ const HeroSection = () => {
   });
   const [infants, setInfants] = useState(0);
   const [selectedClass, setSelectedClass] = useState("Economy");
+// utils/locationService.js
+  const fetchLocations = async (query) => {
+  if (!query || query.length < 2) return [];
+
+  try {
+    const response = await fetch(
+      `${apiUrl}/flights/locations/?query=${encodeURIComponent(query)}`
+    );
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch locations');
+    }
+    
+    const data = await response.json();
+    return data.results || [];
+  } catch (error) {
+    console.error('Error fetching locations:', error);
+    return [];
+  }
+};
+
 
   // Multi-city states
   const [multiCityFlights, setMultiCityFlights] = useState([
@@ -150,24 +172,102 @@ const HeroSection = () => {
   const [isLoadingVisaCountries, setIsLoadingVisaCountries] = useState(false);
 
   // flight states
-  const bangladeshAirports = [
-    {
-      code: "DAC",
-      city: "Dhaka",
-      name: "Hazrat Shahjalal International Airport",
-    },
-    {
-      code: "CGP",
-      city: "Chittagong",
-      name: "Shah Amanat International Airport",
-    },
-    { code: "CXB", city: "Cox's Bazar", name: "Cox's Bazar Airport" },
-    { code: "ZYL", city: "Sylhet", name: "Osmani International Airport" },
-    { code: "JSR", city: "Jashore", name: "Jashore Airport" },
-    { code: "RJH", city: "Rajshahi", name: "Shah Makhdum Airport" },
-    { code: "BZL", city: "Barisal", name: "Barisal Airport" },
-    { code: "SPD", city: "Saidpur", name: "Saidpur Airport" },
-  ];
+ const [fromAirports, setFromAirports] = useState([]);
+  const [toAirports, setToAirports] = useState([]);
+  const [isLoadingFromAirports, setIsLoadingFromAirports] = useState(false);
+  const [isLoadingToAirports, setIsLoadingToAirports] = useState(false);
+  const [fromSearchQuery, setFromSearchQuery] = useState("");
+  const [toSearchQuery, setToSearchQuery] = useState("");
+
+
+
+   const searchAirports = useCallback(async (query, type) => {
+    if (query.length < 2) {
+      if (type === 'from') setFromAirports([]);
+      if (type === 'to') setToAirports([]);
+      return;
+    }
+
+    try {
+      if (type === 'from') setIsLoadingFromAirports(true);
+      if (type === 'to') setIsLoadingToAirports(true);
+
+      const locations = await fetchLocations(query);
+      
+      const airports = locations.filter(location => 
+        location.type === 'airport' || location.iata_code
+      ).map(location => ({
+        code: location.iata_code,
+        city: location.city || location.name,
+        name: location.name,
+        id: location.id,
+        country: location.country
+      }));
+
+      if (type === 'from') setFromAirports(airports);
+      if (type === 'to') setToAirports(airports);
+    } catch (error) {
+      console.error(`Error searching ${type} airports:`, error);
+      if (type === 'from') setFromAirports([]);
+      if (type === 'to') setToAirports([]);
+    } finally {
+      if (type === 'from') setIsLoadingFromAirports(false);
+      if (type === 'to') setIsLoadingToAirports(false);
+    }
+  }, []);
+
+
+    // Debounced search for from airports
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (showFromAirports && fromSearchQuery) {
+        searchAirports(fromSearchQuery, 'from');
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [fromSearchQuery, showFromAirports, searchAirports]);
+
+
+    useEffect(() => {
+    const timer = setTimeout(() => {
+      if (showToAirports && toSearchQuery) {
+        searchAirports(toSearchQuery, 'to');
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [toSearchQuery, showToAirports, searchAirports]);
+
+   // Update the airport selection handlers
+  const handleFromAirportSelect = (airport) => {
+    setSelectedFrom(airport);
+    setShowFromAirports(false);
+    setFromSearchQuery("");
+  };
+
+  const handleToAirportSelect = (airport) => {
+    setSelectedTo(airport);
+    setShowToAirports(false);
+    setToSearchQuery("");
+  };
+
+  // Update multi-city airport selection
+
+const handleMultiCityAirportSelect = (id, field, airport) => {
+  setMultiCityFlights(prev => 
+    prev.map(flight => 
+      flight.id === id 
+        ? { 
+            ...flight, 
+            [field]: airport,
+            [`show${field.charAt(0).toUpperCase() + field.slice(1)}Dropdown`]: false 
+          }
+        : flight
+    )
+  );
+};
+
 
   // hotel states
   const hotelDestinations = [
@@ -445,48 +545,72 @@ const handleHotelSearchChange = (value) => {
   }
 };
 
-  // Updated handleFlightSearch function for HeroSection component
+// In HeroSection component - update the flight search function
+// Replace the existing handleFlightSearch function with this:
+const handleFlightSearch = () => {
+  if (flightType === "Multi City") {
+    // Handle multi-city search
+    const multiCityFlightsData = multiCityFlights
+      .filter(flight => flight.from.code && flight.to.code)
+      .map(flight => ({
+        from: flight.from.code,
+        to: flight.to.code,
+        departure_date: format(flight.departureDate, "yyyy-MM-dd")
+      }));
 
-  const handleFlightSearch = () => {
-    if (flightType === "Multi City") {
-      // Handle multi-city search - navigate to results page with search params
-      const params = new URLSearchParams();
-      params.append("type", "multi-city");
-      params.append("adults", adults);
-      params.append("children", children);
-      params.append("infants", infants);
-      params.append("class", selectedClass);
-
-      // Add all multi-city flights data
-      multiCityFlights.forEach((flight, index) => {
-        if (flight.from.code && flight.to.code) {
-          params.append(`flight${index + 1}_from`, flight.from.code);
-          params.append(`flight${index + 1}_to`, flight.to.code);
-          params.append(
-            `flight${index + 1}_departure`,
-            format(flight.departureDate, "yyyy-MM-dd")
-          );
-        }
-      });
-
-      router.push(`/flights/multi-city?${params.toString()}`);
-    } else {
-      // Handle one way and round trip
-      const params = new URLSearchParams();
-      params.append("from", selectedFrom.code);
-      params.append("to", selectedTo.code);
-      params.append("departure", format(departureDate, "yyyy-MM-dd"));
-      if (flightType === "Round Trip") {
-        params.append("return", format(returnDate, "yyyy-MM-dd"));
-      }
-      params.append("adults", adults);
-      params.append("children", children);
-      params.append("infants", infants);
-      params.append("class", selectedClass);
-
-      router.push(`/flights/search?${params.toString()}`);
+    if (multiCityFlightsData.length < 2) {
+      alert("Please add at least 2 flight segments for multi-city search");
+      return;
     }
-  };
+
+    // Build URL parameters for multi-city
+    const params = new URLSearchParams();
+    params.append("flight_type", "multi_city");
+    params.append("adults", adults);
+    params.append("children", children);
+    params.append("infants", infants);
+    params.append("cabin_class", selectedClass.toLowerCase());
+    
+    multiCityFlightsData.forEach((flight, index) => {
+      params.append(`flights[${index}][from]`, flight.from);
+      params.append(`flights[${index}][to]`, flight.to);
+      params.append(`flights[${index}][departure_date]`, flight.departure_date);
+    });
+
+    router.push(`/flights/search?${params.toString()}`);
+    
+  } else if (flightType === "Round Trip") {
+    // Handle round trip
+    const params = new URLSearchParams();
+    params.append("flight_type", "round_trip");
+    params.append("origin", selectedFrom.code);
+    params.append("destination", selectedTo.code);
+    params.append("departure_date", format(departureDate, "yyyy-MM-dd"));
+    params.append("return_date", format(returnDate, "yyyy-MM-dd"));
+    params.append("adults", adults);
+    params.append("children", children);
+    params.append("infants", infants);
+    params.append("cabin_class", selectedClass.toLowerCase());
+
+    router.push(`/flights/search?${params.toString()}`);
+    
+  } else {
+    // Handle one way
+    const params = new URLSearchParams();
+    params.append("flight_type", "one_way");
+    params.append("origin", selectedFrom.code);
+    params.append("destination", selectedTo.code);
+    params.append("departure_date", format(departureDate, "yyyy-MM-dd"));
+    params.append("adults", adults);
+    params.append("children", children);
+    params.append("infants", infants);
+    params.append("cabin_class", selectedClass.toLowerCase());
+
+    router.push(`/flights/search?${params.toString()}`);
+  }
+};
+
+
 
   const handleCountrySelect = (country) => {
     setSelectedVisaCountry(country);
@@ -592,25 +716,26 @@ const handleHotelSearchChange = (value) => {
 
           {/* Content Area */}
           <div className="p-4 sm:p-8">
-            {/* Flights Section */}
+            {/* Flights Section - FROM FIRST CODE */}
             {activeTab === "flight" && (
               <div className="space-y-4">
                 {/* Flight Type Toggle */}
-                <div className="flex justify-center space-x-1 bg-white/10 backdrop-blur-sm rounded-full p-1 max-w-md mx-auto">
-                  {["One Way", "Round Trip", "Multi City"].map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => setFlightType(type)}
-                      className={`px-2 py-1 sm:px-4 sm:py-2 sm:text-sm rounded-full font-medium transition-all ${
-                        flightType === type
-                          ? "bg-white text-[#5A53A7] shadow-sm"
-                          : "text-white hover:bg-white/20"
-                      }`}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
+
+<div className="flex justify-center space-x-1 bg-white/10 backdrop-blur-sm rounded-full p-1 max-w-md mx-auto">
+  {["One Way", "Round Trip", "Multi City"].map((type) => (
+    <button
+      key={type}
+      onClick={() => setFlightType(type)}
+      className={`px-2 py-1 sm:px-4 sm:py-2 sm:text-sm rounded-full font-medium transition-all ${
+        flightType === type
+          ? "bg-white text-[#5A53A7] shadow-sm"
+          : "text-white hover:bg-white/20"
+      }`}
+    >
+      {type}
+    </button>
+  ))}
+</div>
 
                 {/* Multi City Form */}
                 {flightType === "Multi City" && (
@@ -658,40 +783,99 @@ const handleHotelSearchChange = (value) => {
                                 </svg>
                               </div>
 
-                              {flight.showFromDropdown && (
-                                <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 max-h-60 overflow-y-auto">
-                                  {bangladeshAirports.map((airport) => (
-                                    <div
-                                      key={airport.code}
-                                      className="p-3 hover:bg-[#5A53A7] hover:text-white cursor-pointer flex items-center"
-                                      onClick={() => {
-                                        updateMultiCityFlight(
-                                          flight.id,
-                                          "from",
-                                          airport
-                                        );
-                                        updateMultiCityFlight(
-                                          flight.id,
-                                          "showFromDropdown",
-                                          false
-                                        );
-                                      }}
-                                    >
-                                      <div className="bg-gray-200 text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3">
-                                        {airport.code}
-                                      </div>
-                                      <div>
-                                        <div className="text-gray-800 font-medium hover:text-white">
-                                          {airport.city}
-                                        </div>
-                                        <div className="text-xs text-gray-600 hover:text-white/70 hidden sm:block">
-                                          {airport.name}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
+                 
+{flight.showFromDropdown && (
+  <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 max-h-60 overflow-y-auto">
+    <div className="p-2 border-b border-gray-200">
+      <input
+        type="text"
+        placeholder="Search airports..."
+        className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#5A53A7]"
+        autoFocus
+        onChange={(e) => {
+          searchAirports(e.target.value, 'from');
+        }}
+      />
+    </div>
+    
+    {isLoadingFromAirports ? (
+      <div className="p-4 text-center text-gray-500">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#5A53A7] mx-auto"></div>
+      </div>
+    ) : fromAirports.length > 0 ? (
+      fromAirports.map((airport) => (
+        <div
+          key={`${airport.code}-${airport.id}-multi-from`}
+          className="p-3 hover:bg-[#5A53A7] hover:text-white cursor-pointer flex items-center"
+          onClick={() => handleMultiCityAirportSelect(flight.id, 'from', airport)}
+        >
+          <div className="bg-gray-200 text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3">
+            {airport.code}
+          </div>
+          <div className="flex-1">
+            <div className="text-gray-800 font-medium hover:text-white">
+              {airport.city}
+            </div>
+            <div className="text-xs text-gray-600 hover:text-white/70">
+              {airport.name}
+            </div>
+          </div>
+        </div>
+      ))
+    ) : (
+      <div className="p-4 text-center text-gray-500">
+        No airports found
+      </div>
+    )}
+  </div>
+)}
+
+{flight.showToDropdown && (
+  <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 max-h-60 overflow-y-auto">
+    <div className="p-2 border-b border-gray-200">
+      <input
+        type="text"
+        placeholder="Search airports..."
+        className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#5A53A7]"
+        autoFocus
+        onChange={(e) => {
+          searchAirports(e.target.value, 'to');
+        }}
+      />
+    </div>
+    
+    {isLoadingToAirports ? (
+      <div className="p-4 text-center text-gray-500">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#5A53A7] mx-auto"></div>
+      </div>
+    ) : toAirports.length > 0 ? (
+      toAirports.map((airport) => (
+        <div
+          key={`${airport.code}-${airport.id}-multi-to`}
+          className="p-3 hover:bg-[#5A53A7] hover:text-white cursor-pointer flex items-center"
+          onClick={() => handleMultiCityAirportSelect(flight.id, 'to', airport)}
+        >
+          <div className="bg-gray-200 text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3">
+            {airport.code}
+          </div>
+          <div className="flex-1">
+            <div className="text-gray-800 font-medium hover:text-white">
+              {airport.city}
+            </div>
+            <div className="text-xs text-gray-600 hover:text-white/70">
+              {airport.name}
+            </div>
+          </div>
+        </div>
+      ))
+    ) : (
+      <div className="p-4 text-center text-gray-500">
+        No airports found
+      </div>
+    )}
+  </div>
+)}
+
                             </div>
 
                             {/* To Airport */}
@@ -733,40 +917,7 @@ const handleHotelSearchChange = (value) => {
                                 </svg>
                               </div>
 
-                              {flight.showToDropdown && (
-                                <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 max-h-60 overflow-y-auto">
-                                  {bangladeshAirports.map((airport) => (
-                                    <div
-                                      key={airport.code}
-                                      className="p-3 hover:bg-[#5A53A7] hover:text-white cursor-pointer flex items-center"
-                                      onClick={() => {
-                                        updateMultiCityFlight(
-                                          flight.id,
-                                          "to",
-                                          airport
-                                        );
-                                        updateMultiCityFlight(
-                                          flight.id,
-                                          "showToDropdown",
-                                          false
-                                        );
-                                      }}
-                                    >
-                                      <div className="bg-gray-200 text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3">
-                                        {airport.code}
-                                      </div>
-                                      <div>
-                                        <div className="text-gray-800 font-medium hover:text-white">
-                                          {airport.city}
-                                        </div>
-                                        <div className="text-xs text-gray-600 hover:text-white/70 hidden sm:block">
-                                          {airport.name}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
+                              
                             </div>
 
                             {/* Departure Date */}
@@ -961,31 +1112,57 @@ const handleHotelSearchChange = (value) => {
                         </div>
 
                         {showFromAirports && (
-                          <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 max-h-60 overflow-y-auto">
-                            {bangladeshAirports.map((airport) => (
-                              <div
-                                key={airport.code}
-                                className="p-3 hover:bg-[#5A53A7] hover:text-white cursor-pointer flex items-center"
-                                onClick={() => {
-                                  setSelectedFrom(airport);
-                                  setShowFromAirports(false);
-                                }}
-                              >
-                                <div className="bg-gray-200 text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3">
-                                  {airport.code}
-                                </div>
-                                <div>
-                                  <div className="text-gray-800 font-medium hover:text-white">
-                                    {airport.city}
-                                  </div>
-                                  <div className="text-xs text-gray-600 hover:text-white/70 hidden sm:block">
-                                    {airport.name}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+    <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 max-h-60 overflow-y-auto">
+      {/* Search input inside dropdown */}
+      <div className="p-2 border-b border-gray-200">
+        <input
+          type="text"
+          placeholder="Search airports..."
+          value={fromSearchQuery}
+          onChange={(e) => setFromSearchQuery(e.target.value)}
+          className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#5A53A7]"
+          autoFocus
+        />
+      </div>
+      
+      {isLoadingFromAirports ? (
+        <div className="p-4 text-center text-gray-500">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#5A53A7] mx-auto"></div>
+          <p className="mt-2 text-sm">Searching airports...</p>
+        </div>
+      ) : fromAirports.length > 0 ? (
+        fromAirports.map((airport) => (
+          <div
+            key={`${airport.code}-${airport.id}`}
+            className="p-3 hover:bg-[#5A53A7] hover:text-white cursor-pointer flex items-center"
+            onClick={() => handleFromAirportSelect(airport)}
+          >
+            <div className="bg-gray-200 text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3">
+              {airport.code}
+            </div>
+            <div className="flex-1">
+              <div className="text-gray-800 font-medium hover:text-white">
+                {airport.city}
+              </div>
+              <div className="text-xs text-gray-600 hover:text-white/70">
+                {airport.name}
+              </div>
+              {airport.country && (
+                <div className="text-xs text-gray-500 hover:text-white/70">
+                  {airport.country}
+                </div>
+              )}
+            </div>
+          </div>
+        ))
+      ) : (
+        <div className="p-4 text-center text-gray-500">
+          No airports found. Try a different search.
+        </div>
+      )}
+    </div>
+  )}
+
                       </div>
 
                       {/* To Airport */}
@@ -1022,32 +1199,58 @@ const handleHotelSearchChange = (value) => {
                           </svg>
                         </div>
 
-                        {showToAirports && (
-                          <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 max-h-60 overflow-y-auto">
-                            {bangladeshAirports.map((airport) => (
-                              <div
-                                key={airport.code}
-                                className="p-3 hover:bg-[#5A53A7] hover:text-white cursor-pointer flex items-center"
-                                onClick={() => {
-                                  setSelectedTo(airport);
-                                  setShowToAirports(false);
-                                }}
-                              >
-                                <div className="bg-gray-200 text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3">
-                                  {airport.code}
-                                </div>
-                                <div>
-                                  <div className="text-gray-800 font-medium hover:text-white">
-                                    {airport.city}
-                                  </div>
-                                  <div className="text-xs text-gray-600 hover:text-white/70 hidden sm:block">
-                                    {airport.name}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+
+  {showToAirports && (
+    <div className="absolute z-20 w-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 max-h-60 overflow-y-auto">
+      <div className="p-2 border-b border-gray-200">
+        <input
+          type="text"
+          placeholder="Search airports..."
+          value={toSearchQuery}
+          onChange={(e) => setToSearchQuery(e.target.value)}
+          className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#5A53A7]"
+          autoFocus
+        />
+      </div>
+      
+      {isLoadingToAirports ? (
+        <div className="p-4 text-center text-gray-500">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#5A53A7] mx-auto"></div>
+          <p className="mt-2 text-sm">Searching airports...</p>
+        </div>
+      ) : toAirports.length > 0 ? (
+        toAirports.map((airport) => (
+          <div
+            key={`${airport.code}-${airport.id}`}
+            className="p-3 hover:bg-[#5A53A7] hover:text-white cursor-pointer flex items-center"
+            onClick={() => handleToAirportSelect(airport)}
+          >
+            <div className="bg-gray-200 text-gray-700 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-3">
+              {airport.code}
+            </div>
+            <div className="flex-1">
+              <div className="text-gray-800 font-medium hover:text-white">
+                {airport.city}
+              </div>
+              <div className="text-xs text-gray-600 hover:text-white/70">
+                {airport.name}
+              </div>
+              {airport.country && (
+                <div className="text-xs text-gray-500 hover:text-white/70">
+                  {airport.country}
+                </div>
+              )}
+            </div>
+          </div>
+        ))
+      ) : (
+        <div className="p-4 text-center text-gray-500">
+          No airports found. Try a different search.
+        </div>
+      )}
+    </div>
+  )}
+
                       </div>
 
                       {/* Departure & Return */}
@@ -1418,7 +1621,7 @@ const handleHotelSearchChange = (value) => {
               </div>
             )}
 
-            {/* Hotels Section */}
+            {/* Hotels Section - FROM SECOND CODE */}
             {activeTab === "hotel" && (
               <div>
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 sm:gap-6">
@@ -1722,7 +1925,8 @@ const handleHotelSearchChange = (value) => {
                 </div>
               </div>
             )}
-            {/* Holidays Section */}
+
+            {/* Holidays Section - FROM SECOND CODE */}
             {activeTab === "holidays" && (
               <div>
                 <div className="relative mb-6">
@@ -1871,7 +2075,7 @@ const handleHotelSearchChange = (value) => {
               </div>
             )}
 
-            {/* Visa Section */}
+            {/* Visa Section - FROM SECOND CODE */}
             {activeTab === "visa" && (
               <div>
                 <div className="relative mb-6">

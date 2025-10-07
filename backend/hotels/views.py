@@ -228,6 +228,7 @@ class AccommodationSearchView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+
 class HotelOffersView(APIView):
     """
     Step 2: Get detailed offers/rooms for a specific search result
@@ -301,6 +302,7 @@ class HotelOffersView(APIView):
                 {"status": "error", "message": "Unexpected error", "details": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
 
 
 class CreateQuoteView(APIView):
@@ -668,152 +670,333 @@ class ListBookingsView(APIView):
         
 
 
-
-from .models import HotelBooking, PaymentTransaction
+import uuid
+import requests
+from decimal import Decimal, InvalidOperation
+from django.utils import timezone
+from django.conf import settings
+from django.shortcuts import redirect
+from django.db import transaction
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from .models import PaymentTransaction, HotelBooking
+import logging
 
 logger = logging.getLogger(__name__)
 
+from decimal import Decimal, InvalidOperation
+import uuid
+import requests
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from django.conf import settings
+from .models import PaymentTransaction
 
 class InitiatePaymentView(APIView):
-    permission_classes = [AllowAny]
+    """
+    Initiates payment via SSLCommerz sandbox or live.
+    Expects full customer and product info in POST JSON.
+    """
 
     def post(self, request):
-        quote_id = request.data.get("quote_id")
-        amount = request.data.get("amount")
-        email = request.data.get("email")
-        phone = request.data.get("phone")
 
-        if not all([quote_id, amount, email, phone]):
-            return Response({"error": "Missing required fields"}, status=400)
+        data = request.data
 
-        tran_id = f"TXN_{uuid.uuid4().hex[:8]}"
-        payment = PaymentTransaction.objects.create(tran_id=tran_id, amount=amount)
+        # --- Required fields check ---
+        required_fields = [
+            "total_amount", "currency", "quote_id", "email",
+            "cus_name", "cus_phone", "cus_add1", "cus_city",
+            "cus_state", "cus_postcode", "cus_country",
+            "product_name", "product_category", "product_profile",
+            "shipping_method"
+        ]
 
-        # prepare SSLCommerz payload
+        missing = [f for f in required_fields if not data.get(f)]
+        if missing:
+            return Response({
+                "success": False,
+                "error": f"Missing fields: {', '.join(missing)}"
+            }, status=400)
+
+        # --- Parse amount safely ---
+        try:
+            total_amount = Decimal(str(data["total_amount"]))
+        except (ValueError, InvalidOperation) as e:
+            return Response({
+                "success": False,
+                "error": f"Invalid total_amount: {str(e)}"
+            }, status=400)
+
+        # --- Generate unique transaction ID ---
+        tran_id = f"TXN_{uuid.uuid4().hex[:12].upper()}"
+
+        # --- Build payload for SSLCommerz ---
         payload = {
-            "store_id": settings.SSL_STORE_ID,
-            "store_passwd": settings.SSL_STORE_PASS,
-            "total_amount": amount,
-            "currency": "BDT",
+            "store_id": getattr(settings, "SSL_STORE_ID", "testbox"),
+            "store_passwd": getattr(settings, "SSL_STORE_PASS", "qwerty"),
+            "total_amount": f"{total_amount:.2f}",
+            "currency": data.get("currency", "BDT"),
             "tran_id": tran_id,
-            "success_url": settings.SSL_SUCCESS_URL,
-            "fail_url": settings.SSL_FAIL_URL,
-            "cancel_url": settings.SSL_CANCEL_URL,
-            "cus_email": email,
-            "cus_phone": phone,
+            "success_url": request.build_absolute_uri("/api/hotels/payments/success/"),
+            "fail_url": request.build_absolute_uri("/api/hotels/payments/fail/"),
+            "cancel_url": request.build_absolute_uri("/api/hotels/payments/cancel/"),
+            "ipn_url": request.build_absolute_uri("/api/hotels/payments/ipn/"),
+
+            # --- Customer info ---
+            "cus_name": data["cus_name"],
+            "cus_email": data["email"],
+            "cus_phone": data["cus_phone"],
+            "cus_add1": data["cus_add1"],
+            "cus_add2": data.get("cus_add2", ""),
+            "cus_city": data["cus_city"],
+            "cus_state": data["cus_state"],
+            "cus_postcode": data["cus_postcode"],
+            "cus_country": data["cus_country"],
+
+            # --- Product info ---
+            "product_name": data["product_name"],
+            "product_category": data["product_category"],
+            "product_profile": data["product_profile"],
+
+            # --- Shipping info ---
+            "shipping_method": data["shipping_method"],
         }
 
-        ssl_url = "https://sandbox.sslcommerz.com/gwprocess/v4/api.php"
-        resp = requests.post(ssl_url, data=payload)
+        if data["shipping_method"].upper() != "NO":
+            payload.update({
+                "ship_name": data.get("ship_name", data["cus_name"]),
+                "ship_add1": data.get("ship_add1", data["cus_add1"]),
+                "ship_city": data.get("ship_city", data["cus_city"]),
+                "ship_state": data.get("ship_state", data["cus_state"]),
+                "ship_postcode": data.get("ship_postcode", data["cus_postcode"]),
+                "ship_country": data.get("ship_country", data["cus_country"]),
+            })
 
-        if resp.status_code == 200:
-            data = resp.json()
-            return Response({"GatewayPageURL": data.get("GatewayPageURL"), "tran_id": tran_id})
-        return Response({"error": "SSLCommerz init failed"}, status=500)
+        # --- Send to SSLCommerz ---
+        api_url = "https://sandbox.sslcommerz.com/gwprocess/v4/api.php"
+        try:
+            response = requests.post(api_url, data=payload, timeout=15)
+            response_data = response.json()
+        except Exception as e:
+            return Response({
+                "success": False,
+                "error": f"Payment initiation error: {str(e)}"
+            }, status=502)
 
+        # --- Validate response ---
+        if response_data.get("status") != "SUCCESS":
+            return Response({
+                "success": False,
+                "error": response_data.get("failedreason", "Payment init failed")
+            }, status=400)
 
-class PaymentValidationView(APIView):
+        # --- Save transaction record ---
+        PaymentTransaction.objects.create(
+            tran_id=tran_id,
+            checkout_data=data,
+            session_key=response_data.get("sessionkey", ""),
+            amount=total_amount,
+            initiation_response=response_data,
+            status="initiated"
+        )
+
+        # --- Final clean response ---
+        return Response({
+            "success": True,
+            "tran_id": tran_id,
+            "quote_id": data["quote_id"],
+            "payment_url": response_data.get("GatewayPageURL"),
+        })
+
+# ---------- IPN Handler ----------
+@method_decorator(csrf_exempt, name='dispatch')
+class PaymentIPNView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        print("1. IPN RECEIVED")
         data = request.data
-        tran_id = data.get("tran_id")
+        tran_id = data.get('tran_id')
+        val_id = data.get('val_id')
+        status_ipn = data.get('status')
+        amount = data.get('amount')
 
-        if not tran_id:
-            return Response({"error": "No tran_id"}, status=400)
+        if not all([tran_id, val_id, status_ipn, amount]):
+            return Response({'error': 'Missing fields'}, status=400)
 
         try:
             payment = PaymentTransaction.objects.get(tran_id=tran_id)
         except PaymentTransaction.DoesNotExist:
-            return Response({"error": "Transaction not found"}, status=404)
+            return Response({'error': 'Transaction not found'}, status=404)
 
-        # validate payment from SSLCOMMERZ
-        validation_url = "https://sandbox.sslcommerz.com/validator/api/validationserverAPI.php"
-        params = {
-            "val_id": data.get("val_id"),
-            "store_id": settings.SSL_STORE_ID,
-            "store_passwd": settings.SSL_STORE_PASS,
-            "format": "json"
-        }
-        response = requests.get(validation_url, params=params)
-        validation = response.json()
+        if PaymentTransaction.objects.filter(val_id=val_id, status='success').exists():
+            return Response({'status': 'duplicate', 'message': 'IPN already processed'}, status=200)
 
-        if validation.get("status") == "VALID":
-            payment.status = "success"
-            payment.validation_response = validation
+        if abs(payment.amount - Decimal(str(amount))) > Decimal('0.01'):
+            payment.status = 'failed'
             payment.save()
-            logger.info(f"✅ SSL Payment Validated: {tran_id}")
-            return Response({"message": "Payment verified", "tran_id": tran_id})
-        else:
-            payment.status = "failed"
-            payment.validation_response = validation
-            payment.save()
-            return Response({"error": "Payment not valid"}, status=400)
+            return Response({'error': 'Amount mismatch'}, status=400)
+
+        payment.status = 'success'
+        payment.val_id = val_id
+        payment.ipn_data = data
+        payment.ipn_received_at = timezone.now()
+        payment.save()
+
+        return Response({'status': 'success', 'tran_id': tran_id})
 
 
-class ConfirmBookingAfterPayment(APIView):
-    """
-    Confirm Duffel booking only after successful SSLCOMMERZ payment
-    """
+
+import json
+import requests
+from django.conf import settings
+from django.shortcuts import redirect
+from django.utils import timezone
+from rest_framework.permissions import AllowAny
+from rest_framework.views import APIView
+from .models import PaymentTransaction
+from .models import HotelBooking
+
+
+class PaymentSuccessView(APIView):
     permission_classes = [AllowAny]
 
-    def post(self, request):
-        tran_id = request.data.get("tran_id")
-        guests = request.data.get("guests", [])
-        email = request.data.get("email")
-        phone_number = request.data.get("phone_number")
-        quote_id = request.data.get("quote_id")
+    def handle_success_payment(self, data):
+        print("🔵 [START] handle_success_payment triggered")
+        print("📩 Incoming data:", dict(data))
+
+        tran_id = data.get('tran_id') or (data.get('tran_id')[0] if isinstance(data.get('tran_id'), list) else None)
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        print(f"🆔 Transaction ID: {tran_id}")
+
+        if not tran_id:
+            print("❌ No transaction ID found in callback data")
+            return redirect(f'{frontend_url}/payment/fail?error=no_transaction')
 
         try:
-            payment = PaymentTransaction.objects.get(tran_id=tran_id, status="success")
-        except PaymentTransaction.DoesNotExist:
-            return Response({"error": "Payment not successful or invalid tran_id"}, status=400)
+            print("🔍 Fetching PaymentTransaction from DB...")
+            payment = PaymentTransaction.objects.get(tran_id=tran_id)
+            print(f"✅ PaymentTransaction found: {payment.id}")
 
-        # === Create Duffel Booking ===
-        booking_data = {
-            "data": {
-                "quote_id": quote_id,
-                "guests": guests,
-                "email": email,
-                "phone_number": phone_number
+            payment.status = 'success'
+            payment.redirect_data = dict(data)
+            payment.redirect_received_at = timezone.now()
+            payment.save()
+            print("💾 PaymentTransaction updated to success")
+
+            checkout = payment.checkout_data or {}
+            print("🧾 Checkout Data:", checkout)
+
+            quote_id = checkout.get('quote_id')
+            guests = checkout.get('guest_info', [])
+            print(f"📦 Quote ID: {quote_id}")
+            print(f"👥 Guests: {guests}")
+
+            # Build Duffel payload with required fields
+            duffel_guests = [
+                {
+                    "type": g.get("type", "adult"),
+                    "given_name": (checkout.get("cus_name", "Guest User").split(" ")[0]) or "Guest",
+                    "family_name": (checkout.get("cus_name", "Guest User").split(" ")[-1]) or "User",
+                    "age": g.get("age"),
+                }
+                for g in guests
+            ]
+
+            payload = {
+                "data": {
+                    "quote_id": quote_id,
+                    "guests": duffel_guests,
+                    "email": checkout.get("email", "guest@example.com"),
+                    "phone_number": checkout.get("cus_phone", "+8800000000000"),
+                }
             }
-        }
 
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "Duffel-Version": "v2",
-            "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}"
-        }
+            print("🌍 Sending Duffel booking request:", "https://api.duffel.com/stays/bookings")
+            print("📤 Payload:", json.dumps(payload, indent=2))
 
-        url = "https://api.duffel.com/stays/bookings"
+            headers = {
+                "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}",
+                "Duffel-Version": "v2",
+                "Content-Type": "application/json",
+            }
 
-        try:
-            response = requests.post(url, json=booking_data, headers=headers, timeout=30)
-            data = response.json()
+            response = requests.post("https://api.duffel.com/stays/bookings", json=payload, headers=headers, timeout=30)
+            data_resp = response.json()
+            print(f"📥 Duffel API Response ({response.status_code}):", json.dumps(data_resp, indent=2))
 
+            # ✅ Successful Duffel booking
             if response.status_code == 201:
-                booking_id = data["data"]["id"]
-                with transaction.atomic():
-                    HotelBooking.objects.create(
-                        booking_id=booking_id,
-                        quote_id=quote_id,
-                        email=email,
-                        phone_number=phone_number,
-                        status="confirmed",
-                        payment_status="paid",
-                        transaction=payment,
-                        raw_response=data
-                    )
-                logger.info(f"✅ Booking confirmed and saved: {booking_id}")
-                return Response({"status": "success", "booking": data}, status=201)
-            else:
-                logger.error(f"❌ Duffel booking failed: {data}")
-                return Response({"error": "Duffel booking failed", "details": data}, status=400)
-        except requests.exceptions.RequestException as e:
-            logger.error(f"🌐 Duffel API failed: {str(e)}")
-            return Response({"error": str(e)}, status=500)
+                booking_id = data_resp["data"]["id"]
+                HotelBooking.objects.create(
+                    booking_id=booking_id,
+                    quote_id=quote_id,
+                    email=checkout.get("email", ""),
+                    phone_number=checkout.get("cus_phone", ""),
+                    status="confirmed",
+                    payment_status="paid",
+                    transaction=payment,
+                    raw_response=data_resp,
+                )
+                print(f"✅ HotelBooking created successfully: {booking_id}")
+                return redirect(f'{frontend_url}/payment/success?tran_id={tran_id}&quote_id={quote_id}')
 
+            # ⚠️ Duffel booking failed
+            print(f"⚠️ Duffel booking failed with status {response.status_code}: {data_resp}")
+            return redirect(f'{frontend_url}/payment/fail?tran_id={tran_id}')
+
+        except PaymentTransaction.DoesNotExist:
+            print(f"❌ PaymentTransaction not found for tran_id={tran_id}")
+            return redirect(f'{frontend_url}/payment/fail?error=payment_not_found')
+
+        except Exception as e:
+            print(f"🔥 Unexpected error in handle_success_payment: {str(e)}")
+            return redirect(f'{frontend_url}/payment/fail?error=exception')
+
+    def get(self, request):
+        print("🟢 PaymentSuccessView GET triggered")
+        return self.handle_success_payment(request.GET)
+
+    def post(self, request):
+        print("🟢 PaymentSuccessView POST triggered")
+        return self.handle_success_payment(request.data)
+
+# ---------- Failed / Cancel Views ----------
+class PaymentFailView(APIView):
+    permission_classes = [AllowAny]
+
+    def handle_failed_payment(self, data):
+        tran_id = data.get('tran_id')
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        if tran_id:
+            PaymentTransaction.objects.filter(tran_id=tran_id).update(status='failed')
+        return redirect(f'{frontend_url}/payment/fail?tran_id={tran_id or "unknown"}')
+
+    def get(self, request):
+        return self.handle_failed_payment(request.GET)
+
+    def post(self, request):
+        return self.handle_failed_payment(request.data)
+
+
+class PaymentCancelView(APIView):
+    permission_classes = [AllowAny]
+
+    def handle_cancelled_payment(self, data):
+        tran_id = data.get('tran_id')
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        if tran_id:
+            PaymentTransaction.objects.filter(tran_id=tran_id).update(status='cancelled')
+        return redirect(f'{frontend_url}/payment/fail?tran_id={tran_id or "unknown"}&status=cancelled')
+
+    def get(self, request):
+        return self.handle_cancelled_payment(request.GET)
+
+    def post(self, request):
+        return self.handle_cancelled_payment(request.data)
 
 
 

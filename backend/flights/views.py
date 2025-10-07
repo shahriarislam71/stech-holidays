@@ -19,7 +19,11 @@ from .serializers import (
 import logging
 logger = logging.getLogger(__name__)
 from .models import Order, Passenger, Payment, OrderPassenger 
-
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
+from datetime import datetime, date
+import re
+import phonenumbers
 
 
 def _fmt_dt(dt_string):
@@ -93,184 +97,263 @@ def parse_iso(dt_str):
 
 
 
+
+
+class LocationSearchView(APIView):
+    def get(self, request):
+        query = request.query_params.get("query")
+        if not query:
+            return Response({"error": "Query is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        url = f"https://api.duffel.com/places/suggestions?query={query}"
+        headers = {
+            "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Duffel-Version": "v2"
+        }
+
+        r = requests.get(url, headers=headers)
+        if r.status_code != 200:
+            return Response(
+                {"error": "Duffel API error", "details": r.json()},
+                status=r.status_code
+            )
+
+        data = r.json()
+
+        results = [
+            {
+                "id": place.get("id"),
+                "name": place.get("name"),
+                "iata_code": place.get("iata_code"),
+                "type": place.get("type"),
+                "city": place.get("city_name"),
+                "country": place.get("country_name"),
+            }
+            for place in data.get("data", [])
+        ]
+
+        return Response({"results": results}, status=status.HTTP_200_OK)
+
+
+# views.py - Complete FlightListView
 class FlightListView(APIView):
     def post(self, request):
-            try:
-                # 1️⃣ Validate required fields
-                slices_input = request.data.get("slices")  # multicity array input
-                if not slices_input:
-                    # fallback: single origin/destination
-                    slices_input = [{
-                        "origin": request.data.get("origin"),
-                        "destination": request.data.get("destination"),
-                        "departure_date": request.data.get("departure_date")
-                    }]
-
-                if not isinstance(slices_input, list) or not slices_input:
+        try:
+            # Get flight type from request data or default to one_way
+            flight_type = request.data.get("flight_type", "one_way").lower()
+            
+            # Build slices based on flight type
+            if flight_type == "multi_city":
+                flights_data = request.data.get("flights", [])
+                if not flights_data or len(flights_data) < 2:
                     return JsonResponse({
                         "status": "error",
-                        "message": "Missing slices or invalid format",
-                        "error_code": "MISSING_FIELD"
+                        "message": "Multi-city requires at least 2 flights"
                     }, status=status.HTTP_400_BAD_REQUEST)
-
-                # validate each slice
+                
                 slices = []
-                for s in slices_input:
-                    o = s.get("origin", "").upper()
-                    d = s.get("destination", "").upper()
-                    date = s.get("departure_date")
-                    if not o or not d or not date:
-                        return JsonResponse({
-                            "status": "error",
-                            "message": "Each slice must have origin, destination, and departure_date",
-                            "error_code": "MISSING_FIELD"
-                        }, status=status.HTTP_400_BAD_REQUEST)
-
-                    if len(o) != 3 or not o.isalpha():
-                        return JsonResponse({
-                            "status": "error",
-                            "message": f"Invalid origin IATA code: {o}",
-                            "error_code": "INVALID_IATA_CODE"
-                        }, status=status.HTTP_400_BAD_REQUEST)
-
-                    if len(d) != 3 or not d.isalpha():
-                        return JsonResponse({
-                            "status": "error",
-                            "message": f"Invalid destination IATA code: {d}",
-                            "error_code": "INVALID_IATA_CODE"
-                        }, status=status.HTTP_400_BAD_REQUEST)
-
+                for flight in flights_data:
                     slices.append({
-                        "origin": o,
-                        "destination": d,
-                        "departure_date": date
+                        "origin": flight.get("from", "").upper(),
+                        "destination": flight.get("to", "").upper(),
+                        "departure_date": flight.get("departure_date")
                     })
-
-                # 2️⃣ Build passengers array
-                passengers = []
-                travelers = request.data.get("travelers", {})
-                adults_count = travelers.get("adults", 1)
-                children_count = travelers.get("children", 0)
-                infants_count = travelers.get("infants", 0)
-
-                for _ in range(adults_count):
-                    passengers.append({"type": "adult"})
-                for _ in range(children_count):
-                    passengers.append({"type": "child"})
-                for _ in range(infants_count):
-                    passengers.append({"type": "infant"})
-
-                if not passengers:
+                    
+            elif flight_type == "round_trip":
+                origin = request.data.get("origin", "").upper()
+                destination = request.data.get("destination", "").upper()
+                departure_date = request.data.get("departure_date")
+                return_date = request.data.get("return_date")
+                
+                if not all([origin, destination, departure_date, return_date]):
                     return JsonResponse({
                         "status": "error",
-                        "message": "At least one passenger is required",
-                        "error_code": "NO_PASSENGERS"
+                        "message": "Missing required fields for round-trip"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                slices = [
+                    {
+                        "origin": origin,
+                        "destination": destination,
+                        "departure_date": departure_date
+                    },
+                    {
+                        "origin": destination,
+                        "destination": origin,
+                        "departure_date": return_date
+                    }
+                ]
+                
+            else:  # one_way
+                origin = request.data.get("origin", "").upper()
+                destination = request.data.get("destination", "").upper()
+                departure_date = request.data.get("departure_date")
+                
+                if not all([origin, destination, departure_date]):
+                    return JsonResponse({
+                        "status": "error",
+                        "message": "Missing required fields for one-way flight"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                slices = [{
+                    "origin": origin,
+                    "destination": destination,
+                    "departure_date": departure_date
+                }]
+
+            # Validate slices
+            for slice_obj in slices:
+                if not all([slice_obj["origin"], slice_obj["destination"], slice_obj["departure_date"]]):
+                    return JsonResponse({
+                        "status": "error",
+                        "message": "Each flight segment must have origin, destination, and departure_date"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                if len(slice_obj["origin"]) != 3 or not slice_obj["origin"].isalpha():
+                    return JsonResponse({
+                        "status": "error",
+                        "message": f"Invalid origin IATA code: {slice_obj['origin']}"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                    
+                if len(slice_obj["destination"]) != 3 or not slice_obj["destination"].isalpha():
+                    return JsonResponse({
+                        "status": "error",
+                        "message": f"Invalid destination IATA code: {slice_obj['destination']}"
                     }, status=status.HTTP_400_BAD_REQUEST)
 
-                # 3️⃣ Validate cabin class and fare type
-                valid_cabins = ["economy", "premium_economy", "business", "first"]
-                cabin_class = request.data.get("cabin_class", "economy").lower()
-                if cabin_class not in valid_cabins:
-                    cabin_class = "economy"
+            # Build passengers
+            passengers = []
+            travelers = request.data.get("travelers", {})
+            adults_count = travelers.get("adults", 1)
+            children_count = travelers.get("children", 0)
+            infants_count = travelers.get("infants", 0)
 
-                valid_fares = ["regular", "hold"]
-                fare_type = request.data.get("fare_type", "regular").lower()
-                if fare_type not in valid_fares:
-                    fare_type = "regular"
+            for _ in range(adults_count):
+                passengers.append({"type": "adult"})
+            for _ in range(children_count):
+                passengers.append({"type": "child"})
+            for _ in range(infants_count):
+                passengers.append({"type": "infant"})
 
-                # 4️⃣ Build Duffel request
-                search_data = {
-                    "data": {
-                        "slices": slices,
-                        "passengers": passengers,
-                        "cabin_class": cabin_class
-                    },
-                    "fare_type": fare_type
+            if not passengers:
+                return JsonResponse({
+                    "status": "error",
+                    "message": "At least one passenger is required"
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Validate cabin class
+            valid_cabins = ["economy", "premium_economy", "business", "first"]
+            cabin_class = request.data.get("cabin_class", "economy").lower()
+            if cabin_class not in valid_cabins:
+                cabin_class = "economy"
+
+            # Build Duffel request
+            search_data = {
+                "data": {
+                    "slices": slices,
+                    "passengers": passengers,
+                    "cabin_class": cabin_class
                 }
+            }
 
-                # 5️⃣ Duffel API request
-                url = "https://api.duffel.com/air/offer_requests"
-                headers = {
-                    "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}",
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                    "Duffel-Version": "v2"
-                }
+            print("Sending to Duffel API:", search_data)
 
-                response = requests.post(url, json=search_data, headers=headers, timeout=30)
+            # Duffel API request
+            url = "https://api.duffel.com/air/offer_requests"
+            headers = {
+                "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}",
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Duffel-Version": "v2"
+            }
 
-                if response.status_code != 201:
-                    try:
-                        error_data = response.json()
-                        error_msg = error_data.get("errors", [{}])[0].get("title", "Unknown error")
-                    except Exception:
-                        error_msg = response.text
-                    return JsonResponse({
-                        "status": "error",
-                        "message": "Flight search failed",
-                        "error": f"Duffel API error: {error_msg}",
-                        "error_code": "DUFFEL_API_ERROR"
-                    }, status=response.status_code)
+            response = requests.post(url, json=search_data, headers=headers, timeout=30)
 
-                # 6️⃣ Transform Duffel offers
-                data = response.json()
-                all_offers = data.get("data", {}).get("offers", [])
+            if response.status_code != 201:
+                error_msg = self._extract_error_message(response)
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Flight search failed",
+                    "error": error_msg
+                }, status=response.status_code)
 
-                if not all_offers:
-                    return JsonResponse({
-                        "status": "success",
-                        "message": "No flights found for your search criteria",
-                        "results": {
-                            "total": 0,
-                            "itineraries": []
-                        },
-                        "search": self._build_search_summary(request.data, slices, passengers),
-                        "filters": self._build_filters([]),
-                        "metadata": {
-                            "searchId": data.get("data", {}).get("id", ""),
-                            "timestamp": datetime.now().isoformat(),
-                            "resultsCount": 0
-                        }
-                    }, status=status.HTTP_200_OK)
-
-                itineraries = self._transform_offers(all_offers, passengers, request.data)
-                search_summary = self._build_search_summary(request.data, slices, passengers)
-                filters = self._build_filters(itineraries)
-                metadata = {
+            # Transform response
+            data = response.json()
+            all_offers = data.get("data", {}).get("offers", [])
+            
+            itineraries = self._transform_offers(all_offers, passengers, request.data)
+            
+            return JsonResponse({
+                "status": "success",
+                "message": f"Found {len(itineraries)} flight options",
+                "flight_type": flight_type,
+                "search": self._build_search_summary(request.data, slices, passengers, flight_type),
+                "results": {
+                    "total": len(itineraries),
+                    "itineraries": itineraries
+                },
+                "filters": self._build_filters(itineraries),
+                "metadata": {
                     "searchId": data.get("data", {}).get("id", ""),
-                    "timestamp": datetime.now().isoformat(),
-                    "resultsCount": len(itineraries)
+                    "timestamp": datetime.now().isoformat()
                 }
+            }, status=status.HTTP_200_OK)
 
-                return JsonResponse({
-                    "status": "success",
-                    "message": f"Found {len(itineraries)} flight options",
-                    "search": search_summary,
-                    "results": {
-                        "total": len(itineraries),
-                        "sorting": "price_low_to_high",
-                        "itineraries": itineraries
-                    },
-                    "filters": filters,
-                    "metadata": metadata
-                }, status=status.HTTP_200_OK)
+        except requests.exceptions.Timeout:
+            return JsonResponse({
+                "status": "error",
+                "message": "Flight search timeout",
+                "error": "Request to flight provider timed out"
+            }, status=status.HTTP_504_GATEWAY_TIMEOUT)
 
-            except requests.exceptions.Timeout:
-                return JsonResponse({
-                    "status": "error",
-                    "message": "Flight search timeout",
-                    "error": "Request to flight provider timed out",
-                    "error_code": "TIMEOUT_ERROR"
-                }, status=status.HTTP_504_GATEWAY_TIMEOUT)
+        except Exception as e:
+            logger.error(f"Flight search error: {str(e)}")
+            return JsonResponse({
+                "status": "error",
+                "message": "Failed to search flights",
+                "error": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-            except Exception as e:
-                return JsonResponse({
-                    "status": "error",
-                    "message": "Failed to search flights",
-                    "error": str(e),
-                    "error_code": "INTERNAL_SERVER_ERROR"
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        # ================== Keep all your existing helper methods intact ==================
+    def _extract_error_message(self, response):
+        try:
+            error_data = response.json()
+            return error_data.get("errors", [{}])[0].get("title", "Unknown error")
+        except:
+            return response.text
+
+    def _build_search_summary(self, request_data, slices, passengers, flight_type):
+        travelers = request_data.get("travelers", {})
+        
+        search_summary = {
+            "flight_type": flight_type,
+            "route": [{"from": s["origin"], "to": s["destination"], "date": s["departure_date"]} for s in slices],
+            "travelers": {
+                "adults": travelers.get("adults", 1),
+                "children": travelers.get("children", 0),
+                "infants": travelers.get("infants", 0),
+                "total": len(passengers)
+            },
+            "preferences": {
+                "cabinClass": request_data.get("cabin_class", "economy").title(),
+            }
+        }
+        
+        # Add specific data based on flight type
+        if flight_type == "round_trip":
+            search_summary["dates"] = {
+                "departure": request_data.get("departure_date"),
+                "return": request_data.get("return_date")
+            }
+        elif flight_type == "one_way":
+            search_summary["dates"] = {
+                "departure": request_data.get("departure_date")
+            }
+        elif flight_type == "multi_city":
+            search_summary["flights"] = request_data.get("flights", [])
+            
+        return search_summary
 
     def _transform_offers(self, offers, passengers, request_data):
         itineraries = []
@@ -297,6 +380,9 @@ class FlightListView(APIView):
                         marketing_carrier = segment.get("marketing_carrier", {})
                         airline_name = operating_carrier.get("name") or marketing_carrier.get("name") or "Unknown Airline"
                         flight_number = f"{marketing_carrier.get('iata_code', '')}{segment.get('marketing_carrier_flight_number', '')}"
+                        # ✅ Add airline logo
+                        airline_logo = operating_carrier.get("logo_lockup_url") or marketing_carrier.get("logo_lockup_url") or ""
+
                         segments.append({
                             "airline": airline_name,
                             "flightNumber": flight_number,
@@ -312,7 +398,8 @@ class FlightListView(APIView):
                                 "airportCode": segment.get("destination", {}).get("iata_code", ""),
                                 "airportName": segment.get("destination", {}).get("name", "")
                             },
-                            "layover": False
+                            "layover": False,
+                            "airlineLogo": airline_logo  # 👈 Added field
                         })
 
                 total_duration = self._minutes_to_duration_string(total_duration_minutes)
@@ -411,25 +498,6 @@ class FlightListView(APIView):
         stops_text = "0 stops" if stops==0 else f"{stops} stop{'s' if stops>1 else ''}"
         return f"{first_segment['departure']['time']} {first_segment['departure']['airportCode']} → {last_segment['arrival']['time']} {last_segment['arrival']['airportCode']} • {total_duration} • {stops_text}"
 
-    def _build_search_summary(self, request_data, slices, passengers):
-        travelers = request_data.get("travelers", {})
-        return {
-            "route": [{"from": s["origin"], "to": s["destination"], "date": s["departure_date"]} for s in slices],
-            "dates": {
-                "tripType": "one_way" if len(slices)==1 else ("round_trip" if len(slices)==2 else "multi_city")
-            },
-            "travelers": {
-                "adults": travelers.get("adults",1),
-                "children": travelers.get("children",0),
-                "infants": travelers.get("infants",0),
-                "total": len(passengers)
-            },
-            "preferences": {
-                "cabinClass": request_data.get("cabin_class","economy").title(),
-                "fareType": request_data.get("fare_type","regular").title()
-            }
-        }
-
     def _build_filters(self, itineraries):
         if not itineraries:
             return {
@@ -483,10 +551,6 @@ class FlightListView(APIView):
             "stops": ["non_stop", "1_stop", "2_plus_stops"],
             "durations": ["short", "medium", "long"]
         }
-    def _build_metadata(self, duffel_data, itineraries):
-        return {"searchId": duffel_data.get("data", {}).get("id",""),"timestamp":datetime.now().isoformat(),"resultsCount":len(itineraries)}
-
-
 
 class FlightDetailsView(APIView):
     """
@@ -699,6 +763,82 @@ class FlightDetailsView(APIView):
         except Exception as e:
             return JsonResponse({"error": "internal server error", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+
+class DuffelAPIClient:
+    """Centralized Duffel API client for multiple endpoints"""
+    
+    def __init__(self):
+        self.base_url = "https://api.duffel.com"
+        self.headers = {
+            "Authorization": f"Bearer {settings.DUFFEL_ACCESS_TOKEN}",
+            "Accept": "application/json",
+            "Duffel-Version": "v2",
+            "User-Agent": "FlightBooking/1.0",
+            "Accept-Encoding": "gzip"
+        }
+        self.timeout = 30
+    
+    def _make_request(self, method: str, endpoint: str, params: Dict = None, json_data: Dict = None) -> Dict:
+        """Make HTTP request to Duffel API"""
+        url = f"{self.base_url}{endpoint}"
+        
+        try:
+            response = requests.request(
+                method=method,
+                url=url,
+                headers=self.headers,
+                params=params,
+                json=json_data,
+                timeout=self.timeout
+            )
+            
+            logger.info(f"Duffel API {method} {endpoint}: {response.status_code}")
+            
+            if response.status_code == 200:
+                return response.json()
+            elif response.status_code == 404:
+                logger.warning(f"Resource not found: {endpoint}")
+                return None
+            else:
+                logger.error(f"API error {response.status_code}: {response.text}")
+                response.raise_for_status()
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request failed for {endpoint}: {str(e)}")
+            raise
+    
+    def get_offer(self, offer_id: str) -> Dict:
+        """Get single offer with available services"""
+        return self._make_request(
+            "GET", 
+            f"/air/offers/{offer_id}",
+            params={"return_available_services": "true"}
+        )
+    
+    def get_available_services(self, offer_request_id: str) -> Dict:
+        """Get available services for offer request"""
+        return self._make_request(
+            "GET",
+            f"/air/offer_requests/{offer_request_id}/available_services"
+        )
+    
+    def get_seat_maps(self, offer_id: str = None, slice_id: str = None) -> Dict:
+        """Get seat maps for offer or slice"""
+        params = {}
+        if offer_id:
+            params["offer_id"] = offer_id
+        if slice_id:
+            params["slice_id"] = slice_id
+            
+        return self._make_request("GET", "/air/seat_maps", params=params)
+    
+    def confirm_offer(self, offer_id: str) -> Dict:
+        """Confirm offer to check real-time availability"""
+        return self._make_request(
+            "POST",
+            f"/air/offers/{offer_id}/actions/confirm"
+        )
 
 
 
@@ -1370,8 +1510,10 @@ class DuffelOrderManager:
         return errors
 
 
+
+
 class OrderCreationView(APIView):
-    """Creates order in Duffel and saves to local database."""
+    """Creates order in Duffel and saves to local database with validation"""
 
     def __init__(self):
         super().__init__()
@@ -1383,6 +1525,19 @@ class OrderCreationView(APIView):
             if not payload:
                 return Response(
                     {"status": "error", "message": "Missing 'data'", "error_code": "MISSING_FIELD"},
+                    status=400
+                )
+
+            # Validate all data before processing
+            validation_result = self._validate_order_data(payload)
+            if not validation_result["is_valid"]:
+                return Response(
+                    {
+                        "status": "error", 
+                        "message": "Validation failed", 
+                        "errors": validation_result["errors"],
+                        "error_code": "VALIDATION_ERROR"
+                    },
                     status=400
                 )
 
@@ -1409,13 +1564,13 @@ class OrderCreationView(APIView):
             for idx, p in enumerate(passengers):
                 p_data = {
                     "title": p["title"],
-                    "given_name": p["given_name"],
-                    "family_name": p["family_name"],
+                    "given_name": p["given_name"].strip(),
+                    "family_name": p["family_name"].strip(),
                     "born_on": p["born_on"],
                     "gender": p["gender"],
-                    "email": p.get("email"),
-                    "phone_number": p.get("phone_number"),
-                    "identity_documents": p.get("identity_documents", [])
+                    "email": p.get("email", "").strip(),
+                    "phone_number": p.get("phone_number", "").strip(),
+                    "identity_documents": self._prepare_identity_documents(p.get("identity_documents", []))
                 }
                 if idx < len(slice_passengers):
                     p_data["id"] = slice_passengers[idx]["passenger_id"]
@@ -1447,7 +1602,6 @@ class OrderCreationView(APIView):
             # Save to local database
             saved_order = self._save_order_to_database(duffel_order_data, passengers, metadata)
             
-            # Return combined response
             return Response({
                 "status": "success",
                 "message": "Order created successfully",
@@ -1470,6 +1624,258 @@ class OrderCreationView(APIView):
                 status=500
             )
 
+    def _validate_order_data(self, payload):
+        """Comprehensive validation for order data"""
+        errors = {}
+        
+        # Validate selected_offers
+        selected_offers = payload.get("selected_offers", [])
+        if not selected_offers:
+            errors["selected_offers"] = ["At least one offer must be selected"]
+        elif len(selected_offers) > 1:
+            errors["selected_offers"] = ["Only one offer can be selected at a time"]
+
+        # Validate passengers
+        passengers = payload.get("passengers", [])
+        if not passengers:
+            errors["passengers"] = ["At least one passenger is required"]
+        else:
+            for idx, passenger in enumerate(passengers):
+                passenger_errors = self._validate_passenger(passenger, idx)
+                if passenger_errors:
+                    errors[f"passenger_{idx}"] = passenger_errors
+
+        # Validate order type
+        order_type = payload.get("type", "instant")
+        if order_type not in ["instant", "hold"]:
+            errors["type"] = ["Order type must be either 'instant' or 'hold'"]
+
+        return {
+            "is_valid": len(errors) == 0,
+            "errors": errors
+        }
+
+    def _validate_passenger(self, passenger, index):
+        """Validate individual passenger data"""
+        errors = {}
+        
+        # Required fields validation
+        required_fields = ["title", "given_name", "family_name", "born_on", "gender", "type"]
+        for field in required_fields:
+            if not passenger.get(field):
+                errors[field] = f"This field is required"
+
+        # Name validation
+        given_name = passenger.get("given_name", "").strip()
+        family_name = passenger.get("family_name", "").strip()
+        
+        if given_name and len(given_name) < 2:
+            errors["given_name"] = "Given name must be at least 2 characters long"
+        if family_name and len(family_name) < 2:
+            errors["family_name"] = "Family name must be at least 2 characters long"
+        
+        if given_name and not re.match(r'^[a-zA-Z\s\-\.\']+$', given_name):
+            errors["given_name"] = "Given name can only contain letters, spaces, hyphens, dots and apostrophes"
+        
+        if family_name and not re.match(r'^[a-zA-Z\s\-\.\']+$', family_name):
+            errors["family_name"] = "Family name can only contain letters, spaces, hyphens, dots and apostrophes"
+
+        # Date of birth validation
+        born_on = passenger.get("born_on")
+        if born_on:
+            try:
+                birth_date = datetime.strptime(born_on, "%Y-%m-%d").date()
+                today = date.today()
+                
+                # Check if date is in future
+                if birth_date > today:
+                    errors["born_on"] = "Date of birth cannot be in the future"
+                
+                # Check if passenger is at least 1 day old (realistic minimum)
+                if birth_date >= today:
+                    errors["born_on"] = "Invalid date of birth"
+                    
+                # Calculate age for passenger type validation
+                age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+                passenger_type = passenger.get("type", "adult")
+                
+                if passenger_type == "adult" and age < 18:
+                    errors["born_on"] = "Adult passengers must be 18 years or older"
+                elif passenger_type == "child" and (age < 2 or age >= 12):
+                    errors["born_on"] = "Child passengers must be between 2 and 11 years old"
+                elif passenger_type == "infant" and age >= 2:
+                    errors["born_on"] = "Infant passengers must be under 2 years old"
+                    
+            except ValueError:
+                errors["born_on"] = "Invalid date format. Use YYYY-MM-DD"
+
+        # Email validation
+        email = passenger.get("email", "").strip()
+        if email:
+            try:
+                validate_email(email)
+            except ValidationError:
+                errors["email"] = "Enter a valid email address"
+
+        # Phone number validation
+        phone_number = passenger.get("phone_number", "").strip()
+        if phone_number:
+            try:
+                # Try to parse with international format
+                parsed_number = phonenumbers.parse(phone_number, None)
+                if not phonenumbers.is_valid_number(parsed_number):
+                    errors["phone_number"] = "Enter a valid phone number"
+            except:
+                # Basic validation for non-international numbers
+                if not re.match(r'^[\+\d\s\-\(\)]{10,20}$', phone_number):
+                    errors["phone_number"] = "Enter a valid phone number"
+
+        # Gender validation
+        gender = passenger.get("gender")
+        if gender and gender not in ["m", "f"]:
+            errors["gender"] = "Gender must be 'm' or 'f'"
+
+        # Title validation
+        title = passenger.get("title")
+        valid_titles = ["mr", "ms", "mrs", "miss", "dr"]
+        if title and title not in valid_titles:
+            errors["title"] = f"Title must be one of: {', '.join(valid_titles)}"
+
+        # Passenger type validation
+        passenger_type = passenger.get("type")
+        valid_types = ["adult", "child", "infant"]
+        if passenger_type and passenger_type not in valid_types:
+            errors["type"] = f"Passenger type must be one of: {', '.join(valid_types)}"
+
+        # Identity documents validation
+        identity_documents = passenger.get("identity_documents", [])
+        if not identity_documents:
+            errors["identity_documents"] = ["At least one identity document is required"]
+        else:
+            for doc_idx, document in enumerate(identity_documents):
+                doc_errors = self._validate_identity_document(document, doc_idx)
+                if doc_errors:
+                    errors[f"identity_document_{doc_idx}"] = doc_errors
+
+        return errors
+
+    def _validate_identity_document(self, document, index):
+        """Validate identity document data"""
+        errors = {}
+        
+        # Document type validation
+        doc_type = document.get("type")
+        valid_types = ["passport", "known_traveler_number", "passenger_redress_number"]
+        if not doc_type:
+            errors["type"] = "Document type is required"
+        elif doc_type not in valid_types:
+            errors["type"] = f"Document type must be one of: {', '.join(valid_types)}"
+
+        # Document number validation
+        number = document.get("number", "").strip()
+        if not number:
+            errors["number"] = "Document number is required"
+        elif len(number) < 3:
+            errors["number"] = "Document number must be at least 3 characters long"
+        elif not re.match(r'^[a-zA-Z0-9\-\s]+$', number):
+            errors["number"] = "Document number can only contain letters, numbers, hyphens and spaces"
+
+        # Issuing country validation
+        issuing_country = document.get("issuing_country_code", "").strip()
+        if not issuing_country:
+            errors["issuing_country_code"] = "Issuing country is required"
+        elif len(issuing_country) != 2:
+            errors["issuing_country_code"] = "Country code must be 2 characters (e.g., BD, US, GB)"
+
+        # Expiry date validation
+        expires_on = document.get("expires_on")
+        if expires_on:
+            try:
+                expiry_date = datetime.strptime(expires_on, "%Y-%m-%d").date()
+                today = date.today()
+                
+                if expiry_date <= today:
+                    errors["expires_on"] = "Document must not be expired"
+                
+                # Check if expiry is within reasonable range (not too far in future)
+                max_future_date = today.replace(year=today.year + 20)
+                if expiry_date > max_future_date:
+                    errors["expires_on"] = "Expiry date is too far in the future"
+                    
+            except ValueError:
+                errors["expires_on"] = "Invalid date format. Use YYYY-MM-DD"
+        else:
+            errors["expires_on"] = "Expiry date is required"
+
+        # Unique identifier - generate if not provided
+        unique_identifier = document.get("unique_identifier", "").strip()
+        if not unique_identifier:
+            # You can generate one based on document type and number
+            doc_type = document.get("type", "passport")
+            doc_number = document.get("number", "").strip()
+            if doc_type and doc_number:
+                document["unique_identifier"] = f"{doc_type}_{doc_number}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            else:
+                errors["unique_identifier"] = "Unique identifier is required"
+
+        return errors
+
+    def _prepare_identity_documents(self, identity_documents):
+        """Prepare identity documents for Duffel API"""
+        prepared_docs = []
+        
+        for doc in identity_documents:
+            prepared_doc = {
+                "type": doc.get("type"),
+                "number": doc.get("number", "").strip(),
+                "issuing_country_code": doc.get("issuing_country_code", "").strip().upper(),
+                "expires_on": doc.get("expires_on"),
+            }
+            
+            # Ensure unique_identifier is provided and valid (MAX 15 CHARACTERS)
+            unique_identifier = doc.get("unique_identifier", "").strip()
+            if not unique_identifier or len(unique_identifier) > 15:
+                # Generate a short unique identifier (max 15 chars)
+                doc_type = doc.get("type", "passport")[:3]  # First 3 chars of type
+                doc_number = doc.get("number", "").strip()[:8]  # First 8 chars of number
+                timestamp = str(int(datetime.now().timestamp()))[-4:]  # Last 4 digits of timestamp
+                
+                # Combine to create max 15 char identifier
+                unique_identifier = f"{doc_type}{doc_number}{timestamp}"[:15]
+                
+                prepared_doc["unique_identifier"] = unique_identifier
+                prepared_docs.append(prepared_doc)
+                
+            return prepared_docs
+        
+    def _prepare_identity_documents(self, identity_documents):
+        """Prepare identity documents for Duffel API"""
+        prepared_docs = []
+        
+        for doc in identity_documents:
+            prepared_doc = {
+                "type": doc.get("type"),
+                "number": doc.get("number", "").strip(),
+                "issuing_country_code": doc.get("issuing_country_code", "").strip().upper(),
+                "expires_on": doc.get("expires_on"),
+            }
+            
+            # Ensure unique_identifier is provided and valid (MAX 15 CHARACTERS)
+            unique_identifier = doc.get("unique_identifier", "").strip()
+            if not unique_identifier or len(unique_identifier) > 15:
+                # Generate a short unique identifier (max 15 chars)
+                doc_type = doc.get("type", "passport")[:3]  # First 3 chars of type
+                doc_number = doc.get("number", "").strip()[:8]  # First 8 chars of number
+                timestamp = str(int(datetime.now().timestamp()))[-4:]  # Last 4 digits of timestamp
+                
+                # Combine to create max 15 char identifier
+                unique_identifier = f"{doc_type}{doc_number}{timestamp}"[:15]
+            
+            prepared_doc["unique_identifier"] = unique_identifier
+            prepared_docs.append(prepared_doc)
+            
+        return prepared_docs
+    
     def _save_order_to_database(self, duffel_order_data, original_passengers, metadata):
         """Save order and passengers to local database with transaction safety"""
         from django.db import transaction
@@ -1697,11 +2103,21 @@ class OrderListCreateView(APIView):
 
 
 
-class CreatePaymentIntentView(APIView):
+# views.py - Enhanced payment views
+from django.http import JsonResponse
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+import json
 
+class CreatePaymentIntentView(APIView):
+    """
+    Create payment intent for instant orders
+    """
     
     def post(self, request):
-        # Reuse the logic from PaymentViewSet.create_payment_intent
         serializer = PaymentIntentCreateSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -1709,26 +2125,54 @@ class CreatePaymentIntentView(APIView):
         try:
             data = serializer.validated_data
             offer_amount = data['offer_amount']
-            markup = data['markup']
+            markup = data.get('markup', Decimal('0.00'))
             target_currency = data.get('customer_currency', data['offer_currency'])
             
-            final_amount = duffel_service.calculate_customer_amount(
-                offer_amount, markup, target_currency
+            # Calculate final amount (you can add your markup logic here)
+            final_amount = offer_amount + markup
+            
+            # Create payment intent
+            payment_intent = duffel_service.create_payment_intent(
+                final_amount, 
+                target_currency,
+                metadata={
+                    'offer_amount': str(offer_amount),
+                    'markup': str(markup),
+                    'order_type': 'instant'
+                }
             )
             
-            payment_intent = duffel_service.create_payment_intent(final_amount, target_currency)
+            # Save to database for tracking
+            from .models import PaymentIntent, Order
+            try:
+                order = Order.objects.get(id=data.get('order_id'))
+                PaymentIntent.objects.create(
+                    id=payment_intent['data']['id'],
+                    order=order,
+                    amount=final_amount,
+                    currency=target_currency,
+                    client_secret=payment_intent['data']['client_secret'],
+                    metadata=payment_intent['data']['metadata']
+                )
+            except Exception as e:
+                logger.warning(f"Failed to save payment intent to database: {str(e)}")
             
             return Response({
                 'payment_intent': payment_intent['data'],
-                'client_token': payment_intent['data']['client_token'],
-            })
+                'client_token': payment_intent['data']['client_secret'],
+            }, status=status.HTP_200_OK)
             
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
+            logger.error(f"Payment intent creation failed: {str(e)}")
+            return Response(
+                {'error': 'Failed to create payment intent', 'details': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class ConfirmPaymentIntentView(APIView):
+    """
+    Confirm payment intent and create actual payment
+    """
     
     def post(self, request):
         serializer = PaymentIntentConfirmSerializer(data=request.data)
@@ -1737,17 +2181,47 @@ class ConfirmPaymentIntentView(APIView):
         
         try:
             payment_intent_id = serializer.validated_data['payment_intent_id']
-            confirmed_intent = duffel_service.confirm_payment_intent(payment_intent_id)
+            payment_method = request.data.get('payment_method', {})
             
-            return Response({'payment_intent': confirmed_intent['data']})
+            # Confirm payment intent (this creates the actual Duffel payment)
+            confirmed_intent = duffel_service.confirm_payment_intent(
+                payment_intent_id, 
+                payment_method
+            )
+            
+            # Update payment intent status in database
+            from .models import PaymentIntent
+            try:
+                intent = PaymentIntent.objects.get(id=payment_intent_id)
+                intent.status = 'succeeded'
+                intent.save()
+            except PaymentIntent.DoesNotExist:
+                pass
+            
+            return Response({
+                'payment_intent': confirmed_intent['data'],
+                'status': 'succeeded'
+            })
             
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
+            logger.error(f"Payment confirmation failed: {str(e)}")
+            
+            # Update payment intent status to failed
+            from .models import PaymentIntent
+            try:
+                intent = PaymentIntent.objects.get(id=serializer.validated_data['payment_intent_id'])
+                intent.status = 'failed'
+                intent.save()
+            except:
+                pass
+            
+            return Response(
+                {'error': 'Payment confirmation failed', 'details': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 class PayHoldOrderView(APIView):
-    """Pay for a hold order"""
+    """Pay for a hold order - MAIN PAYMENT ENDPOINT"""
     
     def post(self, request):
         serializer = HoldOrderPaymentSerializer(data=request.data)
@@ -1756,13 +2230,930 @@ class PayHoldOrderView(APIView):
         
         try:
             data = serializer.validated_data
+            order_id = data['order_id']
+            
+            # Validate payment requirements
+            is_valid, error_message = duffel_service.validate_payment_requirements(order_id)
+            if not is_valid:
+                return Response(
+                    {'error': 'Payment validation failed', 'details': error_message},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Create payment for hold order
             payment = duffel_service.create_hold_order_payment(
-                data['order_id'], data['amount'], data['currency'], data['payment_type']
+                order_id=data['order_id'],
+                amount=data['amount'],
+                currency=data['currency'],
+                payment_type=data.get('payment_type', 'balance')
             )
             
-            return Response({'payment': payment['data']})
+            # Update order status in local database
+            from .models import Order, Payment
+            try:
+                order = Order.objects.get(id=order_id)
+                order.status = 'confirmed'
+                order.save()
+                
+                # Save payment details
+                Payment.objects.create(
+                    id=payment['data']['id'],
+                    order=order,
+                    type=payment['data']['type'],
+                    amount=payment['data']['amount'],
+                    currency=payment['data']['currency'],
+                    status='completed'
+                )
+            except Exception as e:
+                logger.warning(f"Failed to update local database: {str(e)}")
+            
+            return Response({
+                'payment': payment['data'],
+                'status': 'succeeded',
+                'message': 'Payment completed successfully'
+            })
             
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+            logger.error(f"Hold order payment failed: {str(e)}")
+            return Response(
+                {'error': 'Payment failed', 'details': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
+class PaymentSuccessView(APIView):
+    """
+    Handle successful payment and display confirmation
+    """
+    
+    def get(self, request, order_id=None):
+        try:
+            if not order_id:
+                order_id = request.GET.get('order_id')
+            
+            if not order_id:
+                return Response(
+                    {'error': 'Order ID is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get order details from Duffel
+            order_data = duffel_service.get_order(order_id)
+            order = order_data.get('data', {})
+            
+            # Get payment details
+            payments = order.get('payments', [])
+            latest_payment = payments[-1] if payments else {}
+            
+            # Prepare confirmation data
+            confirmation_data = {
+                'order': {
+                    'id': order.get('id'),
+                    'booking_reference': order.get('booking_reference'),
+                    'status': order.get('type'),
+                    'total_amount': order.get('total_amount'),
+                    'total_currency': order.get('total_currency'),
+                    'created_at': order.get('created_at'),
+                },
+                'payment': {
+                    'id': latest_payment.get('id'),
+                    'type': latest_payment.get('type'),
+                    'amount': latest_payment.get('amount'),
+                    'currency': latest_payment.get('currency'),
+                    'status': 'completed',
+                },
+                'passengers': [],
+                'flights': []
+            }
+            
+            # Add passenger details
+            for passenger in order.get('passengers', []):
+                confirmation_data['passengers'].append({
+                    'given_name': passenger.get('given_name'),
+                    'family_name': passenger.get('family_name'),
+                    'title': passenger.get('title'),
+                    'born_on': passenger.get('born_on'),
+                    'email': passenger.get('email'),
+                })
+            
+            # Add flight details
+            for slice_obj in order.get('slices', []):
+                for segment in slice_obj.get('segments', []):
+                    confirmation_data['flights'].append({
+                        'airline': segment.get('operating_carrier', {}).get('name'),
+                        'flight_number': segment.get('marketing_carrier_flight_number'),
+                        'departure': {
+                            'airport': segment.get('origin', {}).get('name'),
+                            'iata_code': segment.get('origin', {}).get('iata_code'),
+                            'time': segment.get('departing_at'),
+                        },
+                        'arrival': {
+                            'airport': segment.get('destination', {}).get('name'),
+                            'iata_code': segment.get('destination', {}).get('iata_code'),
+                            'time': segment.get('arriving_at'),
+                        }
+                    })
+            
+            return Response(confirmation_data)
+            
+        except Exception as e:
+            logger.error(f"Payment success view error: {str(e)}")
+            return Response(
+                {'error': 'Failed to load order confirmation'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+@method_decorator(csrf_exempt, name='dispatch')
+class DuffelWebhookView(APIView):
+    """
+    Handle Duffel webhooks for payment events
+    """
+    
+    def post(self, request):
+        try:
+            # Verify webhook signature (implement based on Duffel's webhook security)
+            signature = request.headers.get('Duffel-Signature')
+            if not self._verify_webhook_signature(request.body, signature):
+                return Response({'error': 'Invalid signature'}, status=status.HTTP_401_UNAUTHORIZED)
+            
+            payload = json.loads(request.body)
+            event_type = payload.get('type')
+            data = payload.get('data', {})
+            
+            # Store webhook event
+            from .models import PaymentWebhook
+            PaymentWebhook.objects.create(
+                event_id=payload.get('id'),
+                event_type=event_type,
+                resource_type=data.get('type'),
+                resource_id=data.get('id'),
+                data=payload
+            )
+            
+            # Process different event types
+            if event_type == 'payment.succeeded':
+                self._handle_payment_succeeded(data)
+            elif event_type == 'payment.failed':
+                self._handle_payment_failed(data)
+            elif event_type == 'order.airline_updated':
+                self._handle_order_updated(data)
+            
+            return Response({'status': 'processed'})
+            
+        except Exception as e:
+            logger.error(f"Webhook processing error: {str(e)}")
+            return Response(
+                {'error': 'Webhook processing failed'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def _verify_webhook_signature(self, payload: bytes, signature: str) -> bool:
+        """Verify webhook signature - implement based on Duffel's documentation"""
+        # TODO: Implement webhook signature verification
+        return True  # Remove this in production
+    
+    def _handle_payment_succeeded(self, data: Dict):
+        """Handle successful payment webhook"""
+        payment_id = data.get('id')
+        order_id = data.get('order_id')
+        
+        logger.info(f"Payment {payment_id} succeeded for order {order_id}")
+        
+        # Update local database
+        try:
+            from .models import Payment, Order
+            payment, created = Payment.objects.update_or_create(
+                id=payment_id,
+                defaults={
+                    'status': 'completed',
+                    'duffel_data': data
+                }
+            )
+            
+            if order_id:
+                Order.objects.filter(id=order_id).update(status='confirmed')
+        except Exception as e:
+            logger.error(f"Failed to update local database for payment {payment_id}: {str(e)}")
+    
+    def _handle_payment_failed(self, data: Dict):
+        """Handle failed payment webhook"""
+        payment_id = data.get('id')
+        logger.warning(f"Payment {payment_id} failed")
+        
+        try:
+            from .models import Payment
+            Payment.objects.filter(id=payment_id).update(status='failed')
+        except Exception as e:
+            logger.error(f"Failed to update payment status: {str(e)}")
+    
+    def _handle_order_updated(self, data: Dict):
+        """Handle order update webhook"""
+        order_id = data.get('id')
+        logger.info(f"Order {order_id} updated")
+        
+        # Sync order changes to local database
+        try:
+            from .models import Order
+            order_data = duffel_service.get_order(order_id)
+            Order.objects.filter(id=order_id).update(
+                duffel_data=order_data.get('data', {})
+            )
+        except Exception as e:
+            logger.error(f"Failed to sync order {order_id}: {str(e)}")
+
+
+# views.py - Add these new views
+
+class MyFlightsView(APIView):
+    """Get user's flight orders with detailed information"""
+    
+    def get(self, request):
+        try:
+            # Get user from authentication
+            user = request.user
+            if not user.is_authenticated:
+                return Response(
+                    {"status": "error", "message": "Authentication required"},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+            
+            # Get orders from local database
+            orders = Order.objects.filter(
+                passengers__email=user.email
+            ).distinct().prefetch_related('passengers', 'payments')
+            
+            orders_data = []
+            for order in orders:
+                order_data = self._format_order_data(order)
+                orders_data.append(order_data)
+            
+            return Response({
+                "status": "success",
+                "data": orders_data,
+                "total": len(orders_data)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error fetching user flights: {str(e)}")
+            return Response(
+                {"status": "error", "message": "Failed to fetch flights"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def _format_order_data(self, order):
+        """Format order data for frontend display"""
+        duffel_data = order.duffel_data or {}
+        slices = duffel_data.get('slices', [])
+        
+        # Extract flight information
+        flight_info = self._extract_flight_info(slices)
+        
+        # Get passenger count
+        passenger_count = order.passengers.count()
+        
+        # Get payment status
+        payment_status = "pending"
+        payments = order.payments.all()
+        if payments.exists():
+            payment_status = payments.first().status
+        
+        return {
+            "id": order.id,
+            "booking_reference": order.booking_reference,
+            "type": order.type,
+            "status": duffel_data.get('status', 'confirmed'),
+            "total_amount": str(order.total_amount),
+            "total_currency": order.total_currency,
+            "created_at": order.created_at.isoformat(),
+            "passenger_count": passenger_count,
+            "payment_status": payment_status,
+            "flight_info": flight_info,
+            "duffel_order_id": duffel_data.get('id'),
+            "metadata": order.metadata or {}
+        }
+    
+    def _extract_flight_info(self, slices):
+        """Extract flight information from slices"""
+        if not slices:
+            return {}
+        
+        first_slice = slices[0]
+        segments = first_slice.get('segments', [])
+        if not segments:
+            return {}
+        
+        first_segment = segments[0]
+        last_segment = segments[-1]
+        
+        operating_carrier = first_segment.get('operating_carrier', {})
+        marketing_carrier = first_segment.get('marketing_carrier', {})
+        
+        return {
+            "airline": operating_carrier.get('name') or marketing_carrier.get('name'),
+            "flight_number": f"{marketing_carrier.get('iata_code', '')}{first_segment.get('marketing_carrier_flight_number', '')}",
+            "departure": {
+                "airport": first_segment.get('origin', {}).get('iata_code'),
+                "airport_name": first_segment.get('origin', {}).get('name'),
+                "time": first_segment.get('departing_at'),
+                "terminal": first_segment.get('origin_terminal')
+            },
+            "arrival": {
+                "airport": last_segment.get('destination', {}).get('iata_code'),
+                "airport_name": last_segment.get('destination', {}).get('name'),
+                "time": last_segment.get('arriving_at'),
+                "terminal": last_segment.get('destination_terminal')
+            },
+            "duration": first_slice.get('duration'),
+            "cabin_class": segments[0].get('passengers', [{}])[0].get('cabin_class', 'economy')
+        }
+
+
+class DuffelPaymentView(APIView):
+    """Handle Duffel payments for instant and hold orders"""
+    
+    def __init__(self):
+        super().__init__()
+        self.order_manager = DuffelOrderManager()
+    
+    def post(self, request):
+        """Create payment for a hold order"""
+        try:
+            order_id = request.data.get('order_id')
+            payment_type = request.data.get('type', 'balance')  # balance, card, arc_bsp_cash
+            three_d_secure_session_id = request.data.get('three_d_secure_session_id')
+            
+            if not order_id:
+                return Response(
+                    {"status": "error", "message": "Order ID is required"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get order details to verify amount
+            order_response = self.order_manager._make_request(
+                "GET", f"/air/orders/{order_id}"
+            )
+            order_data = order_response.get('data', {})
+            
+            if not order_data:
+                return Response(
+                    {"status": "error", "message": "Order not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Check if order is a hold order
+            if order_data.get('type') != 'hold':
+                return Response(
+                    {"status": "error", "message": "Only hold orders can be paid for"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Prepare payment data
+            payment_data = {
+                "type": payment_type,
+                "currency": order_data.get('total_currency'),
+                "amount": order_data.get('total_amount')
+            }
+            
+            if three_d_secure_session_id:
+                payment_data["three_d_secure_session_id"] = three_d_secure_session_id
+            
+            # Create payment in Duffel
+            payment_response = self.order_manager._make_request(
+                "POST", 
+                "/air/payments",
+                {
+                    "order_id": order_id,
+                    "payment": payment_data
+                }
+            )
+            
+            payment_result = payment_response.get('data', {})
+            
+            # Update local database
+            self._update_local_payment(order_id, payment_result, payment_type)
+            
+            return Response({
+                "status": "success",
+                "message": "Payment processed successfully",
+                "data": payment_result
+            }, status=status.HTTP_200_OK)
+            
+        except requests.exceptions.HTTPError as e:
+            error_data = {}
+            try:
+                error_data = e.response.json()
+            except:
+                error_data = {"message": str(e)}
+            
+            logger.error(f"Payment failed: {error_data}")
+            
+            return Response({
+                "status": "error",
+                "message": "Payment failed",
+                "error": error_data
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            logger.error(f"Payment processing error: {str(e)}")
+            return Response({
+                "status": "error",
+                "message": "Payment processing failed"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _update_local_payment(self, order_id, payment_data, payment_type):
+        """Update local database with payment information"""
+        try:
+            order = Order.objects.get(id=order_id)
+            Payment.objects.update_or_create(
+                order=order,
+                defaults={
+                    'id': payment_data.get('id'),
+                    'type': payment_type,
+                    'amount': payment_data.get('amount'),
+                    'currency': payment_data.get('currency'),
+                    'status': 'completed',
+                    'duffel_data': payment_data
+                }
+            )
+            
+            # Update order status if needed
+            order.duffel_data['status'] = 'confirmed'
+            order.save()
+            
+        except Order.DoesNotExist:
+            logger.warning(f"Order {order_id} not found in local database")
+        except Exception as e:
+            logger.error(f"Failed to update local payment: {str(e)}")
+
+
+class OrderCancelView(APIView):
+    """Cancel an order"""
+    
+    def __init__(self):
+        super().__init__()
+        self.order_manager = DuffelOrderManager()
+    
+    def post(self, request, order_id):
+        """Cancel an order in Duffel and update local database"""
+        try:
+            # Cancel order in Duffel
+            cancel_response = self.order_manager._make_request(
+                "POST", 
+                f"/air/orders/{order_id}/actions/cancel"
+            )
+            
+            cancel_data = cancel_response.get('data', {})
+            
+            # Update local database
+            self._update_local_order_status(order_id, 'cancelled')
+            
+            return Response({
+                "status": "success",
+                "message": "Order cancelled successfully",
+                "data": cancel_data
+            }, status=status.HTTP_200_OK)
+            
+        except requests.exceptions.HTTPError as e:
+            error_data = {}
+            try:
+                error_data = e.response.json()
+            except:
+                error_data = {"message": str(e)}
+            
+            logger.error(f"Order cancellation failed: {error_data}")
+            
+            return Response({
+                "status": "error",
+                "message": "Order cancellation failed",
+                "error": error_data
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as e:
+            logger.error(f"Order cancellation error: {str(e)}")
+            return Response({
+                "status": "error",
+                "message": "Order cancellation failed"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _update_local_order_status(self, order_id, status):
+        """Update local order status"""
+        try:
+            order = Order.objects.get(id=order_id)
+            if order.duffel_data:
+                order.duffel_data['status'] = status
+                order.save()
+        except Order.DoesNotExist:
+            logger.warning(f"Order {order_id} not found in local database")
+
+
+class FlightOrderDetailsView(APIView):
+    """Get detailed information about a specific flight order"""
+    
+    def __init__(self):
+        super().__init__()
+        self.order_manager = DuffelOrderManager()
+    
+    def get(self, request, order_id):
+        """Get comprehensive order details"""
+        try:
+            # Get order from Duffel
+            order_response = self.order_manager._make_request(
+                "GET", f"/air/orders/{order_id}"
+            )
+            duffel_order = order_response.get('data', {})
+            
+            # Get local order data
+            try:
+                local_order = Order.objects.get(id=order_id)
+                passengers_data = self._get_passengers_data(local_order)
+                payments_data = self._get_payments_data(local_order)
+            except Order.DoesNotExist:
+                local_order = None
+                passengers_data = []
+                payments_data = []
+            
+            # Format response
+            order_details = self._format_order_details(
+                duffel_order, local_order, passengers_data, payments_data
+            )
+            
+            return Response({
+                "status": "success",
+                "data": order_details
+            }, status=status.HTTP_200_OK)
+            
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                return Response({
+                    "status": "error",
+                    "message": "Order not found"
+                }, status=status.HTTP_404_NOT_FOUND)
+            raise
+            
+        except Exception as e:
+            logger.error(f"Error fetching order details: {str(e)}")
+            return Response({
+                "status": "error",
+                "message": "Failed to fetch order details"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _get_passengers_data(self, order):
+        """Get formatted passengers data"""
+        passengers = []
+        for order_passenger in OrderPassenger.objects.filter(order=order).select_related('passenger'):
+            passenger = order_passenger.passenger
+            passengers.append({
+                "id": passenger.id,
+                "title": passenger.title,
+                "given_name": passenger.given_name,
+                "family_name": passenger.family_name,
+                "type": order_passenger.passenger_type,
+                "email": passenger.email,
+                "phone_number": passenger.phone_number,
+                "born_on": passenger.born_on,
+                "gender": passenger.gender,
+                "identity_documents": passenger.identity_documents
+            })
+        return passengers
+    
+    def _get_payments_data(self, order):
+        """Get formatted payments data"""
+        payments = []
+        for payment in Payment.objects.filter(order=order):
+            payments.append({
+                "id": payment.id,
+                "type": payment.type,
+                "amount": str(payment.amount),
+                "currency": payment.currency,
+                "status": payment.status,
+                "created_at": payment.created_at.isoformat() if payment.created_at else None
+            })
+        return payments
+    
+    def _format_order_details(self, duffel_order, local_order, passengers, payments):
+        """Format comprehensive order details"""
+        slices = duffel_order.get('slices', [])
+        flight_info = self._extract_detailed_flight_info(slices)
+        
+        return {
+            "order_info": {
+                "id": duffel_order.get('id'),
+                "type": duffel_order.get('type'),
+                "booking_reference": duffel_order.get('booking_reference'),
+                "status": duffel_order.get('status'),
+                "total_amount": duffel_order.get('total_amount'),
+                "total_currency": duffel_order.get('total_currency'),
+                "created_at": duffel_order.get('created_at'),
+                "expires_at": duffel_order.get('expires_at'),
+                "live_mode": duffel_order.get('live_mode')
+            },
+            "flight_info": flight_info,
+            "passengers": passengers,
+            "payments": payments,
+            "conditions": duffel_order.get('conditions', {}),
+            "metadata": local_order.metadata if local_order else {}
+        }
+    
+    def _extract_detailed_flight_info(self, slices):
+        """Extract detailed flight information from slices"""
+        flight_info = {
+            "slices": [],
+            "total_duration": 0,
+            "total_stops": 0
+        }
+        
+        for slice_idx, slice_data in enumerate(slices):
+            segments = slice_data.get('segments', [])
+            slice_info = {
+                "slice_number": slice_idx + 1,
+                "origin": slice_data.get('origin', {}),
+                "destination": slice_data.get('destination', {}),
+                "duration": slice_data.get('duration'),
+                "segments": []
+            }
+            
+            for segment in segments:
+                operating_carrier = segment.get('operating_carrier', {})
+                marketing_carrier = segment.get('marketing_carrier', {})
+                
+                segment_info = {
+                    "airline": {
+                        "name": operating_carrier.get('name'),
+                        "iata_code": operating_carrier.get('iata_code'),
+                        "logo": operating_carrier.get('logo_lockup_url')
+                    },
+                    "flight_number": f"{marketing_carrier.get('iata_code', '')}{segment.get('marketing_carrier_flight_number', '')}",
+                    "departure": {
+                        "airport": segment.get('origin', {}),
+                        "time": segment.get('departing_at'),
+                        "terminal": segment.get('origin_terminal')
+                    },
+                    "arrival": {
+                        "airport": segment.get('destination', {}),
+                        "time": segment.get('arriving_at'),
+                        "terminal": segment.get('destination_terminal')
+                    },
+                    "duration": segment.get('duration'),
+                    "aircraft": segment.get('aircraft', {}),
+                    "cabin_class": segment.get('passengers', [{}])[0].get('cabin_class', 'economy')
+                }
+                slice_info["segments"].append(segment_info)
+            
+            flight_info["slices"].append(slice_info)
+        
+        return flight_info
+    
+
+# views.py - Add these views
+
+class MyFlightsView(APIView):
+    """Get user's flight bookings"""
+    
+    def get(self, request):
+        try:
+            # Get orders from Duffel API
+            duffel_client = DuffelOrderManager()
+            orders_response = duffel_client._make_request("GET", "/air/orders", {"limit": 50})
+            
+            if not orders_response or 'data' not in orders_response:
+                return Response({
+                    "status": "success",
+                    "message": "No flights found",
+                    "flights": []
+                }, status=200)
+            
+            flights = []
+            for order_data in orders_response['data']:
+                flight = self._transform_order_to_flight(order_data)
+                if flight:
+                    flights.append(flight)
+            
+            # Sort by creation date, newest first
+            flights.sort(key=lambda x: x['created_at'], reverse=True)
+            
+            return Response({
+                "status": "success",
+                "message": f"Found {len(flights)} flights",
+                "flights": flights
+            }, status=200)
+            
+        except Exception as e:
+            logger.error(f"Error fetching user flights: {str(e)}")
+            return Response({
+                "status": "error",
+                "message": "Failed to fetch flights",
+                "error": str(e)
+            }, status=500)
+    
+    def _transform_order_to_flight(self, order_data: Dict) -> Optional[Dict]:
+        """Transform Duffel order data to flight booking format"""
+        try:
+            slices = order_data.get('slices', [])
+            if not slices:
+                return None
+            
+            # Get first slice for basic info
+            first_slice = slices[0]
+            segments = first_slice.get('segments', [])
+            if not segments:
+                return None
+            
+            first_segment = segments[0]
+            last_segment = segments[-1]
+            
+            # Calculate duration
+            total_duration_minutes = 0
+            for segment in segments:
+                duration_str = segment.get('duration')
+                if duration_str:
+                    try:
+                        if duration_str.startswith('PT'):
+                            hours = 0
+                            minutes = 0
+                            if 'H' in duration_str:
+                                hours = int(duration_str.split('H')[0].replace('PT',''))
+                            if 'M' in duration_str:
+                                min_part = duration_str.split('H')[1] if 'H' in duration_str else duration_str.replace('PT','')
+                                minutes = int(min_part.replace('M',''))
+                            total_duration_minutes += hours * 60 + minutes
+                    except:
+                        continue
+            
+            duration_str = f"{total_duration_minutes//60}h {total_duration_minutes%60}m"
+            
+            # Format times
+            def format_time(iso_time):
+                if not iso_time:
+                    return "N/A"
+                try:
+                    dt = datetime.fromisoformat(iso_time.replace('Z','+00:00'))
+                    return dt.strftime("%I:%M %p").lstrip('0')
+                except:
+                    return "N/A"
+            
+            flight_data = {
+                "order_id": order_data.get('id'),
+                "airline": first_segment.get('operating_carrier', {}).get('name', 'Unknown Airline'),
+                "flight_number": first_segment.get('marketing_carrier_flight_number', ''),
+                "departure": first_segment.get('origin', {}).get('iata_code', ''),
+                "arrival": last_segment.get('destination', {}).get('iata_code', ''),
+                "departure_time": first_segment.get('departing_at'),
+                "arrival_time": last_segment.get('arriving_at'),
+                "departure_city": first_segment.get('origin', {}).get('city_name', ''),
+                "arrival_city": last_segment.get('destination', {}).get('city_name', ''),
+                "duration": duration_str,
+                "status": self._get_order_status(order_data),
+                "total_amount": order_data.get('total_amount'),
+                "currency": order_data.get('total_currency', 'GBP'),
+                "passengers": order_data.get('passengers', []),
+                "booking_reference": order_data.get('booking_reference', ''),
+                "created_at": order_data.get('created_at'),
+                "cabin_class": first_segment.get('passengers', [{}])[0].get('cabin_class', 'economy').title() if first_segment.get('passengers') else 'Economy',
+                "trip_type": "Round Trip" if len(slices) > 1 else "One Way",
+                "payment_status": self._get_payment_status(order_data)
+            }
+            
+            return flight_data
+            
+        except Exception as e:
+            logger.error(f"Error transforming order: {str(e)}")
+            return None
+    
+    def _get_order_status(self, order_data: Dict) -> str:
+        """Determine order status"""
+        conditions = order_data.get('conditions', {})
+        
+        if order_data.get('cancelled_at'):
+            return "Cancelled"
+        elif conditions.get('change_before_departure') or conditions.get('refund_before_departure'):
+            return "Confirmed"
+        else:
+            return "Pending"
+    
+    def _get_payment_status(self, order_data: Dict) -> str:
+        """Determine payment status"""
+        payments = order_data.get('payments', [])
+        if payments:
+            return "Paid"
+        return "Pending"
+
+
+class FlightBookingDetailView(APIView):
+    """Get detailed information about a specific flight booking"""
+    
+    def get(self, request, order_id):
+        try:
+            duffel_client = DuffelOrderManager()
+            order_response = duffel_client._make_request("GET", f"/air/orders/{order_id}")
+            
+            if not order_response or 'data' not in order_response:
+                return Response({
+                    "status": "error",
+                    "message": "Flight booking not found"
+                }, status=404)
+            
+            order_data = order_response['data']
+            
+            # Transform order data to detailed flight booking format
+            detailed_booking = self._get_detailed_booking_info(order_data)
+            
+            return Response({
+                "status": "success",
+                "message": "Flight booking details retrieved",
+                "booking": detailed_booking
+            }, status=200)
+            
+        except Exception as e:
+            logger.error(f"Error fetching flight booking details: {str(e)}")
+            return Response({
+                "status": "error",
+                "message": "Failed to fetch booking details",
+                "error": str(e)
+            }, status=500)
+    
+    def _get_detailed_booking_info(self, order_data: Dict) -> Dict:
+        """Get detailed booking information"""
+        # Use the same transformation as MyFlightsView but add more details
+        base_booking = MyFlightsView()._transform_order_to_flight(order_data)
+        if not base_booking:
+            return {}
+        
+        # Add additional details
+        base_booking.update({
+            "slices": order_data.get('slices', []),
+            "conditions": order_data.get('conditions', {}),
+            "documents": order_data.get('documents', []),
+            "payments": order_data.get('payments', []),
+            "metadata": order_data.get('metadata', {}),
+            "services": order_data.get('services', []),
+            "total_emissions_kg": order_data.get('total_emissions_kg'),
+            "tax_amount": order_data.get('tax_amount'),
+            "base_amount": order_data.get('base_amount'),
+        })
+        
+        return base_booking
+
+
+class CancelFlightBookingView(APIView):
+    """Cancel a flight booking"""
+    
+    def post(self, request, order_id):
+        try:
+            duffel_client = DuffelOrderManager()
+            
+            # First get the order to check status
+            order_response = duffel_client._make_request("GET", f"/air/orders/{order_id}")
+            if not order_response or 'data' not in order_response:
+                return Response({
+                    "status": "error",
+                    "message": "Flight booking not found"
+                }, status=404)
+            
+            order_data = order_response['data']
+            
+            # Check if already cancelled
+            if order_data.get('cancelled_at'):
+                return Response({
+                    "status": "error",
+                    "message": "Booking is already cancelled"
+                }, status=400)
+            
+            # Create cancellation offer
+            cancellation_data = {
+                "data": {
+                    "order_id": order_id
+                }
+            }
+            
+            cancellation_response = duffel_client._make_request(
+                "POST", 
+                "/air/order_cancellations", 
+                cancellation_data
+            )
+            
+            if not cancellation_response or 'data' not in cancellation_response:
+                return Response({
+                    "status": "error",
+                    "message": "Failed to create cancellation"
+                }, status=400)
+            
+            cancellation_id = cancellation_response['data']['id']
+            
+            # Confirm cancellation
+            confirm_response = duffel_client._make_request(
+                "POST", 
+                f"/air/order_cancellations/{cancellation_id}/actions/confirm"
+            )
+            
+            return Response({
+                "status": "success",
+                "message": "Flight booking cancelled successfully",
+                "cancellation": confirm_response.get('data', {}) if confirm_response else {}
+            }, status=200)
+            
+        except Exception as e:
+            logger.error(f"Error cancelling flight booking: {str(e)}")
+            return Response({
+                "status": "error",
+                "message": "Failed to cancel booking",
+                "error": str(e)
+            }, status=500)
