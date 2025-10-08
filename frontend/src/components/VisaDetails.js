@@ -33,14 +33,14 @@ useEffect(() => {
       
       // First fetch country details by slug
       const countryResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-countries/${countryData.slug}/`
+        `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-countries/${countryData.slug}/`
       );
       if (!countryResponse.ok) throw new Error('Failed to fetch country details');
       const countryDetails = await countryResponse.json(); // Changed variable name here
       
       // Then fetch visa types for this country
       const visaTypesResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-countries/${countryDetails.slug}/visa-types/`
+        `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-countries/${countryDetails.slug}/visa-types/`
       );
       if (!visaTypesResponse.ok) throw new Error('Failed to fetch visa types');
       const visaTypesData = await visaTypesResponse.json();

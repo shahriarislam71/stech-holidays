@@ -11,7 +11,7 @@ class Command(BaseCommand):
             {
                 "title": "Economy Umrah Package",
                 "description": "A budget-friendly Umrah package with essential services for pilgrims.",
-                "duration": "10 Days",
+
                 "nights": 7,
                 "days": 10,
                 "max_people": 50,
@@ -41,7 +41,7 @@ class Command(BaseCommand):
             {
                 "title": "Standard Umrah Package",
                 "description": "A comfortable Umrah package with good quality services.",
-                "duration": "12 Days",
+
                 "nights": 9,
                 "days": 12,
                 "max_people": 30,

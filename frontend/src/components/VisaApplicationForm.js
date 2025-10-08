@@ -41,7 +41,7 @@ export default function VisaApplicationForm({ countryData, visaType }) {
     try {
       const token = localStorage.getItem('authToken');
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-applications/`,
+        `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-applications/`,
         {
           method: 'POST',
           headers: {
@@ -96,7 +96,7 @@ export default function VisaApplicationForm({ countryData, visaType }) {
         const formData = new FormData();
         formData.append('file', file);
         
-        return fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/upload-document/`, {
+        return fetch(`${process.env.NEXT_PUBLIC_API_URL}/upload-document/`, {
           method: 'POST',
           headers: {
             'Authorization': `Token ${localStorage.getItem('authToken')}`

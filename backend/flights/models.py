@@ -1,5 +1,8 @@
 from django.db import models
 from django.utils import timezone
+from django.conf import settings
+
+
 
 class Passenger(models.Model):
     GENDER_CHOICES = [
@@ -34,6 +37,12 @@ class Order(models.Model):
     ]
     
     id = models.CharField(max_length=50, primary_key=True)  # Duffel order ID
+    user = models.ForeignKey(  # ADD THIS FIELD
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE, 
+        related_name='flight_orders',
+        null=True, blank=True
+    )
     type = models.CharField(max_length=10, choices=ORDER_TYPES)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     total_currency = models.CharField(max_length=3, null=True, blank=True)

@@ -28,7 +28,11 @@ const Breadcrumb = ({ destination }) => {
 
 const BookingForm = ({ packageData, onClose, destination }) => {
   const { user, initGoogleLogin } = useAuth({ redirectToLogin: false });
-  const [departureDate, setDepartureDate] = useState('');
+ const [departureDate, setDepartureDate] = useState(() => {
+  const today = new Date();
+  return today.toISOString().split('T')[0]; // gives format 'YYYY-MM-DD'
+});
+
   const [travelers, setTravelers] = useState(1);
   const [contactName, setContactName] = useState('');
   const [email, setEmail] = useState('');
@@ -182,7 +186,7 @@ const BookingForm = ({ packageData, onClose, destination }) => {
                         value={departureDate}
                         onChange={(e) => setDepartureDate(e.target.value)}
                       />
-                      <FiCalendar className="absolute right-3 top-3.5 text-gray-400" />
+
                     </div>
                   </div>
                   
@@ -198,7 +202,7 @@ const BookingForm = ({ packageData, onClose, destination }) => {
                         onChange={(e) => setTravelers(parseInt(e.target.value))}
                         required
                       />
-                      <FiUsers className="absolute right-3 top-3.5 text-gray-400" />
+
                     </div>
                   </div>
                 </div>

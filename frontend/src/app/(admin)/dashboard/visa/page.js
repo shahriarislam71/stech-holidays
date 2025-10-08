@@ -79,7 +79,7 @@ export default function VisaAdminPage() {
         const token = localStorage.getItem('authToken');
         
         // Fetch applications with filters
-        let appsUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-applications/`;
+        let appsUrl = `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-applications/`;
         const params = new URLSearchParams();
         if (statusFilter !== 'all') params.append('status', statusFilter);
         if (dateFilter !== 'all') params.append('date_range', dateFilter);
@@ -94,14 +94,14 @@ export default function VisaAdminPage() {
         setApplications(Array.isArray(appsData) ? appsData : []);
         
         // Fetch countries
-        const countriesRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-countries/`, {
+        const countriesRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-countries/`, {
           headers: { 'Authorization': `Token ${token}` }
         });
         const countriesData = await countriesRes.json();
         setCountries(Array.isArray(countriesData) ? countriesData : []);
         
         // Fetch visa types
-        const typesRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-types/`, {
+        const typesRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-types/`, {
           headers: { 'Authorization': `Token ${token}` }
         });
         const typesData = await typesRes.json();
@@ -126,7 +126,7 @@ export default function VisaAdminPage() {
     try {
       const token = localStorage.getItem('authToken');
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-applications/${applicationId}/`,
+        `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-applications/${applicationId}/`,
         {
           method: 'PATCH',
           headers: {
@@ -162,7 +162,7 @@ export default function VisaAdminPage() {
       const token = localStorage.getItem('authToken');
       const promises = selectedApplications.map(appId => 
         fetch(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-applications/${appId}/`,
+          `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-applications/${appId}/`,
           {
             method: 'PATCH',
             headers: {
@@ -194,7 +194,7 @@ export default function VisaAdminPage() {
     try {
       const token = localStorage.getItem('authToken');
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-applications/${applicationId}/download/`,
+        `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-applications/${applicationId}/download/`,
         {
           headers: { 'Authorization': `Token ${token}` }
         }
@@ -227,7 +227,7 @@ export default function VisaAdminPage() {
     try {
       const token = localStorage.getItem('authToken');
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-applications/${currentApplication.id}/message/`,
+        `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-applications/${currentApplication.id}/message/`,
         {
           method: 'POST',
           headers: {
@@ -281,7 +281,7 @@ export default function VisaAdminPage() {
     if (window.confirm('Are you sure you want to delete this country? All associated visa types will also be deleted.')) {
       try {
         const token = localStorage.getItem('authToken');
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-countries/${id}/`, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-countries/${id}/`, {
           method: 'DELETE',
           headers: { 'Authorization': `Token ${token}` }
         });
@@ -317,7 +317,7 @@ export default function VisaAdminPage() {
         formData.append('cover_image', countryForm.cover_image);
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-countries/`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-countries/`, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${token}`,
@@ -369,7 +369,7 @@ export default function VisaAdminPage() {
         formData.append('cover_image', countryForm.cover_image);
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-countries/${currentCountry.id}/`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-countries/${currentCountry.id}/`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Token ${token}`,
@@ -424,7 +424,7 @@ export default function VisaAdminPage() {
         formData.append('image', visaTypeForm.image);
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-types/`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-types/`, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${token}`,
@@ -490,7 +490,7 @@ export default function VisaAdminPage() {
         formData.append('image', visaTypeForm.image);
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-types/${currentVisaType.id}/`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-types/${currentVisaType.id}/`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Token ${token}`,
@@ -517,7 +517,7 @@ export default function VisaAdminPage() {
     if (window.confirm('Are you sure you want to delete this visa type? All applications for this type will be kept but marked as "type deleted".')) {
       try {
         const token = localStorage.getItem('authToken');
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/visa-types/${id}/`, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-types/${id}/`, {
           method: 'DELETE',
           headers: { 'Authorization': `Token ${token}` }
         });
@@ -1467,7 +1467,7 @@ export default function VisaAdminPage() {
                           <img 
                             src={
                               typeof countryForm.cover_image === 'string' ? 
-                              `${process.env.NEXT_PUBLIC_API_BASE_URL}${countryForm.cover_image}` : 
+                              `${process.env.NEXT_PUBLIC_API_URL}${countryForm.cover_image}` : 
                               URL.createObjectURL(countryForm.cover_image)
                             }
                             alt="Cover Preview" 

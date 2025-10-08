@@ -15,7 +15,7 @@ export default function VisaTracker() {
     setIsLoading(true);
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/track-visa/${referenceNumber}/`
+        `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/track-visa/${referenceNumber}/`
       );
       
       if (!response.ok) {

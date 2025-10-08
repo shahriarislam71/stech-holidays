@@ -261,7 +261,7 @@ class FlightListView(APIView):
                 }
             }
 
-            print("Sending to Duffel API:", search_data)
+
 
             # Duffel API request
             url = "https://api.duffel.com/air/offer_requests"
@@ -1401,15 +1401,15 @@ class InitiateFlightPaymentView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        print("🔵 [START] InitiateFlightPaymentView")
+
         data = request.data
-        print("📩 Incoming data:", dict(data))
+
 
         # Required at initiation
         required = ["total_amount", "currency", "offer_id", "passenger_ids"]
         missing = [f for f in required if not data.get(f)]
         if missing:
-            print("❌ Missing fields at initiation:", missing)
+
             return Response({"success": False, "error": f"Missing fields: {', '.join(missing)}"}, status=400)
 
         # Parse total_amount
@@ -1420,7 +1420,7 @@ class InitiateFlightPaymentView(APIView):
 
         # Transaction ID
         tran_id = f"TXN_{uuid.uuid4().hex[:10].upper()}"
-        print(f"🆔 Transaction ID: {tran_id}")
+
 
         passenger_ids = data.get("passenger_ids", [])
         passengers_detail = data.get("passengers", [])
@@ -1485,7 +1485,7 @@ class InitiateFlightPaymentView(APIView):
             checkout_data=checkout_payload,
             initiation_response=r_data
         )
-        print("💾 Saved FlightPaymentTransaction:", tx.id)
+
 
         return Response({
             "success": True,
@@ -1519,8 +1519,8 @@ class FlightPaymentSuccessView(APIView):
     permission_classes = [AllowAny]
 
     def handle_success_payment(self, data):
-        print("🔵 [START] handle_success_payment")
-        print("📩 Callback data:", dict(data))
+
+
 
         tran_id = data.get("tran_id")
         if isinstance(tran_id, list):
@@ -1558,14 +1558,14 @@ class FlightPaymentSuccessView(APIView):
         offer_data = None
         
         try:
-            print(f"🔄 Fetching original offer: {original_offer_id}")
+
             offer_resp = duffel_manager.get_offer_details(original_offer_id)
             offer_data = offer_resp.get("data", {})
-            print("✅ Original offer is still valid")
+
         except Exception as e:
-            print(f"❌ Original offer failed: {str(e)}")
+
             # Offer is expired - handle this specific case
-            print("💰 Payment was successful but offer expired")
+
             
             # Update transaction to reflect this specific error
             tx.status = "payment_success_offer_expired"
@@ -1589,10 +1589,10 @@ class FlightPaymentSuccessView(APIView):
         offer_total_currency = offer_data.get("total_currency")
         
         if not offer_total_amount:
-            print("❌ No total_amount in offer data")
+
             return redirect(f"{frontend_url}/payment/fail?tran_id={tran_id}&error=invalid_offer_amount")
 
-        print(f"💰 Using offer amount: {offer_total_amount} {offer_total_currency}")
+
 
         # Build validated passengers payload
         passengers_payload = []
@@ -1634,24 +1634,32 @@ class FlightPaymentSuccessView(APIView):
             }
         }
 
-        print("🧾 Sending Duffel order payload:")
-        print(json.dumps(order_body, indent=2))
+
+
 
         # Create Duffel order
         try:
             duffel_resp = duffel_manager._make_request("POST", "/air/orders", order_body)
             duffel_data = duffel_resp.get("data") or {}
-            print("✅ Duffel order created:", duffel_data.get("id"))
+
             
             # Save local order
             try:
                 order_creator = OrderCreationView()
                 saved_order = order_creator._save_order_to_database(
                     duffel_data, passengers_detail or [], checkout.get("metadata", {})
-                )
-                print("💾 Local order saved:", saved_order.id)
+    )
             except Exception as e:
-                print("⚠️ Local order save failed:", e)
+                # Log the error and still mark transaction as successful
+                print("❌ Order save failed:", e)
+                tx.status = "complete_success_but_local_save_failed"
+                tx.save()
+                return redirect(
+                    f"{frontend_url}/payment/success?"
+                    f"tran_id={tran_id}&order_id={duffel_data.get('id')}&paid=true&booking_type=flight"
+                )
+
+
                 # Still proceed since Duffel order was created successfully
 
             # Link transaction → order and mark as complete success
@@ -1660,10 +1668,12 @@ class FlightPaymentSuccessView(APIView):
             tx.status = "complete_success"
             tx.save()
 
-            return redirect(f"{frontend_url}/payment/success?tran_id={tran_id}&order_id={tx.order_id}&paid=true&booking_type=flight")
+            return redirect(
+                f"{frontend_url}/payment/success?tran_id={tran_id}&order_id={tx.order_id}&paid=true&booking_type=flight"
+    )
 
         except Exception as e:
-            print("❌ Duffel order creation failed:", str(e))
+
             # Mark transaction as payment success but order failed
             tx.status = "payment_success_order_failed"
             tx.save()
@@ -1688,7 +1698,7 @@ class FlightPaymentSuccessView(APIView):
             new_doc = dict(doc)
             uid = str(new_doc.get("unique_identifier", "")).strip()
             if len(uid) > 15:
-                print(f"⚠️ Trimming long unique_identifier '{uid}' → '{uid[:15]}'")
+
                 new_doc["unique_identifier"] = uid[:15]
             cleaned.append(new_doc)
         return cleaned
@@ -1699,17 +1709,17 @@ class FlightPaymentSuccessView(APIView):
             return None
         phone = str(phone).strip()
         if not phone.startswith("+"):
-            print(f"⚠️ Invalid phone '{phone}', auto-correcting...")
+
             digits = "".join([c for c in phone if c.isdigit()])
             phone = f"+{digits}"
         return phone[:20]
 
     def post(self, request):
-        print("🟢 POST: Payment success callback received")
+
         return self.handle_success_payment(request.data)
 
     def get(self, request):
-        print("🟢 GET: Payment success redirect received")
+
         return self.handle_success_payment(request.GET)
 
 
@@ -1734,10 +1744,10 @@ class DuffelOrderManager:
         try:
             endpoint = f"/air/offers/{offer_id}"
             result = self._make_request("GET", endpoint)
-            print(f"[DEBUG] Fetched offer details: {result}")
+
             return result
         except Exception as e:
-            print(f"[ERROR] Failed to get offer details: {str(e)}")
+
             return {}
     def _make_request(self, method: str, endpoint: str, data: Dict = None) -> Dict:
         """Make authenticated request to Duffel API"""
@@ -1821,15 +1831,15 @@ class OrderCreationView(APIView):
     def __init__(self):
         super().__init__()
         self.order_manager = DuffelOrderManager()
-        print("🔹 OrderCreationView initialized")
+
 
     def post(self, request): 
         try:
             payload = request.data.get("data")
-            print("📩 Received payload:", payload)
+
 
             if not payload:
-                print("⚠️ Payload missing 'data'")
+
                 return Response(
                     {"status": "error", "message": "Missing 'data'", "error_code": "MISSING_FIELD"},
                     status=400
@@ -1837,7 +1847,7 @@ class OrderCreationView(APIView):
 
             # Validate all data before processing
             validation_result = self._validate_order_data(payload)
-            print("🔍 Validation result:", validation_result)
+
             if not validation_result["is_valid"]:
                 return Response(
                     {
@@ -1854,24 +1864,24 @@ class OrderCreationView(APIView):
             metadata = payload.get("metadata", {})
             order_type = payload.get("type", "instant")
 
-            print(f"✈️ Selected offers: {selected_offers}, passengers: {len(passengers)}, order_type: {order_type}")
+
 
             if not selected_offers or not passengers:
-                print("⚠️ Missing selected_offers or passengers")
+
                 return Response(
                     {"status": "error", "message": "Missing selected_offers or passengers", "error_code": "MISSING_FIELD"},
                     status=400
                 )
 
             offer_id = selected_offers[0]
-            print(f"🆔 Fetching offer details for offer_id: {offer_id}")
+
 
             # Fetch offer details from Duffel
             offer_details = self.order_manager._make_request("GET", f"/air/offers/{offer_id}")
-            print("📦 Offer details fetched:", offer_details)
+
             offer_data = offer_details.get("data", {})
             slice_passengers = offer_data.get("slices", [])[0].get("segments", [])[0].get("passengers", [])
-            print(f"👥 Slice passengers from Duffel: {slice_passengers}")
+
 
             # Build passenger payload for Duffel API
             passenger_payloads = []
@@ -1889,7 +1899,7 @@ class OrderCreationView(APIView):
                 if idx < len(slice_passengers):
                     p_data["id"] = slice_passengers[idx]["passenger_id"]
                 passenger_payloads.append(p_data)
-                print(f"👤 Prepared passenger payload {idx}:", p_data)
+
 
             # Build order data for Duffel API
             order_data = {
@@ -1906,16 +1916,16 @@ class OrderCreationView(APIView):
                     "currency": offer_data.get("total_currency")
                 }]
 
-            print("🛠️ Final order data to send to Duffel:", order_data)
+
 
             # Create order in Duffel
             duffel_result = self.order_manager._make_request("POST", "/air/orders", {"data": order_data})
             duffel_order_data = duffel_result.get("data", {})
-            print("✅ Duffel order created successfully:", duffel_order_data.get("id"))
+
 
             # Save to local database
             saved_order = self._save_order_to_database(duffel_order_data, passengers, metadata)
-            print("💾 Order saved to local DB:", saved_order.id)
+
 
             return Response({
                 "status": "success",
@@ -1934,12 +1944,72 @@ class OrderCreationView(APIView):
 
         except Exception as e:
             logger.error(f"Order creation failed: {str(e)}", exc_info=True)
-            print("❌ Order creation failed:", str(e))
+
             return Response(
                 {"status": "error", "message": "Internal server error", "error": str(e)}, 
                 status=500
             )
 
+    def _save_order_to_database(self, duffel_order_data, passengers, metadata):
+        """Save order to local database with user association"""
+        try:
+            # Extract order data
+            order_id = duffel_order_data.get('id')
+            order_type = duffel_order_data.get('type', 'instant')
+            total_amount = duffel_order_data.get('total_amount')
+            total_currency = duffel_order_data.get('total_currency')
+            booking_reference = duffel_order_data.get('booking_reference')
+            
+            # Get user from request context (you'll need to pass this)
+            user = self.request.user if hasattr(self, 'request') else None
+            
+            # Create or update order
+            order, created = Order.objects.update_or_create(
+                id=order_id,
+                defaults={
+                    'user': user,
+                    'type': order_type,
+                    'total_amount': total_amount,
+                    'total_currency': total_currency,
+                    'booking_reference': booking_reference,
+                    'duffel_data': duffel_order_data,
+                    'metadata': metadata
+                }
+            )
+            
+            # Handle passengers
+            for passenger_data in passengers:
+                passenger_id = passenger_data.get('id')
+                if passenger_id:
+                    passenger, _ = Passenger.objects.update_or_create(
+                        id=passenger_id,
+                        defaults={
+                            'user_id': user.id if user else None,
+                            'title': passenger_data.get('title'),
+                            'given_name': passenger_data.get('given_name'),
+                            'family_name': passenger_data.get('family_name'),
+                            'born_on': passenger_data.get('born_on'),
+                            'gender': passenger_data.get('gender'),
+                            'email': passenger_data.get('email'),
+                            'phone_number': passenger_data.get('phone_number'),
+                            'identity_documents': passenger_data.get('identity_documents', [])
+                        }
+                    )
+                    
+                    # Create order-passenger relationship
+                    OrderPassenger.objects.get_or_create(
+                        order=order,
+                        passenger=passenger,
+                        defaults={
+                            'passenger_type': passenger_data.get('type', 'adult')
+                        }
+                    )
+            
+            return order
+            
+        except Exception as e:
+            logger.error(f"Error saving order to database: {str(e)}")
+            raise
     # Add prints inside _validate_order_data, _validate_passenger, _validate_identity_document, _prepare_identity_documents, and _save_order_to_database as needed
 
 
@@ -2452,11 +2522,10 @@ class DuffelWebhookView(APIView):
 # views.py - Add these new views
 
 class MyFlightsView(APIView):
-    """Get user's flight orders with detailed information"""
+    """Get authenticated user's flight bookings"""
     
     def get(self, request):
         try:
-            # Get user from authentication
             user = request.user
             if not user.is_authenticated:
                 return Response(
@@ -2464,97 +2533,123 @@ class MyFlightsView(APIView):
                     status=status.HTTP_401_UNAUTHORIZED
                 )
             
-            # Get orders from local database
-            orders = Order.objects.filter(
-                passengers__email=user.email
-            ).distinct().prefetch_related('passengers', 'payments')
+            # Get orders from local database (filter by user)
+            orders = Order.objects.filter(user=user).prefetch_related(
+                'passengers', 
+                'payments'
+            ).order_by('-created_at')
             
-            orders_data = []
+            flights = []
             for order in orders:
-                order_data = self._format_order_data(order)
-                orders_data.append(order_data)
+                flight_data = self._transform_order_to_flight(order)
+                if flight_data:
+                    flights.append(flight_data)
             
             return Response({
                 "status": "success",
-                "data": orders_data,
-                "total": len(orders_data)
-            }, status=status.HTTP_200_OK)
+                "message": f"Found {len(flights)} flights",
+                "flights": flights
+            }, status=200)
             
         except Exception as e:
             logger.error(f"Error fetching user flights: {str(e)}")
-            return Response(
-                {"status": "error", "message": "Failed to fetch flights"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({
+                "status": "error",
+                "message": "Failed to fetch flights",
+                "error": str(e)
+            }, status=500)
     
-    def _format_order_data(self, order):
-        """Format order data for frontend display"""
-        duffel_data = order.duffel_data or {}
-        slices = duffel_data.get('slices', [])
-        
-        # Extract flight information
-        flight_info = self._extract_flight_info(slices)
-        
-        # Get passenger count
-        passenger_count = order.passengers.count()
-        
-        # Get payment status
-        payment_status = "pending"
-        payments = order.payments.all()
-        if payments.exists():
-            payment_status = payments.first().status
-        
-        return {
-            "id": order.id,
-            "booking_reference": order.booking_reference,
-            "type": order.type,
-            "status": duffel_data.get('status', 'confirmed'),
-            "total_amount": str(order.total_amount),
-            "total_currency": order.total_currency,
-            "created_at": order.created_at.isoformat(),
-            "passenger_count": passenger_count,
-            "payment_status": payment_status,
-            "flight_info": flight_info,
-            "duffel_order_id": duffel_data.get('id'),
-            "metadata": order.metadata or {}
-        }
+    def _transform_order_to_flight(self, order):
+        """Transform local Order instance to flight booking format"""
+        try:
+            duffel_data = order.duffel_data or {}
+            slices = duffel_data.get('slices', [])
+            
+            if not slices:
+                return None
+            
+            # Get first slice for basic info
+            first_slice = slices[0]
+            segments = first_slice.get('segments', [])
+            if not segments:
+                return None
+            
+            first_segment = segments[0]
+            last_segment = segments[-1]
+            
+            # Calculate duration
+            total_duration_minutes = 0
+            for slice_data in slices:
+                duration_str = slice_data.get('duration')
+                if duration_str:
+                    try:
+                        if duration_str.startswith('PT'):
+                            hours = 0
+                            minutes = 0
+                            if 'H' in duration_str:
+                                hours = int(duration_str.split('H')[0].replace('PT',''))
+                            if 'M' in duration_str:
+                                min_part = duration_str.split('H')[1] if 'H' in duration_str else duration_str.replace('PT','')
+                                minutes = int(min_part.replace('M',''))
+                            total_duration_minutes += hours * 60 + minutes
+                    except:
+                        continue
+            
+            duration_str = f"{total_duration_minutes//60}h {total_duration_minutes%60}m"
+            
+            # Format times
+            def format_time(iso_time):
+                if not iso_time:
+                    return "N/A"
+                try:
+                    dt = datetime.fromisoformat(iso_time.replace('Z','+00:00'))
+                    return dt.strftime("%I:%M %p").lstrip('0')
+                except:
+                    return "N/A"
+            
+            # Get payment status
+            payment_status = "Pending"
+            payments = order.payments.all()
+            if payments.exists():
+                payment_status = payments.first().status
+            
+            flight_data = {
+                "order_id": order.id,
+                "airline": first_segment.get('operating_carrier', {}).get('name', 'Unknown Airline'),
+                "flight_number": first_segment.get('marketing_carrier_flight_number', ''),
+                "departure": first_segment.get('origin', {}).get('iata_code', ''),
+                "arrival": last_segment.get('destination', {}).get('iata_code', ''),
+                "departure_time": first_segment.get('departing_at'),
+                "arrival_time": last_segment.get('arriving_at'),
+                "departure_city": first_segment.get('origin', {}).get('city_name', ''),
+                "arrival_city": last_segment.get('destination', {}).get('city_name', ''),
+                "duration": duration_str,
+                "status": self._get_order_status(duffel_data),
+                "total_amount": str(order.total_amount) if order.total_amount else duffel_data.get('total_amount'),
+                "currency": order.total_currency or duffel_data.get('total_currency', 'GBP'),
+                "passengers": list(order.passengers.values('given_name', 'family_name', 'email')),
+                "booking_reference": order.booking_reference or duffel_data.get('booking_reference', ''),
+                "created_at": order.created_at.isoformat(),
+                "cabin_class": first_segment.get('passengers', [{}])[0].get('cabin_class', 'economy').title() if first_segment.get('passengers') else 'Economy',
+                "trip_type": "Round Trip" if len(slices) > 1 else "One Way",
+                "payment_status": payment_status
+            }
+            
+            return flight_data
+            
+        except Exception as e:
+            logger.error(f"Error transforming order: {str(e)}")
+            return None
     
-    def _extract_flight_info(self, slices):
-        """Extract flight information from slices"""
-        if not slices:
-            return {}
+    def _get_order_status(self, order_data):
+        """Determine order status from Duffel data"""
+        if order_data.get('cancelled_at'):
+            return "Cancelled"
+        elif order_data.get('confirmed_at'):
+            return "Confirmed"
+        else:
+            return "Pending"
         
-        first_slice = slices[0]
-        segments = first_slice.get('segments', [])
-        if not segments:
-            return {}
-        
-        first_segment = segments[0]
-        last_segment = segments[-1]
-        
-        operating_carrier = first_segment.get('operating_carrier', {})
-        marketing_carrier = first_segment.get('marketing_carrier', {})
-        
-        return {
-            "airline": operating_carrier.get('name') or marketing_carrier.get('name'),
-            "flight_number": f"{marketing_carrier.get('iata_code', '')}{first_segment.get('marketing_carrier_flight_number', '')}",
-            "departure": {
-                "airport": first_segment.get('origin', {}).get('iata_code'),
-                "airport_name": first_segment.get('origin', {}).get('name'),
-                "time": first_segment.get('departing_at'),
-                "terminal": first_segment.get('origin_terminal')
-            },
-            "arrival": {
-                "airport": last_segment.get('destination', {}).get('iata_code'),
-                "airport_name": last_segment.get('destination', {}).get('name'),
-                "time": last_segment.get('arriving_at'),
-                "terminal": last_segment.get('destination_terminal')
-            },
-            "duration": first_slice.get('duration'),
-            "cabin_class": segments[0].get('passengers', [{}])[0].get('cabin_class', 'economy')
-        }
-
-
 class DuffelPaymentView(APIView):
     """Handle Duffel payments for instant and hold orders"""
     

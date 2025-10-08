@@ -40,13 +40,13 @@ export default function UmrahAdminPage() {
         const token = localStorage.getItem('authToken');
         
         if (activeTab === 'packages') {
-          const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/umrah-packages/`, {
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/umrah-packages/`, {
             headers: { 'Authorization': `Token ${token}` }
           });
           const data = await res.json();
           setPackages(Array.isArray(data) ? data : []);
         } else {
-          let url = `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/umrah-bookings/`;
+          let url = `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/umrah-bookings/`;
           const params = new URLSearchParams();
           if (statusFilter !== 'all') params.append('status', statusFilter);
           if (dateFilter !== 'all') params.append('date_range', dateFilter);
@@ -77,8 +77,8 @@ export default function UmrahAdminPage() {
     try {
       const token = localStorage.getItem('authToken');
       const endpoint = type === 'booking' 
-        ? `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/umrah-bookings/${id}/`
-        : `${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/umrah-packages/${id}/`;
+        ? `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/umrah-bookings/${id}/`
+        : `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/umrah-packages/${id}/`;
 
       const response = await fetch(endpoint, {
         method: 'PATCH',
@@ -109,7 +109,7 @@ export default function UmrahAdminPage() {
     if (window.confirm('Are you sure you want to delete this package? All associated bookings will be kept.')) {
       try {
         const token = localStorage.getItem('authToken');
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/umrah-packages/${id}/`, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/umrah-packages/${id}/`, {
           method: 'DELETE',
           headers: { 'Authorization': `Token ${token}` }
         });
@@ -143,7 +143,7 @@ export default function UmrahAdminPage() {
         formData.append('featured_image', currentPackage.featured_image);
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/umrah-packages/`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/umrah-packages/`, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${token}`,
@@ -181,7 +181,7 @@ export default function UmrahAdminPage() {
         formData.append('featured_image', currentPackage.featured_image);
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/holidays-visa/umrah-packages/${currentPackage.id}/`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/umrah-packages/${currentPackage.id}/`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Token ${token}`,

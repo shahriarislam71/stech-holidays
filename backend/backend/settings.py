@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -215,33 +216,8 @@ REST_USE_JWT = False  # Or True if you’re using JWT
 
 AUTH_USER_MODEL = 'coreauth.CustomUser'
 
-import os
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-REST_USE_JWT = True
 
-from datetime import timedelta
 
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
-}
-
-# settings.py
-GOOGLE_OAUTH2_CLIENT_ID = '1046154388534-g632sm5bqumahr72i0184j4sg00c2o3e.apps.googleusercontent.com'
-GOOGLE_OAUTH2_CLIENT_SECRET = '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'
-
-SOCIALACCOUNT_PROVIDERS = {
-    'google': {
-        'APP': {
-            'client_id': GOOGLE_OAUTH2_CLIENT_ID,
-            'secret': GOOGLE_OAUTH2_CLIENT_SECRET,
-            'key': ''
-        },
-        'SCOPE': ['profile', 'email'],
-        'AUTH_PARAMS': {'access_type': 'online'},
-    }
-}
 DUFFEL_ACCESS_TOKEN = "duffel_test_4Ery-9S_m7fcuDUdNESqhLBtmEgdkHeiGf8psfkjHfI"  # Replace with your actual Duffel access token
 # Duffel API Configuration
 DUFFEL_CONFIG = {
@@ -300,3 +276,44 @@ SSL_STORE_PASS = os.getenv("SSL_STORE_PASS", "qwerty")  # sandbox default passwo
 SSL_SUCCESS_URL = "https://yourdomain.com/api/payments/validate/"
 SSL_FAIL_URL = "https://yourdomain.com/api/payments/validate/"
 SSL_CANCEL_URL = "https://yourdomain.com/api/payments/validate/"
+
+
+
+import os
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+REST_USE_JWT = True
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+}
+
+# settings.py
+GOOGLE_OAUTH2_CLIENT_ID = '1046154388534-g632sm5bqumahr72i0184j4sg00c2o3e.apps.googleusercontent.com'
+GOOGLE_OAUTH2_CLIENT_SECRET = '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'
+
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'APP': {
+            'client_id': GOOGLE_OAUTH2_CLIENT_ID,
+            'secret': GOOGLE_OAUTH2_CLIENT_SECRET,
+            'key': ''
+        },
+        'SCOPE': ['profile', 'email'],
+        'AUTH_PARAMS': {'access_type': 'online'},
+    }
+}
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+STATIC_URL = '/backend/static/'
+MEDIA_URL = '/backend/media/'
+STATICFILES_DIRS=[BASE_DIR / "assets",]
+STATIC_ROOT = '/home/jgfabrtq/api.stechholidays.com/static'
+MEDIA_ROOT = '/home/jgfabrtq/api.stechholidays.com/media'
+
+
+

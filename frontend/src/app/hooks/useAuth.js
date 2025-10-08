@@ -11,8 +11,7 @@ export default function useAuth({ redirectToLogin = true, adminOnly = false } = 
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [googleLoaded, setGoogleLoaded] = useState(false);
-
-  // Fetch user profile
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL 
   const fetchUser = async () => {
     setIsLoading(true);
     setErrorMsg('');
@@ -23,7 +22,7 @@ export default function useAuth({ redirectToLogin = true, adminOnly = false } = 
         return null;
       }
 
-      const response = await fetch('http://localhost:8000/api/auth/profile/', {
+      const response = await fetch(`${apiUrl}/auth/profile/`, {
         method: 'GET',
         headers: {
           'Authorization': `Token ${token}`,
@@ -152,7 +151,7 @@ export default function useAuth({ redirectToLogin = true, adminOnly = false } = 
       setIsLoading(true);
       setErrorMsg('');
 
-      const res = await fetch('http://localhost:8000/api/auth/social/google/', {
+      const res = await fetch(`${apiUrl}/auth/social/google/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -192,7 +191,7 @@ export default function useAuth({ redirectToLogin = true, adminOnly = false } = 
       const token = localStorage.getItem('authToken');
       if (!token) throw new Error('No token found');
 
-      const response = await fetch('http://localhost:8000/api/auth/profile/', {
+      const response = await fetch(`${apiUrl}/auth/profile/`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

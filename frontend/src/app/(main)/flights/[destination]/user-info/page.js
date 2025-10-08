@@ -42,27 +42,72 @@ const UserInfoPage = () => {
   };
 
   // Function to extract numeric value and currency
-  const parsePrice = (priceString) => {
-    if (!priceString) return { amount: 0, currency: "BDT" };
-    
-    const parts = priceString.split(" ");
-    if (parts.length < 2) return { amount: 0, currency: "BDT" };
-    
-    const currency = parts[0];
-    const amount = parseFloat(parts[1]);
-    
-    if (currency === "GBP") {
-      return {
-        amount: amount * GBP_TO_BDT_RATE,
-        currency: "BDT"
-      };
+  // Function to extract numeric value and currency
+const parsePrice = (priceString) => {
+  if (!priceString) {
+    console.error("❌ Price string is empty");
+    return { amount: 0, currency: "BDT" };
+  }
+  
+  console.log("💰 Parsing price string:", priceString);
+  
+  // Handle different price formats
+  let amount = 0;
+  let currency = "BDT";
+  
+  try {
+    // Check if it's already a number (fallback)
+    if (!isNaN(parseFloat(priceString))) {
+      amount = parseFloat(priceString);
+      currency = "BDT";
+    } else {
+      // Try to extract currency and amount from string like "GBP 250.00" or "BDT 250.00"
+      const parts = priceString.trim().split(" ");
+      
+      if (parts.length >= 2) {
+        // Case 1: Currency first, then amount "GBP 250.00"
+        const possibleCurrency = parts[0].toUpperCase();
+        const possibleAmount = parts[1];
+        
+        if (["GBP", "BDT", "USD", "EUR"].includes(possibleCurrency) && !isNaN(parseFloat(possibleAmount))) {
+          currency = possibleCurrency;
+          amount = parseFloat(possibleAmount);
+        } else {
+          // Case 2: Amount first, then currency "250.00 GBP"
+          const possibleAmount = parts[0];
+          const possibleCurrency = parts[1]?.toUpperCase();
+          
+          if (!isNaN(parseFloat(possibleAmount)) && ["GBP", "BDT", "USD", "EUR"].includes(possibleCurrency)) {
+            amount = parseFloat(possibleAmount);
+            currency = possibleCurrency;
+          }
+        }
+      } else if (parts.length === 1 && !isNaN(parseFloat(parts[0]))) {
+        // Case 3: Just a number
+        amount = parseFloat(parts[0]);
+        currency = "BDT";
+      }
     }
     
-    return {
-      amount: isNaN(amount) ? 0 : amount,
-      currency: currency
-    };
+    // Convert to BDT if needed
+    if (currency === "GBP") {
+      amount = amount * GBP_TO_BDT_RATE;
+      currency = "BDT";
+    }
+    
+    console.log(`✅ Parsed price: ${amount} ${currency}`);
+    
+  } catch (error) {
+    console.error("❌ Error parsing price:", error);
+    amount = 0;
+    currency = "BDT";
+  }
+  
+  return {
+    amount: parseFloat(amount.toFixed(2)),
+    currency: currency
   };
+};
 
   // Check authentication on component mount
   useEffect(() => {
@@ -543,7 +588,7 @@ const UserInfoPage = () => {
 
       // Prepare payment payload
       const paymentPayload = {
-        total_amount: parseFloat(priceInfo.amount.toFixed(2)),
+        total_amount: convertToBDT(flightData.price).replace(/[^\d.]/g, ''),
         currency: priceInfo.currency,
         offer_id: flightData.offer_id,
         passenger_ids: passenger_ids, // Use the passenger IDs from API

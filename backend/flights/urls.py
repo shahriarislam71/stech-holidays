@@ -29,10 +29,9 @@ urlpatterns = [
     #path("orders/<str:order_id>/cancel/", views.CancelOrderView.as_view(), name="cancel-order"),
     
     # My Flights endpoints
-    path("my-flights/", views.MyFlightsView.as_view(), name="my-flights"),
-    path("my-flights/<str:order_id>/", views.FlightBookingDetailView.as_view(), name="flight-booking-detail"),
-    path("my-flights/<str:order_id>/cancel/", views.CancelFlightBookingView.as_view(), name="cancel-flight-booking"),
-    
+     path("my-flights/", MyFlightsView.as_view(), name="my-flights"),
+    path("my-flights/<str:order_id>/", FlightBookingDetailView.as_view(), name="flight-booking-detail"),
+    path("my-flights/<str:order_id>/cancel/", CancelFlightBookingView.as_view(), name="cancel-flight-booking"),
     # Payment endpoints
       path("payment-intent/create/", views.CreatePaymentIntentView.as_view(), name="create-payment-intent"),
     path("payment-intent/confirm/", views.ConfirmPaymentIntentView.as_view(), name="confirm-payment-intent"),
