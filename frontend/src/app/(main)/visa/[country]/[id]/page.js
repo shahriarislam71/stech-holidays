@@ -520,7 +520,7 @@ const VisaSubmissionPage = () => {
               </div>
               <h3 className="text-2xl font-bold text-gray-900 mb-4">Visa Request Submitted Successfully!</h3>
               <p className="text-gray-600 mb-6">
-                Your {visaDetails.country.name} {visaDetails.visaType.type} application has been received. We'll process your request and notify you via email within 24-48 hours.
+                Your {visaDetails.country.name} {visaDetails.visaType.type} application has been received. We will process your request and notify you via email within 24-48 hours.
               </p>
               <div className="mt-8">
                 <button

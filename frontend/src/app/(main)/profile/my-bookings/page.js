@@ -199,225 +199,263 @@ export default function MyBookings() {
     }
   };
 
-  const fetchBookings = async () => {
-    setIsLoading(true);
-    try {
-      const token = localStorage.getItem('authToken');
-      if (!token) return;
+ const fetchBookings = useCallback(async () => {
+  setIsLoading(true);
+  try {
+    const token = localStorage.getItem("authToken");
+    if (!token) return;
 
-      const specificBookingId = searchParams.get('booking_id');
-      const specificCategory = searchParams.get('tab') || activeCategory;
+    const specificBookingId = searchParams.get("booking_id");
+    const specificCategory = searchParams.get("tab") || activeCategory;
 
-      if (specificBookingId && specificCategory === 'flight') {
-        const flightBooking = await fetchFlightBooking(specificBookingId);
-        if (flightBooking) {
-          setBookings(prev => ({
-            ...prev,
-            flight: [flightBooking]
-          }));
-        }
-      } else if (specificBookingId && specificCategory === 'hotel') {
-        const hotelBooking = await fetchHotelBooking(specificBookingId);
-        if (hotelBooking) {
-          setBookings(prev => ({
-            ...prev,
-            hotel: [hotelBooking]
-          }));
-        }
-      } else {
-        if (activeCategory === 'flight') {
-          const allFlights = await fetchAllFlights();
-          const sortedFlights = allFlights.sort((a, b) => new Date(b.date) - new Date(a.date));
-          setBookings(prev => ({
-            ...prev,
-            flight: sortedFlights
-          }));
-        }
+    if (specificBookingId && specificCategory === "flight") {
+      const flightBooking = await fetchFlightBooking(specificBookingId);
+      if (flightBooking) {
+        setBookings((prev) => ({
+          ...prev,
+          flight: [flightBooking],
+        }));
       }
-
-      // Fetch hotel bookings - FIXED HERE
-      if (activeCategory === 'hotel') {
-        const hotelResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/hotels/Allbookings/`,
-          {
-            headers: {
-              'Authorization': `Token ${token}`
-            }
-          }
+    } else if (specificBookingId && specificCategory === "hotel") {
+      const hotelBooking = await fetchHotelBooking(specificBookingId);
+      if (hotelBooking) {
+        setBookings((prev) => ({
+          ...prev,
+          hotel: [hotelBooking],
+        }));
+      }
+    } else {
+      if (activeCategory === "flight") {
+        const allFlights = await fetchAllFlights();
+        const sortedFlights = allFlights.sort(
+          (a, b) => new Date(b.date) - new Date(a.date)
         );
-        if (hotelResponse.ok) {
-          const hotelData = await response.json();
-          
-          // Check if response has bookings array
-          const hotelBookingsArray = hotelData.bookings || (Array.isArray(hotelData) ? hotelData : []);
-          
-          const sortedHotels = hotelBookingsArray
-            .map(booking => ({
-              ...booking,
-              id: booking.id,
-              bookingNumber: booking.reference || `HT${booking.id.toString().padStart(6, '0')}`,
-              date: new Date(booking.confirmed_at || booking.created_at || new Date()).toLocaleDateString(),
-              hotel: booking.accommodation?.name || 'Unknown Hotel',
-              location: booking.accommodation?.location?.address ? 
-                `${booking.accommodation.location.address.city_name}, ${booking.accommodation.location.address.country_code}` : 
-                'N/A',
-              check_in: booking.check_in_date,
-              check_out: booking.check_out_date,
-              status: booking.status || 'Confirmed',
-              price: `GBP ${booking.total_amount || '0'}`,
-              passenger: booking.guests?.[0] ? `${booking.guests[0].given_name} ${booking.guests[0].family_name}` : 'N/A',
-              email: booking.email || 'N/A',
-              image: booking.accommodation?.photos?.[0]?.url || '/hotel-booking.jpg',
-              photos: booking.accommodation?.photos || [{ url: '/hotel-booking.jpg' }],
-              rooms: booking.rooms || 1,
-              guests: booking.guests?.length || 1,
-              accommodation: booking.accommodation,
-              guest_types: booking.guest_types
-            }))
-            .sort((a, b) => new Date(b.confirmed_at || b.created_at) - new Date(a.confirmed_at || a.created_at));
-          
-          setBookings(prev => ({
-            ...prev,
-            hotel: sortedHotels
-          }));
-        }
+        setBookings((prev) => ({
+          ...prev,
+          flight: sortedFlights,
+        }));
       }
-
-      // Fetch holiday bookings
-      if (activeCategory === 'holidays') {
-        const holidayResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/user/holiday-bookings/`,
-          {
-            headers: {
-              'Authorization': `Token ${token}`
-            }
-          }
-        );
-        if (holidayResponse.ok) {
-          const holidayData = await holidayResponse.json();
-          const sortedHolidays = holidayData
-            .map(booking => ({
-              ...booking,
-              id: booking.id,
-              bookingNumber: `HL${booking.id.toString().padStart(6, '0')}`,
-              date: new Date(booking.created_at).toLocaleDateString(),
-              departure_date: booking.departure_date,
-              destination: booking.package?.destination || 'Unknown Destination',
-              status: booking.status,
-              price: `BDT ${booking.package?.price?.toLocaleString() || '0'}`,
-              passenger: booking.contact_name,
-              email: booking.email,
-              image: booking.package?.featured_image || '/default-holiday.jpg',
-              photos: booking.package?.featured_image ? [{ url: booking.package.featured_image }] : [{ url: '/default-holiday.jpg' }],
-              packageDetails: booking.package || {},
-              travelers: booking.travelers,
-              custom_request: booking.custom_request
-            }))
-            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-          
-          setBookings(prev => ({
-            ...prev,
-            holidays: sortedHolidays
-          }));
-        }
-      }
-
-      // Fetch visa applications
-      if (activeCategory === 'visa') {
-        const visaResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/user/visa-applications/`,
-          {
-            headers: {
-              'Authorization': `Token ${token}`
-            }
-          }
-        );
-        if (visaResponse.ok) {
-          const visaData = await visaResponse.json();
-          const sortedVisa = visaData
-            .map(application => ({
-              ...application,
-              id: application.id,
-              bookingNumber: application.reference_number,
-              date: new Date(application.created_at).toLocaleDateString(),
-              departure_date: application.departure_date,
-              country: application.country.name,
-              type: application.visa_type?.type || 'Visa',
-              status: application.status.charAt(0).toUpperCase() + application.status.slice(1),
-              price: `BDT ${application.visa_type?.fee?.toLocaleString() || application.country.fee?.toLocaleString() || '0'}`,
-              passenger: application.contact_name,
-              email: application.email,
-              image: application.country.cover_image || '/default-visa.jpg',
-              photos: application.country.cover_image ? [{ url: application.country.cover_image }] : [{ url: '/default-visa.jpg' }],
-              travelers: application.travelers,
-              passport_number: application.passport_number,
-              passport_expiry: application.passport_expiry,
-              processing_time: application.visa_type?.processing_time || application.country.processing_time,
-              validity: application.visa_type?.validity || application.country.validity,
-              requirements: application.country.requirements,
-              documents: application.documents || [],
-              payment_status: application.payment_status || 'unknown'
-            }))
-            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-          
-          setBookings(prev => ({
-            ...prev,
-            visa: sortedVisa
-          }));
-        }
-      }
-
-      // Fetch Umrah bookings
-      if (activeCategory === 'umrah') {
-        const umrahResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/user/umrah-bookings/`,
-          {
-            headers: {
-              'Authorization': `Token ${token}`
-            }
-          }
-        );
-        if (umrahResponse.ok) {
-          const umrahData = await umrahResponse.json();
-          const sortedUmrah = umrahData
-            .map(booking => ({
-              ...booking,
-              id: booking.id,
-              bookingNumber: `UM${booking.id.toString().padStart(6, '0')}`,
-              date: new Date(booking.created_at).toLocaleDateString(),
-              departure_date: booking.departure_date,
-              destination: 'Umrah Package',
-              status: booking.status,
-              price: `BDT ${booking.package?.price?.toLocaleString() || '0'}`,
-              passenger: booking.contact_name,
-              email: booking.email,
-              image: booking.package?.featured_image || '/default-umrah.jpg',
-              photos: booking.package?.featured_image ? [{ url: booking.package.featured_image }] : [{ url: '/default-umrah.jpg' }],
-              packageDetails: booking.package || {},
-              travelers: booking.travelers,
-              custom_request: booking.custom_request,
-              nights: booking.package?.nights || 0,
-              days: booking.package?.days || 0,
-              includes_flight: booking.package?.includes_flight || false,
-              includes_hotel: booking.package?.includes_hotel || false,
-              includes_transport: booking.package?.includes_transport || false,
-              includes_visa: booking.package?.includes_visa || false
-            }))
-            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-          
-          setBookings(prev => ({
-            ...prev,
-            umrah: sortedUmrah
-          }));
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch bookings:', error);
-      toast.error('Failed to load bookings');
-    } finally {
-      setIsLoading(false);
     }
-  };
+
+    // ✅ HOTEL BOOKINGS
+    if (activeCategory === "hotel") {
+      const hotelResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/hotels/Allbookings/`,
+        {
+          headers: {
+            Authorization: `Token ${token}`,
+          },
+        }
+      );
+
+      if (hotelResponse.ok) {
+        const hotelData = await hotelResponse.json(); // fixed variable name
+        const hotelBookingsArray =
+          hotelData.bookings || (Array.isArray(hotelData) ? hotelData : []);
+
+        const sortedHotels = hotelBookingsArray
+          .map((booking) => ({
+            ...booking,
+            id: booking.id,
+            bookingNumber:
+              booking.reference || `HT${booking.id.toString().padStart(6, "0")}`,
+            date: new Date(
+              booking.confirmed_at || booking.created_at || new Date()
+            ).toLocaleDateString(),
+            hotel: booking.accommodation?.name || "Unknown Hotel",
+            location: booking.accommodation?.location?.address
+              ? `${booking.accommodation.location.address.city_name}, ${booking.accommodation.location.address.country_code}`
+              : "N/A",
+            check_in: booking.check_in_date,
+            check_out: booking.check_out_date,
+            status: booking.status || "Confirmed",
+            price: `GBP ${booking.total_amount || "0"}`,
+            passenger: booking.guests?.[0]
+              ? `${booking.guests[0].given_name} ${booking.guests[0].family_name}`
+              : "N/A",
+            email: booking.email || "N/A",
+            image:
+              booking.accommodation?.photos?.[0]?.url || "/hotel-booking.jpg",
+            photos: booking.accommodation?.photos || [
+              { url: "/hotel-booking.jpg" },
+            ],
+            rooms: booking.rooms || 1,
+            guests: booking.guests?.length || 1,
+            accommodation: booking.accommodation,
+            guest_types: booking.guest_types,
+          }))
+          .sort(
+            (a, b) =>
+              new Date(b.confirmed_at || b.created_at) -
+              new Date(a.confirmed_at || a.created_at)
+          );
+
+        setBookings((prev) => ({
+          ...prev,
+          hotel: sortedHotels,
+        }));
+      }
+    }
+
+    // ✅ HOLIDAYS
+    if (activeCategory === "holidays") {
+      const holidayResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/user/holiday-bookings/`,
+        {
+          headers: {
+            Authorization: `Token ${token}`,
+          },
+        }
+      );
+      if (holidayResponse.ok) {
+        const holidayData = await holidayResponse.json();
+        const sortedHolidays = holidayData
+          .map((booking) => ({
+            ...booking,
+            id: booking.id,
+            bookingNumber: `HL${booking.id.toString().padStart(6, "0")}`,
+            date: new Date(booking.created_at).toLocaleDateString(),
+            departure_date: booking.departure_date,
+            destination: booking.package?.destination || "Unknown Destination",
+            status: booking.status,
+            price: `BDT ${booking.package?.price?.toLocaleString() || "0"}`,
+            passenger: booking.contact_name,
+            email: booking.email,
+            image:
+              booking.package?.featured_image || "/default-holiday.jpg",
+            photos: booking.package?.featured_image
+              ? [{ url: booking.package.featured_image }]
+              : [{ url: "/default-holiday.jpg" }],
+            packageDetails: booking.package || {},
+            travelers: booking.travelers,
+            custom_request: booking.custom_request,
+          }))
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        setBookings((prev) => ({
+          ...prev,
+          holidays: sortedHolidays,
+        }));
+      }
+    }
+
+    // ✅ VISA
+    if (activeCategory === "visa") {
+      const visaResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/user/visa-applications/`,
+        {
+          headers: {
+            Authorization: `Token ${token}`,
+          },
+        }
+      );
+      if (visaResponse.ok) {
+        const visaData = await visaResponse.json();
+        const sortedVisa = visaData
+          .map((application) => ({
+            ...application,
+            id: application.id,
+            bookingNumber: application.reference_number,
+            date: new Date(application.created_at).toLocaleDateString(),
+            departure_date: application.departure_date,
+            country: application.country.name,
+            type: application.visa_type?.type || "Visa",
+            status:
+              application.status.charAt(0).toUpperCase() +
+              application.status.slice(1),
+            price: `BDT ${
+              application.visa_type?.fee?.toLocaleString() ||
+              application.country.fee?.toLocaleString() ||
+              "0"
+            }`,
+            passenger: application.contact_name,
+            email: application.email,
+            image: application.country.cover_image || "/default-visa.jpg",
+            photos: application.country.cover_image
+              ? [{ url: application.country.cover_image }]
+              : [{ url: "/default-visa.jpg" }],
+            travelers: application.travelers,
+            passport_number: application.passport_number,
+            passport_expiry: application.passport_expiry,
+            processing_time:
+              application.visa_type?.processing_time ||
+              application.country.processing_time,
+            validity:
+              application.visa_type?.validity ||
+              application.country.validity,
+            requirements: application.country.requirements,
+            documents: application.documents || [],
+            payment_status: application.payment_status || "unknown",
+          }))
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        setBookings((prev) => ({
+          ...prev,
+          visa: sortedVisa,
+        }));
+      }
+    }
+
+    // ✅ UMRAH
+    if (activeCategory === "umrah") {
+      const umrahResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/user/umrah-bookings/`,
+        {
+          headers: {
+            Authorization: `Token ${token}`,
+          },
+        }
+      );
+      if (umrahResponse.ok) {
+        const umrahData = await umrahResponse.json();
+        const sortedUmrah = umrahData
+          .map((booking) => ({
+            ...booking,
+            id: booking.id,
+            bookingNumber: `UM${booking.id.toString().padStart(6, "0")}`,
+            date: new Date(booking.created_at).toLocaleDateString(),
+            departure_date: booking.departure_date,
+            destination: "Umrah Package",
+            status: booking.status,
+            price: `BDT ${booking.package?.price?.toLocaleString() || "0"}`,
+            passenger: booking.contact_name,
+            email: booking.email,
+            image:
+              booking.package?.featured_image || "/default-umrah.jpg",
+            photos: booking.package?.featured_image
+              ? [{ url: booking.package.featured_image }]
+              : [{ url: "/default-umrah.jpg" }],
+            packageDetails: booking.package || {},
+            travelers: booking.travelers,
+            custom_request: booking.custom_request,
+            nights: booking.package?.nights || 0,
+            days: booking.package?.days || 0,
+            includes_flight: booking.package?.includes_flight || false,
+            includes_hotel: booking.package?.includes_hotel || false,
+            includes_transport:
+              booking.package?.includes_transport || false,
+            includes_visa: booking.package?.includes_visa || false,
+          }))
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        setBookings((prev) => ({
+          ...prev,
+          umrah: sortedUmrah,
+        }));
+      }
+    }
+  } catch (error) {
+    console.error("Failed to fetch bookings:", error);
+    toast.error("Failed to load bookings");
+  } finally {
+    setIsLoading(false);
+  }
+}, [activeCategory, searchParams]); // ✅ only depends on values used inside
+
+// ✅ useEffect using fetchBookings
+useEffect(() => {
+  fetchBookings();
+}, [fetchBookings]);
 
   useEffect(() => {
     const bookingId = searchParams.get('booking_id');
@@ -430,11 +468,11 @@ export default function MyBookings() {
     if (bookingId) {
       fetchBookings();
     }
-  }, [searchParams]);
+  }, [searchParams,fetchBookings]);
 
   useEffect(() => {
     fetchBookings();
-  }, [activeCategory]);
+  }, [activeCategory,fetchBookings]);
 
   const handleViewDetails = (booking) => {
     if (activeCategory === 'holidays') {

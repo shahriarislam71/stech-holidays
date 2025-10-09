@@ -386,12 +386,13 @@ export default function BookingConfirmationPage({ params }) {
               <div className="flex flex-col md:flex-row gap-6">
                 <div className="md:w-1/3">
                   <div className="relative rounded-xl overflow-hidden h-48">
-                    <img
-                      src={hotel.photos?.[0]?.url || "/hotel-placeholder.jpg"}
-                      alt={hotel.name}
-                      className="w-full h-full object-cover"
+                    <Image
+                      src={imageSrc}
+                      alt={hotel.name || "Hotel Image"}
+                      fill
+                      className="object-cover"
                       onError={(e) => {
-                        e.target.src = "/hotel-placeholder.jpg";
+                        e.currentTarget.src = "/hotel-placeholder.jpg";
                       }}
                     />
                   </div>

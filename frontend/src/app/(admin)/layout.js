@@ -29,7 +29,7 @@ export default function AdminLayout({ children }) {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-800">Unauthorized Access</h2>
-          <p className="mt-2 text-gray-600">You don't have permission to access this page.</p>
+          <p className="mt-2 text-gray-600">You dont have permission to access this page.</p>
         </div>
       </div>
     );

@@ -235,7 +235,7 @@ const FlightDestinationPage = () => {
       setLoading(false);
       console.log("Flight search completed");
     }
-  }, [buildApiPayload]);
+  }, [buildApiPayload,apiUrl]);
 
   useEffect(() => {
     console.log("Parameters check:", { from, to, departure, flightType });
@@ -348,7 +348,7 @@ const FlightDestinationPage = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 20a7.962 7.962 0 01-5-1.709" />
             </svg>
             <h2 className="text-xl font-semibold text-gray-800 mb-2">No Flights Found</h2>
-            <p className="text-gray-600 mb-4">We couldn't find any flights matching your search criteria.</p>
+            <p className="text-gray-600 mb-4">We couldnt find any flights matching your search criteria.</p>
             <p className="text-sm text-gray-500 mb-6">
               Parameters: {flightType} | {from} → {to} | {departure}
             </p>

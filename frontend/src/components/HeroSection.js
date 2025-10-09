@@ -60,25 +60,24 @@ const HeroSection = () => {
   const [infants, setInfants] = useState(0);
   const [selectedClass, setSelectedClass] = useState("Economy");
 // utils/locationService.js
-  const fetchLocations = async (query) => {
+ const fetchLocations = useCallback(async (query) => {
   if (!query || query.length < 2) return [];
 
   try {
     const response = await fetch(
       `${apiUrl}/flights/locations/?query=${encodeURIComponent(query)}`
     );
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch locations');
-    }
-    
+
+    if (!response.ok) throw new Error('Failed to fetch locations');
+
     const data = await response.json();
     return data.results || [];
   } catch (error) {
     console.error('Error fetching locations:', error);
     return [];
   }
-};
+}, [apiUrl]); // Only changes if apiUrl changes
+
 
 
   // Multi-city states
@@ -145,7 +144,7 @@ const HeroSection = () => {
     };
 
     fetchUmrahPackages();
-  }, []);
+  }, [apiUrl]);
 
   // Update the handleUmrahSearch function:
   const handleUmrahSearch = () => {
@@ -214,7 +213,7 @@ const HeroSection = () => {
       if (type === 'from') setIsLoadingFromAirports(false);
       if (type === 'to') setIsLoadingToAirports(false);
     }
-  }, []);
+  }, [fetchLocations]);
 
 
     // Debounced search for from airports
@@ -386,7 +385,7 @@ const handleMultiCityAirportSelect = (id, field, airport) => {
     };
 
     fetchHolidayDestinations();
-  }, []);
+  }, [apiUrl]);
 
   // Fetch visa countries on component mount
   useEffect(() => {
@@ -410,7 +409,7 @@ const handleMultiCityAirportSelect = (id, field, airport) => {
     };
 
     fetchVisaCountries();
-  }, []);
+  }, [apiUrl]);
 
   // Filter visa countries based on search query
   const filteredVisaCountries = useMemo(() => {

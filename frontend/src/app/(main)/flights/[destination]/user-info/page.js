@@ -396,7 +396,7 @@ const parsePrice = (priceString) => {
     }
 
     setPassengers(initialPassengers);
-  }, []); // Empty dependency array - only run once on mount
+  }, [flightData.adults,flightData.children,flightData.infants,flightData.passenger_ids]); // Empty dependency array - only run once on mount
 
   const updatePassenger = (index, field, value) => {
     setPassengers((prev) => {

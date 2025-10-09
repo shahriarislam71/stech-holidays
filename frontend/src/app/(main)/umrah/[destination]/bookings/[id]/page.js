@@ -335,7 +335,7 @@ const BookingForm = ({ packageData, onClose, destination }) => {
               </Link>
               
               <div className="text-center text-sm text-gray-500 pt-2">
-                <p>Don't have an account? <Link href="/register" className="text-[#5A53A7] hover:underline">Register</Link></p>
+                <p>Dont have an account? <Link href="/register" className="text-[#5A53A7] hover:underline">Register</Link></p>
               </div>
             </div>
           </div>
@@ -353,7 +353,7 @@ const PackageDetailsSection = ({ packageData }) => {
       <h3 className="text-xl font-bold text-[#445494] mb-4">Package Details</h3>
       
       <div className="mb-6">
-        <h4 className="text-lg font-semibold text-[#5A53A7] mb-3">What's Included</h4>
+        <h4 className="text-lg font-semibold text-[#5A53A7] mb-3">Whats Included</h4>
         <div className="flex flex-wrap gap-2">
           {packageData.includes_flight && (
             <span className="px-3 py-1 bg-[#55C3A9]/10 text-[#55C3A9] rounded-full text-sm flex items-center">

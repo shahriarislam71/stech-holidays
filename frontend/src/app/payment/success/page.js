@@ -118,7 +118,7 @@ export default function PaymentSuccessPage() {
                   Confirmation Email Sent
                 </h3>
                 <p className="text-sm text-green-800">
-                  We've sent your booking confirmation and receipt to your email address. 
+                  We have sent your booking confirmation and receipt to your email address. 
                   Please check your inbox and spam folder.
                 </p>
               </div>
@@ -127,7 +127,7 @@ export default function PaymentSuccessPage() {
 
           {/* Next Steps */}
           <div className="border-t border-gray-200 pt-6">
-            <h3 className="font-semibold text-gray-900 mb-4">What's Next?</h3>
+            <h3 className="font-semibold text-gray-900 mb-4">Whats Next?</h3>
             <div className="space-y-3">
               <div className="flex items-start">
                 <div className="bg-[#5A53A7] text-white rounded-full w-6 h-6 flex items-center justify-center mr-3 mt-0.5 text-sm font-semibold">
@@ -136,7 +136,7 @@ export default function PaymentSuccessPage() {
                 <div>
                   <p className="font-medium text-gray-900">Check your email</p>
                   <p className="text-sm text-gray-600">
-                    You'll receive a confirmation email with all booking details and voucher
+                    You will receive a confirmation email with all booking details and voucher
                   </p>
                 </div>
               </div>

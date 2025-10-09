@@ -38,6 +38,7 @@ import {
 } from "react-icons/md";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 
 // Dynamic map import
 const Map = dynamic(() => import("@/components/Map"), {
@@ -347,12 +348,14 @@ export default function HotelDetailsPage({ params }) {
         <div className="flex flex-col lg:flex-row gap-6 mb-8">
           <div className="lg:w-2/3">
             <div className="relative rounded-xl shadow-lg overflow-hidden h-64 md:h-96">
-              <img
+              <Image
                 src={hotel.photos?.[0]?.url || "/hotel-placeholder.jpg"}
                 alt={hotel.name}
+                width={500} // adjust as needed based on layout
+                height={300} // adjust as needed
                 className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
                 onError={(e) => {
-                  e.target.src = "/hotel-placeholder.jpg";
+                  e.currentTarget.src = "/hotel-placeholder.jpg";
                 }}
               />
               <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black/70 to-transparent flex items-end p-4">
@@ -585,12 +588,17 @@ export default function HotelDetailsPage({ params }) {
                       {/* Room Image */}
                       <div className="md:w-1/3">
                         <div className="relative rounded-lg overflow-hidden h-48">
-                          <img
-                            src={getRoomImage(roomIndex)}
+                          <Image
+                            src={
+                              getRoomImage(roomIndex) ||
+                              "/hotel-placeholder.jpg"
+                            }
                             alt={roomName}
+                            width={500} // adjust based on layout
+                            height={300} // adjust based on layout
                             className="w-full h-full object-cover"
                             onError={(e) => {
-                              e.target.src = "/hotel-placeholder.jpg";
+                              e.currentTarget.src = "/hotel-placeholder.jpg";
                             }}
                           />
                         </div>
@@ -792,14 +800,17 @@ export default function HotelDetailsPage({ params }) {
               <div className="p-6">
                 {/* Room Image */}
                 <div className="relative rounded-lg overflow-hidden h-64 mb-6">
-                  <img
-                    src={getRoomImage(
-                      Object.keys(groupedRoomOffers).indexOf(
-                        currentRoomDetails[0]?.room_name
-                      )
-                    )}
-                    alt={currentRoomDetails[0]?.room_name}
-                    className="w-full h-full object-cover"
+                  <Image
+                    src={
+                      getRoomImage(
+                        Object.keys(groupedRoomOffers).indexOf(
+                          currentRoomDetails[0]?.room_name
+                        )
+                      ) || "/hotel-placeholder.jpg"
+                    }
+                    alt={currentRoomDetails[0]?.room_name || "Room Image"}
+                    fill
+                    className="object-cover"
                     onError={(e) => {
                       e.target.src = "/hotel-placeholder.jpg";
                     }}

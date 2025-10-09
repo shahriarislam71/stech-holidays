@@ -1,9 +1,9 @@
 // app/(admin)/holidays/page.js
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { toast } from 'react-toastify';
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "react-toastify";
 import {
   FiPackage,
   FiUsers,
@@ -14,15 +14,16 @@ import {
   FiPlus,
   FiSearch,
   FiFilter,
-  FiX
-} from 'react-icons/fi';
+  FiX,
+} from "react-icons/fi";
+import Image from "next/image";
 
 export default function HolidaysAdminPage() {
   const [packages, setPackages] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('packages');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState("packages");
+  const [searchTerm, setSearchTerm] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentPackage, setCurrentPackage] = useState(null);
@@ -30,20 +31,20 @@ export default function HolidaysAdminPage() {
 
   // Form state for create/edit
   const [formData, setFormData] = useState({
-    title: '',
-    destination: '',
-    description: '',
-    duration: '',
+    title: "",
+    destination: "",
+    description: "",
+    duration: "",
     nights: 0,
     days: 0,
-    max_people: '',
+    max_people: "",
     price: 0,
-    discount_price: '',
-    availability_start: '',
-    availability_end: '',
+    discount_price: "",
+    availability_start: "",
+    availability_end: "",
     includes_flight: false,
-    featured_image: '',
-    tags: []
+    featured_image: "",
+    tags: [],
   });
 
   // Fetch packages and bookings
@@ -51,44 +52,49 @@ export default function HolidaysAdminPage() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem('authToken');
-        
+        const token = localStorage.getItem("authToken");
+
         // Fetch packages
-        const packagesRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-packages/`, {
-          headers: {
-            'Authorization': `Token ${token}`
+        const packagesRes = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-packages/`,
+          {
+            headers: {
+              Authorization: `Token ${token}`,
+            },
           }
-        });
-        
+        );
+
         if (!packagesRes.ok) {
-          throw new Error('Failed to fetch packages');
+          throw new Error("Failed to fetch packages");
         }
-        
+
         const packagesData = await packagesRes.json();
         setPackages(packagesData);
 
         // Fetch bookings
-        const bookingsRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-bookings/`, {
-          headers: {
-            'Authorization': `Token ${token}`
+        const bookingsRes = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-bookings/`,
+          {
+            headers: {
+              Authorization: `Token ${token}`,
+            },
           }
-        });
+        );
 
         if (!bookingsRes.ok) {
-          throw new Error('Failed to fetch bookings');
+          throw new Error("Failed to fetch bookings");
         }
 
         const bookingsData = await bookingsRes.json();
         if (Array.isArray(bookingsData)) {
           setBookings(bookingsData);
         } else {
-          console.error('Bookings data is not an array:', bookingsData);
+          console.error("Bookings data is not an array:", bookingsData);
           setBookings([]);
         }
-
       } catch (error) {
-        toast.error('Failed to fetch data');
-        console.error('Error:', error);
+        toast.error("Failed to fetch data");
+        console.error("Error:", error);
       } finally {
         setLoading(false);
       }
@@ -100,98 +106,115 @@ export default function HolidaysAdminPage() {
   const handleCreatePackage = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('authToken');
-      
+      const token = localStorage.getItem("authToken");
+
       // Prepare data for API
       const submitData = {
         ...formData,
         price: parseFloat(formData.price) || 0,
-        discount_price: formData.discount_price ? parseFloat(formData.discount_price) : null,
+        discount_price: formData.discount_price
+          ? parseFloat(formData.discount_price)
+          : null,
         nights: parseInt(formData.nights) || 0,
         days: parseInt(formData.days) || 0,
-        tags: Array.isArray(formData.tags) ? formData.tags : []
+        tags: Array.isArray(formData.tags) ? formData.tags : [],
       };
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-packages/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Token ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(submitData)
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-packages/`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Token ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(submitData),
+        }
+      );
 
       if (response.ok) {
         const newPackage = await response.json();
         setPackages([...packages, newPackage]);
         setShowCreateModal(false);
-        toast.success('Package created successfully');
+        toast.success("Package created successfully");
         resetFormData();
       } else {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create package');
+        throw new Error(errorData.message || "Failed to create package");
       }
     } catch (error) {
       toast.error(error.message);
-      console.error('Create package error:', error);
+      console.error("Create package error:", error);
     }
   };
 
   const handleEditPackage = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('authToken');
-      
+      const token = localStorage.getItem("authToken");
+
       // Prepare data for API
       const submitData = {
         ...formData,
         price: parseFloat(formData.price) || 0,
-        discount_price: formData.discount_price ? parseFloat(formData.discount_price) : null,
+        discount_price: formData.discount_price
+          ? parseFloat(formData.discount_price)
+          : null,
         nights: parseInt(formData.nights) || 0,
         days: parseInt(formData.days) || 0,
-        tags: Array.isArray(formData.tags) ? formData.tags : []
+        tags: Array.isArray(formData.tags) ? formData.tags : [],
       };
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-packages/${currentPackage.id}/`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Token ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(submitData)
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-packages/${currentPackage.id}/`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Token ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(submitData),
+        }
+      );
 
       if (response.ok) {
         const updatedPackage = await response.json();
-        setPackages(packages.map(pkg => pkg.id === updatedPackage.id ? updatedPackage : pkg));
+        setPackages(
+          packages.map((pkg) =>
+            pkg.id === updatedPackage.id ? updatedPackage : pkg
+          )
+        );
         setShowEditModal(false);
-        toast.success('Package updated successfully');
+        toast.success("Package updated successfully");
       } else {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update package');
+        throw new Error(errorData.message || "Failed to update package");
       }
     } catch (error) {
       toast.error(error.message);
-      console.error('Update package error:', error);
+      console.error("Update package error:", error);
     }
   };
 
   const handleDeletePackage = async (id) => {
-    if (window.confirm('Are you sure you want to delete this package?')) {
+    if (window.confirm("Are you sure you want to delete this package?")) {
       try {
-        const token = localStorage.getItem('authToken');
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-packages/${id}/`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Token ${token}`
+        const token = localStorage.getItem("authToken");
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-packages/${id}/`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `Token ${token}`,
+            },
           }
-        });
+        );
 
         if (response.ok) {
-          setPackages(packages.filter(pkg => pkg.id !== id));
-          toast.success('Package deleted successfully');
+          setPackages(packages.filter((pkg) => pkg.id !== id));
+          toast.success("Package deleted successfully");
         } else {
-          throw new Error('Failed to delete package');
+          throw new Error("Failed to delete package");
         }
       } catch (error) {
         toast.error(error.message);
@@ -201,24 +224,29 @@ export default function HolidaysAdminPage() {
 
   const handleUpdateBookingStatus = async (bookingId, status) => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-bookings/${bookingId}/`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Token ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ status })
-      });
+      const token = localStorage.getItem("authToken");
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/holiday-bookings/${bookingId}/`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Token ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ status }),
+        }
+      );
 
       if (response.ok) {
         const updatedBooking = await response.json();
-        setBookings(bookings.map(booking => 
-          booking.id === updatedBooking.id ? updatedBooking : booking
-        ));
-        toast.success('Booking status updated');
+        setBookings(
+          bookings.map((booking) =>
+            booking.id === updatedBooking.id ? updatedBooking : booking
+          )
+        );
+        toast.success("Booking status updated");
       } else {
-        throw new Error('Failed to update booking status');
+        throw new Error("Failed to update booking status");
       }
     } catch (error) {
       toast.error(error.message);
@@ -227,47 +255,57 @@ export default function HolidaysAdminPage() {
 
   const resetFormData = () => {
     setFormData({
-      title: '',
-      destination: '',
-      description: '',
-      duration: '',
+      title: "",
+      destination: "",
+      description: "",
+      duration: "",
       nights: 0,
       days: 0,
-      max_people: '',
+      max_people: "",
       price: 0,
-      discount_price: '',
-      availability_start: '',
-      availability_end: '',
+      discount_price: "",
+      availability_start: "",
+      availability_end: "",
       includes_flight: false,
-      featured_image: '',
-      tags: []
+      featured_image: "",
+      tags: [],
     });
   };
 
   const formatTags = (tags) => {
-    if (!tags) return 'No tags';
+    if (!tags) return "No tags";
     if (Array.isArray(tags)) {
-      return tags.join(', ');
+      return tags.join(", ");
     }
-    if (typeof tags === 'string') {
+    if (typeof tags === "string") {
       return tags;
     }
-    if (typeof tags === 'object') {
+    if (typeof tags === "object") {
       return JSON.stringify(tags);
     }
-    return 'No tags';
+    return "No tags";
   };
 
-  const filteredPackages = packages.filter(pkg =>
-    pkg.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    pkg.destination?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredPackages = packages.filter(
+    (pkg) =>
+      pkg.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      pkg.destination?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredBookings = Array.isArray(bookings) ? bookings.filter(booking =>
-    booking.contact_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    booking.package?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    booking.package?.destination?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) : [];
+  const filteredBookings = Array.isArray(bookings)
+    ? bookings.filter(
+        (booking) =>
+          booking.contact_name
+            ?.toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          booking.package?.title
+            ?.toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          booking.package?.destination
+            ?.toLowerCase()
+            .includes(searchTerm.toLowerCase())
+      )
+    : [];
 
   // Modal component for reusability
   const Modal = ({ show, onClose, title, children }) => {
@@ -276,13 +314,13 @@ export default function HolidaysAdminPage() {
     return (
       <div className="fixed inset-0 z-50 overflow-hidden">
         {/* Backdrop */}
-        <div 
+        <div
           className="absolute inset-0 bg-black bg-opacity-50 transition-opacity"
           onClick={onClose}
         />
-        
+
         {/* Modal Panel */}
-<div className="absolute left-1/2 top-0 h-full w-full max-w-2xl -translate-x-1/2 transform transition-transform duration-300 ease-in-out">
+        <div className="absolute left-1/2 top-0 h-full w-full max-w-2xl -translate-x-1/2 transform transition-transform duration-300 ease-in-out">
           <div className="flex h-full flex-col bg-white shadow-xl">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
@@ -294,11 +332,9 @@ export default function HolidaysAdminPage() {
                 <FiX className="h-6 w-6" />
               </button>
             </div>
-            
+
             {/* Content */}
-            <div className="flex-1 overflow-y-auto">
-              {children}
-            </div>
+            <div className="flex-1 overflow-y-auto">{children}</div>
           </div>
         </div>
       </div>
@@ -309,7 +345,9 @@ export default function HolidaysAdminPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-[#445494]">Holidays Management</h1>
+        <h1 className="text-3xl font-bold text-[#445494]">
+          Holidays Management
+        </h1>
         <p className="text-gray-600">Manage holiday packages and bookings</p>
       </div>
 
@@ -317,14 +355,22 @@ export default function HolidaysAdminPage() {
       <div className="border-b border-gray-200">
         <nav className="flex -mb-px">
           <button
-            onClick={() => setActiveTab('packages')}
-            className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${activeTab === 'packages' ? 'border-[#5A53A7] text-[#5A53A7]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            onClick={() => setActiveTab("packages")}
+            className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
+              activeTab === "packages"
+                ? "border-[#5A53A7] text-[#5A53A7]"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
           >
             Packages
           </button>
           <button
-            onClick={() => setActiveTab('bookings')}
-            className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${activeTab === 'bookings' ? 'border-[#5A53A7] text-[#5A53A7]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            onClick={() => setActiveTab("bookings")}
+            className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
+              activeTab === "bookings"
+                ? "border-[#5A53A7] text-[#5A53A7]"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
           >
             Bookings
           </button>
@@ -345,7 +391,7 @@ export default function HolidaysAdminPage() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        {activeTab === 'packages' && (
+        {activeTab === "packages" && (
           <button
             onClick={() => {
               setCurrentPackage(null);
@@ -365,31 +411,52 @@ export default function HolidaysAdminPage() {
         <div className="flex justify-center items-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#5A53A7]"></div>
         </div>
-      ) : activeTab === 'packages' ? (
+      ) : activeTab === "packages" ? (
         <div className="bg-white shadow overflow-hidden sm:rounded-lg">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Title
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Destination
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Duration
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Price
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Tags
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Availability
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Actions
                   </th>
                 </tr>
@@ -402,29 +469,40 @@ export default function HolidaysAdminPage() {
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10">
                             {pkg.featured_image && (
-                              <img 
-                                className="h-10 w-10 rounded-full object-cover" 
-                                src={pkg.featured_image} 
-                                alt={pkg.title}
+                              <Image
+                                src={pkg.featured_image || "/fallback.jpg"} // You can use a fallback image
+                                alt={pkg.title || "Package image"}
+                                width={40} // Equivalent to h-10 (10 * 4 = 40px)
+                                height={40} // Equivalent to w-10 (10 * 4 = 40px)
+                                className="h-10 w-10 rounded-full object-cover"
                                 onError={(e) => {
-                                  e.target.style.display = 'none';
+                                  e.currentTarget.style.display = "none";
                                 }}
+                                unoptimized // Optional: disables optimization if the image URL is external and not from a trusted domain
                               />
                             )}
                           </div>
                           <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">{pkg.title}</div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {pkg.title}
+                            </div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{pkg.destination}</div>
+                        <div className="text-sm text-gray-900">
+                          {pkg.destination}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{pkg.nights} Nights / {pkg.days} Days</div>
+                        <div className="text-sm text-gray-900">
+                          {pkg.nights} Nights / {pkg.days} Days
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">BDT {pkg.price?.toLocaleString()}</div>
+                        <div className="text-sm text-gray-900">
+                          BDT {pkg.price?.toLocaleString()}
+                        </div>
                         {pkg.discount_price && (
                           <div className="text-sm text-red-600 line-through">
                             BDT {pkg.discount_price.toLocaleString()}
@@ -432,13 +510,26 @@ export default function HolidaysAdminPage() {
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900 max-w-xs truncate" title={formatTags(pkg.tags)}>
+                        <div
+                          className="text-sm text-gray-900 max-w-xs truncate"
+                          title={formatTags(pkg.tags)}
+                        >
                           {formatTags(pkg.tags)}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">
-                          {pkg.availability_start ? new Date(pkg.availability_start).toLocaleDateString() : 'N/A'} - {pkg.availability_end ? new Date(pkg.availability_end).toLocaleDateString() : 'N/A'}
+                          {pkg.availability_start
+                            ? new Date(
+                                pkg.availability_start
+                              ).toLocaleDateString()
+                            : "N/A"}{" "}
+                          -{" "}
+                          {pkg.availability_end
+                            ? new Date(
+                                pkg.availability_end
+                              ).toLocaleDateString()
+                            : "N/A"}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -446,20 +537,20 @@ export default function HolidaysAdminPage() {
                           onClick={() => {
                             setCurrentPackage(pkg);
                             setFormData({
-                              title: pkg.title || '',
-                              destination: pkg.destination || '',
-                              description: pkg.description || '',
-                              duration: pkg.duration || '',
+                              title: pkg.title || "",
+                              destination: pkg.destination || "",
+                              description: pkg.description || "",
+                              duration: pkg.duration || "",
                               nights: pkg.nights || 0,
                               days: pkg.days || 0,
-                              max_people: pkg.max_people || '',
+                              max_people: pkg.max_people || "",
                               price: pkg.price || 0,
-                              discount_price: pkg.discount_price || '',
-                              availability_start: pkg.availability_start || '',
-                              availability_end: pkg.availability_end || '',
+                              discount_price: pkg.discount_price || "",
+                              availability_start: pkg.availability_start || "",
+                              availability_end: pkg.availability_end || "",
                               includes_flight: pkg.includes_flight || false,
-                              featured_image: pkg.featured_image || '',
-                              tags: Array.isArray(pkg.tags) ? pkg.tags : []
+                              featured_image: pkg.featured_image || "",
+                              tags: Array.isArray(pkg.tags) ? pkg.tags : [],
                             });
                             setShowEditModal(true);
                           }}
@@ -478,7 +569,10 @@ export default function HolidaysAdminPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="7" className="px-6 py-4 text-center text-sm text-gray-500">
+                    <td
+                      colSpan="7"
+                      className="px-6 py-4 text-center text-sm text-gray-500"
+                    >
                       No packages found
                     </td>
                   </tr>
@@ -493,25 +587,46 @@ export default function HolidaysAdminPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Booking ID
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Package
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Customer
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Departure
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Travelers
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Status
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
                     Actions
                   </th>
                 </tr>
@@ -521,39 +636,65 @@ export default function HolidaysAdminPage() {
                   filteredBookings.map((booking) => (
                     <tr key={booking.id}>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">#{booking.id}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{booking.package?.title || 'N/A'}</div>
-                        <div className="text-sm text-gray-500">{booking.package?.destination || 'N/A'}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{booking.contact_name || 'N/A'}</div>
-                        <div className="text-sm text-gray-500">{booking.email || 'N/A'}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {booking.departure_date ? new Date(booking.departure_date).toLocaleDateString() : 'N/A'}
+                        <div className="text-sm font-medium text-gray-900">
+                          #{booking.id}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{booking.travelers || 'N/A'}</div>
+                        <div className="text-sm text-gray-900">
+                          {booking.package?.title || "N/A"}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {booking.package?.destination || "N/A"}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          booking.status === 'confirmed' 
-                            ? 'bg-green-100 text-green-800'
-                            : booking.status === 'cancelled'
-                              ? 'bg-red-100 text-red-800'
-                              : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {booking.status ? booking.status.charAt(0).toUpperCase() + booking.status.slice(1) : 'Unknown'}
+                        <div className="text-sm text-gray-900">
+                          {booking.contact_name || "N/A"}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {booking.email || "N/A"}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {booking.departure_date
+                            ? new Date(
+                                booking.departure_date
+                              ).toLocaleDateString()
+                            : "N/A"}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {booking.travelers || "N/A"}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            booking.status === "confirmed"
+                              ? "bg-green-100 text-green-800"
+                              : booking.status === "cancelled"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-yellow-100 text-yellow-800"
+                          }`}
+                        >
+                          {booking.status
+                            ? booking.status.charAt(0).toUpperCase() +
+                              booking.status.slice(1)
+                            : "Unknown"}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <select
-                          value={booking.status || 'pending'}
-                          onChange={(e) => handleUpdateBookingStatus(booking.id, e.target.value)}
+                          value={booking.status || "pending"}
+                          onChange={(e) =>
+                            handleUpdateBookingStatus(
+                              booking.id,
+                              e.target.value
+                            )
+                          }
                           className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-[#5A53A7] focus:border-[#5A53A7] sm:text-sm rounded-md"
                         >
                           <option value="pending">Pending</option>
@@ -566,7 +707,10 @@ export default function HolidaysAdminPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="7" className="px-6 py-4 text-center text-sm text-gray-500">
+                    <td
+                      colSpan="7"
+                      className="px-6 py-4 text-center text-sm text-gray-500"
+                    >
                       No bookings found
                     </td>
                   </tr>
@@ -662,7 +806,8 @@ export default function HolidaysAdminPage() {
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    nights: e.target.value === '' ? 0 : parseInt(e.target.value),
+                    nights:
+                      e.target.value === "" ? 0 : parseInt(e.target.value),
                   })
                 }
                 required
@@ -686,7 +831,7 @@ export default function HolidaysAdminPage() {
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    days: e.target.value === '' ? 0 : parseInt(e.target.value),
+                    days: e.target.value === "" ? 0 : parseInt(e.target.value),
                   })
                 }
                 required
@@ -731,7 +876,8 @@ export default function HolidaysAdminPage() {
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    price: e.target.value === '' ? 0 : parseFloat(e.target.value),
+                    price:
+                      e.target.value === "" ? 0 : parseFloat(e.target.value),
                   })
                 }
                 required
@@ -756,7 +902,8 @@ export default function HolidaysAdminPage() {
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    discount_price: e.target.value === '' ? '' : parseFloat(e.target.value),
+                    discount_price:
+                      e.target.value === "" ? "" : parseFloat(e.target.value),
                   })
                 }
               />
@@ -776,7 +923,10 @@ export default function HolidaysAdminPage() {
                 className="mt-1 focus:ring-[#5A53A7] focus:border-[#5A53A7] block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={formData.availability_start}
                 onChange={(e) =>
-                  setFormData({ ...formData, availability_start: e.target.value })
+                  setFormData({
+                    ...formData,
+                    availability_start: e.target.value,
+                  })
                 }
                 required
               />
@@ -810,10 +960,15 @@ export default function HolidaysAdminPage() {
                   className="focus:ring-[#5A53A7] h-4 w-4 text-[#5A53A7] border-gray-300 rounded mr-2"
                   checked={formData.includes_flight}
                   onChange={(e) =>
-                    setFormData({ ...formData, includes_flight: e.target.checked })
+                    setFormData({
+                      ...formData,
+                      includes_flight: e.target.checked,
+                    })
                   }
                 />
-                <span className="text-sm font-medium text-gray-700">Includes Flight</span>
+                <span className="text-sm font-medium text-gray-700">
+                  Includes Flight
+                </span>
               </label>
             </div>
 
@@ -850,12 +1005,16 @@ export default function HolidaysAdminPage() {
                 id="tags"
                 placeholder="beach, luxury, family"
                 className="mt-1 focus:ring-[#5A53A7] focus:border-[#5A53A7] block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                value={Array.isArray(formData.tags) ? formData.tags.join(', ') : formData.tags}
+                value={
+                  Array.isArray(formData.tags)
+                    ? formData.tags.join(", ")
+                    : formData.tags
+                }
                 onChange={(e) =>
                   setFormData({
                     ...formData,
                     tags: e.target.value
-                      .split(',')
+                      .split(",")
                       .map((tag) => tag.trim())
                       .filter((tag) => tag.length > 0),
                   })
@@ -909,46 +1068,72 @@ export default function HolidaysAdminPage() {
         <form onSubmit={handleEditPackage} className="p-6">
           <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
             <div className="sm:col-span-6">
-              <label htmlFor="edit-title" className="block text-sm font-medium text-gray-700">Package Title</label>
+              <label
+                htmlFor="edit-title"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Package Title
+              </label>
               <input
                 type="text"
                 name="title"
                 id="edit-title"
                 className="mt-1 focus:ring-[#5A53A7] focus:border-[#5A53A7] block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={formData.title}
-                onChange={(e) => setFormData({...formData, title: e.target.value})}
+                onChange={(e) =>
+                  setFormData({ ...formData, title: e.target.value })
+                }
                 required
               />
             </div>
 
             <div className="sm:col-span-3">
-              <label htmlFor="edit-destination" className="block text-sm font-medium text-gray-700">Destination</label>
+              <label
+                htmlFor="edit-destination"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Destination
+              </label>
               <input
                 type="text"
                 name="destination"
                 id="edit-destination"
                 className="mt-1 focus:ring-[#5A53A7] focus:border-[#5A53A7] block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={formData.destination}
-                onChange={(e) => setFormData({...formData, destination: e.target.value})}
+                onChange={(e) =>
+                  setFormData({ ...formData, destination: e.target.value })
+                }
                 required
               />
             </div>
 
             <div className="sm:col-span-3">
-              <label htmlFor="edit-duration" className="block text-sm font-medium text-gray-700">Duration</label>
+              <label
+                htmlFor="edit-duration"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Duration
+              </label>
               <input
                 type="text"
                 name="duration"
                 id="edit-duration"
                 className="mt-1 focus:ring-[#5A53A7] focus:border-[#5A53A7] block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={formData.duration}
-                onChange={(e) => setFormData({...formData, duration: e.target.value})}
+                onChange={(e) =>
+                  setFormData({ ...formData, duration: e.target.value })
+                }
                 required
               />
             </div>
 
             <div className="sm:col-span-2">
-              <label htmlFor="edit-nights" className="block text-sm font-medium text-gray-700">Nights</label>
+              <label
+                htmlFor="edit-nights"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Nights
+              </label>
               <input
                 type="number"
                 name="nights"
@@ -956,13 +1141,23 @@ export default function HolidaysAdminPage() {
                 min="0"
                 className="mt-1 focus:ring-[#5A53A7] focus:border-[#5A53A7] block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={formData.nights}
-                onChange={(e) => setFormData({...formData, nights: parseInt(e.target.value) || 0})}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    nights: parseInt(e.target.value) || 0,
+                  })
+                }
                 required
               />
             </div>
 
             <div className="sm:col-span-2">
-              <label htmlFor="edit-days" className="block text-sm font-medium text-gray-700">Days</label>
+              <label
+                htmlFor="edit-days"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Days
+              </label>
               <input
                 type="number"
                 name="days"
@@ -970,26 +1165,43 @@ export default function HolidaysAdminPage() {
                 min="0"
                 className="mt-1 focus:ring-[#5A53A7] focus:border-[#5A53A7] block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={formData.days}
-                onChange={(e) => setFormData({...formData, days: parseInt(e.target.value) || 0})}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    days: parseInt(e.target.value) || 0,
+                  })
+                }
                 required
               />
             </div>
 
             <div className="sm:col-span-2">
-              <label htmlFor="edit-max_people" className="block text-sm font-medium text-gray-700">Max People</label>
+              <label
+                htmlFor="edit-max_people"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Max People
+              </label>
               <input
                 type="text"
                 name="max_people"
                 id="edit-max_people"
                 className="mt-1 focus:ring-[#5A53A7] focus:border-[#5A53A7] block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={formData.max_people}
-                onChange={(e) => setFormData({...formData, max_people: e.target.value})}
+                onChange={(e) =>
+                  setFormData({ ...formData, max_people: e.target.value })
+                }
                 required
               />
             </div>
 
             <div className="sm:col-span-3">
-              <label htmlFor="edit-price" className="block text-sm font-medium text-gray-700">Price</label>
+              <label
+                htmlFor="edit-price"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Price
+              </label>
               <input
                 type="number"
                 name="price"
@@ -998,13 +1210,23 @@ export default function HolidaysAdminPage() {
                 step="0.01"
                 className="mt-1 focus:ring-[#5A53A7] focus:border-[#5A53A7] block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={formData.price}
-                onChange={(e) => setFormData({...formData, price: parseFloat(e.target.value) || 0})}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    price: parseFloat(e.target.value) || 0,
+                  })
+                }
                 required
               />
             </div>
 
             <div className="sm:col-span-3">
-              <label htmlFor="edit-discount_price" className="block text-sm font-medium text-gray-700">Discount Price (optional)</label>
+              <label
+                htmlFor="edit-discount_price"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Discount Price (optional)
+              </label>
               <input
                 type="number"
                 name="discount_price"
@@ -1013,32 +1235,55 @@ export default function HolidaysAdminPage() {
                 step="0.01"
                 className="mt-1 focus:ring-[#5A53A7] focus:border-[#5A53A7] block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={formData.discount_price}
-                onChange={(e) => setFormData({...formData, discount_price: e.target.value === '' ? '' : parseFloat(e.target.value)})}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    discount_price:
+                      e.target.value === "" ? "" : parseFloat(e.target.value),
+                  })
+                }
               />
             </div>
 
             <div className="sm:col-span-3">
-              <label htmlFor="edit-availability_start" className="block text-sm font-medium text-gray-700">Availability Start</label>
+              <label
+                htmlFor="edit-availability_start"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Availability Start
+              </label>
               <input
                 type="date"
                 name="availability_start"
                 id="edit-availability_start"
                 className="mt-1 focus:ring-[#5A53A7] focus:border-[#5A53A7] block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={formData.availability_start}
-                onChange={(e) => setFormData({...formData, availability_start: e.target.value})}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    availability_start: e.target.value,
+                  })
+                }
                 required
               />
             </div>
 
             <div className="sm:col-span-3">
-              <label htmlFor="edit-availability_end" className="block text-sm font-medium text-gray-700">Availability End</label>
+              <label
+                htmlFor="edit-availability_end"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Availability End
+              </label>
               <input
                 type="date"
                 name="availability_end"
                 id="edit-availability_end"
                 className="mt-1 focus:ring-[#5A53A7] focus:border-[#5A53A7] block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={formData.availability_end}
-                onChange={(e) => setFormData({...formData, availability_end: e.target.value})}
+                onChange={(e) =>
+                  setFormData({ ...formData, availability_end: e.target.value })
+                }
                 required
               />
             </div>
@@ -1050,47 +1295,85 @@ export default function HolidaysAdminPage() {
                   name="includes_flight"
                   className="focus:ring-[#5A53A7] h-4 w-4 text-[#5A53A7] border-gray-300 rounded mr-2"
                   checked={formData.includes_flight}
-                  onChange={(e) => setFormData({...formData, includes_flight: e.target.checked})}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      includes_flight: e.target.checked,
+                    })
+                  }
                 />
-                <span className="text-sm font-medium text-gray-700">Includes Flight</span>
+                <span className="text-sm font-medium text-gray-700">
+                  Includes Flight
+                </span>
               </label>
             </div>
 
             <div className="sm:col-span-6">
-              <label htmlFor="edit-description" className="block text-sm font-medium text-gray-700">Description</label>
+              <label
+                htmlFor="edit-description"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Description
+              </label>
               <textarea
                 name="description"
                 id="edit-description"
                 rows={4}
                 className="mt-1 focus:ring-[#5A53A7] focus:border-[#5A53A7] block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
                 required
               />
             </div>
 
             <div className="sm:col-span-6">
-              <label htmlFor="edit-tags" className="block text-sm font-medium text-gray-700">Tags (comma separated)</label>
+              <label
+                htmlFor="edit-tags"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Tags (comma separated)
+              </label>
               <input
                 type="text"
                 name="tags"
                 id="edit-tags"
                 placeholder="beach, luxury, family"
                 className="mt-1 focus:ring-[#5A53A7] focus:border-[#5A53A7] block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                value={Array.isArray(formData.tags) ? formData.tags.join(', ') : formData.tags}
-                onChange={(e) => setFormData({...formData, tags: e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0)})}
+                value={
+                  Array.isArray(formData.tags)
+                    ? formData.tags.join(", ")
+                    : formData.tags
+                }
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    tags: e.target.value
+                      .split(",")
+                      .map((tag) => tag.trim())
+                      .filter((tag) => tag.length > 0),
+                  })
+                }
               />
             </div>
 
             <div className="sm:col-span-6">
-              <label htmlFor="edit-featured_image" className="block text-sm font-medium text-gray-700">Featured Image URL</label>
+              <label
+                htmlFor="edit-featured_image"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Featured Image URL
+              </label>
               <input
                 type="url"
                 name="featured_image"
                 id="edit-featured_image"
                 className="mt-1 focus:ring-[#5A53A7] focus:border-[#5A53A7] block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
                 value={formData.featured_image}
-                onChange={(e) => setFormData({...formData, featured_image: e.target.value})}
+                onChange={(e) =>
+                  setFormData({ ...formData, featured_image: e.target.value })
+                }
               />
             </div>
           </div>

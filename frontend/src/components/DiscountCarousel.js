@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import React, { useRef, useState, useEffect } from "react";
 import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 
@@ -127,12 +128,17 @@ const DiscountCarousel = () => {
     resetAutoScroll();
   };
 
-  const startAutoScroll = () => {
+ const DiscountCarousel = ({ isMobile }) => {
+  const carouselRef = useRef(null);
+  const scrollInterval = useRef(null);
+
+  const startAutoScroll = useCallback(() => {
     if (scrollInterval.current) clearInterval(scrollInterval.current);
 
     scrollInterval.current = setInterval(() => {
       if (carouselRef.current) {
         const scrollAmount = isMobile ? 280 : 300;
+
         // Check if we've reached the end
         if (
           carouselRef.current.scrollLeft + carouselRef.current.clientWidth >=
@@ -149,7 +155,19 @@ const DiscountCarousel = () => {
         }
       }
     }, 3000);
-  };
+  }, [isMobile]); // ✅ dependency added here
+
+  useEffect(() => {
+    startAutoScroll(); // now safe
+    return () => clearInterval(scrollInterval.current); // cleanup on unmount
+  }, [startAutoScroll]);
+
+  return (
+    <div ref={carouselRef} className="overflow-x-auto whitespace-nowrap">
+      {/* carousel items here */}
+    </div>
+  );
+};
 
   const resetAutoScroll = () => {
     setIsAutoScrolling(false);
@@ -167,7 +185,7 @@ const DiscountCarousel = () => {
     return () => {
       if (scrollInterval.current) clearInterval(scrollInterval.current);
     };
-  }, [isAutoScrolling, filteredOffers, isMobile]);
+  }, [isAutoScrolling, filteredOffers, isMobile,startAutoScroll]);
 
   return (
     <div className="bg-white py-8 md:py-12 px-4 sm:px-6 lg:px-8 xl:px-44 2xl:px-60">
@@ -269,10 +287,11 @@ const DiscountCarousel = () => {
 
                 {/* Card Image */}
                 <div className="h-40 sm:h-48 relative overflow-hidden">
-                  <img
-                    src={offer.image}
-                    alt={offer.title}
-                    className="w-full h-full object-cover"
+                  <Image
+                    src={imageSrc}
+                    alt={offer.title || "Offer Image"}
+                    fill
+                    className="object-cover"
                   />
                   <div className="absolute inset-0  bg-opacity-30"></div>
                 </div>

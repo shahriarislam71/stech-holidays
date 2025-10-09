@@ -12,7 +12,12 @@ export default function useAuth({ redirectToLogin = true, adminOnly = false } = 
   const [errorMsg, setErrorMsg] = useState('');
   const [googleLoaded, setGoogleLoaded] = useState(false);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL 
-  const fetchUser = async () => {
+ const useAuth = (apiUrl) => {
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const fetchUser = useCallback(async () => {
     setIsLoading(true);
     setErrorMsg('');
     try {
@@ -45,7 +50,16 @@ export default function useAuth({ redirectToLogin = true, adminOnly = false } = 
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [apiUrl]); // ✅ dependencies go here
+
+  useEffect(() => {
+    fetchUser(); // safe to include now
+  }, [fetchUser]);
+
+  return { user, isLoading, errorMsg, fetchUser };
+};
+
+
 
   // Handle redirect after successful login
   const handleSuccessfulLogin = async () => {
@@ -94,7 +108,7 @@ export default function useAuth({ redirectToLogin = true, adminOnly = false } = 
     };
 
     checkAuth();
-  }, [redirectToLogin, router]);
+  }, [redirectToLogin, router,fetchUser]);
 
   // Initialize Google Sign-In
   const initGoogleLogin = () => {

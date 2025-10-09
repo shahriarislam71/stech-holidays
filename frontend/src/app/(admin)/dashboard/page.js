@@ -4,7 +4,7 @@ export default function AdminDashboard() {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-[#445494]">Dashboard Overview</h1>
-        <p className="text-gray-600">Welcome back! Here's what's happening with your business today.</p>
+        <p className="text-gray-600">Welcome back! Heres whats happening with your business today.</p>
       </div>
 
       {/* Stats Cards */}

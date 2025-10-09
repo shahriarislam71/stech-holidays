@@ -62,7 +62,7 @@ export default function VisaCountryPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="text-center p-6 max-w-md bg-white rounded-lg shadow-md">
         <h2 className="text-xl font-semibold text-gray-800 mb-2">Country Not Found</h2>
-        <p className="text-gray-600">The visa country you're looking for doesn't exist.</p>
+        <p className="text-gray-600">The visa country youre looking for doesnt exist.</p>
       </div>
     </div>
   );
