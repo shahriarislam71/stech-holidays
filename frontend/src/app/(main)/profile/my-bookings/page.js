@@ -72,50 +72,6 @@ export default function MyBookings() {
     }
   };
 
-  // Fetch all hotel bookings
-  const fetchAllHotels = async () => {
-    try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/hotels/Allbookings/`,
-        {
-          headers: {
-            'Authorization': `Token ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        return data.map(booking => ({
-          id: booking.id,
-          bookingNumber: booking.reference || `HT${booking.id.toString().slice(-6)}`,
-          date: new Date(booking.confirmed_at || booking.created_at || new Date()).toLocaleDateString(),
-          hotel: booking.accommodation?.name || 'Unknown Hotel',
-          location: booking.accommodation?.location?.address ? 
-            `${booking.accommodation.location.address.city_name}, ${booking.accommodation.location.address.country_code}` : 
-            'N/A',
-          check_in: booking.check_in_date,
-          check_out: booking.check_out_date,
-          status: booking.status || 'Confirmed',
-          price: `GBP ${booking.total_amount || '0'}`,
-          passenger: booking.guests?.[0] ? `${booking.guests[0].given_name} ${booking.guests[0].family_name}` : 'N/A',
-          email: booking.email || 'N/A',
-          image: booking.accommodation?.photos?.[0]?.url || '/hotel-booking.jpg',
-          rooms: booking.rooms || 1,
-          guests: booking.guests?.length || 1,
-          accommodation: booking.accommodation,
-          guest_types: booking.guest_types
-        }));
-      }
-      return [];
-    } catch (error) {
-      console.error('Error fetching all hotels:', error);
-      return [];
-    }
-  };
-
   // Fetch flight booking details
   const fetchFlightBooking = async (orderId) => {
     try {
@@ -249,7 +205,6 @@ export default function MyBookings() {
       const token = localStorage.getItem('authToken');
       if (!token) return;
 
-      // Check if we have a specific booking ID to fetch
       const specificBookingId = searchParams.get('booking_id');
       const specificCategory = searchParams.get('tab') || activeCategory;
 
@@ -270,19 +225,57 @@ export default function MyBookings() {
           }));
         }
       } else {
-        // Fetch all bookings for the active category
         if (activeCategory === 'flight') {
           const allFlights = await fetchAllFlights();
-          // Sort by date (newest first)
           const sortedFlights = allFlights.sort((a, b) => new Date(b.date) - new Date(a.date));
           setBookings(prev => ({
             ...prev,
             flight: sortedFlights
           }));
-        } else if (activeCategory === 'hotel') {
-          const allHotels = await fetchAllHotels();
-          // Sort by date (newest first)
-          const sortedHotels = allHotels.sort((a, b) => new Date(b.date) - new Date(a.date));
+        }
+      }
+
+      // Fetch hotel bookings - FIXED HERE
+      if (activeCategory === 'hotel') {
+        const hotelResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/hotels/Allbookings/`,
+          {
+            headers: {
+              'Authorization': `Token ${token}`
+            }
+          }
+        );
+        if (hotelResponse.ok) {
+          const hotelData = await response.json();
+          
+          // Check if response has bookings array
+          const hotelBookingsArray = hotelData.bookings || (Array.isArray(hotelData) ? hotelData : []);
+          
+          const sortedHotels = hotelBookingsArray
+            .map(booking => ({
+              ...booking,
+              id: booking.id,
+              bookingNumber: booking.reference || `HT${booking.id.toString().padStart(6, '0')}`,
+              date: new Date(booking.confirmed_at || booking.created_at || new Date()).toLocaleDateString(),
+              hotel: booking.accommodation?.name || 'Unknown Hotel',
+              location: booking.accommodation?.location?.address ? 
+                `${booking.accommodation.location.address.city_name}, ${booking.accommodation.location.address.country_code}` : 
+                'N/A',
+              check_in: booking.check_in_date,
+              check_out: booking.check_out_date,
+              status: booking.status || 'Confirmed',
+              price: `GBP ${booking.total_amount || '0'}`,
+              passenger: booking.guests?.[0] ? `${booking.guests[0].given_name} ${booking.guests[0].family_name}` : 'N/A',
+              email: booking.email || 'N/A',
+              image: booking.accommodation?.photos?.[0]?.url || '/hotel-booking.jpg',
+              photos: booking.accommodation?.photos || [{ url: '/hotel-booking.jpg' }],
+              rooms: booking.rooms || 1,
+              guests: booking.guests?.length || 1,
+              accommodation: booking.accommodation,
+              guest_types: booking.guest_types
+            }))
+            .sort((a, b) => new Date(b.confirmed_at || b.created_at) - new Date(a.confirmed_at || a.created_at));
+          
           setBookings(prev => ({
             ...prev,
             hotel: sortedHotels
@@ -315,6 +308,7 @@ export default function MyBookings() {
               passenger: booking.contact_name,
               email: booking.email,
               image: booking.package?.featured_image || '/default-holiday.jpg',
+              photos: booking.package?.featured_image ? [{ url: booking.package.featured_image }] : [{ url: '/default-holiday.jpg' }],
               packageDetails: booking.package || {},
               travelers: booking.travelers,
               custom_request: booking.custom_request
@@ -354,6 +348,7 @@ export default function MyBookings() {
               passenger: application.contact_name,
               email: application.email,
               image: application.country.cover_image || '/default-visa.jpg',
+              photos: application.country.cover_image ? [{ url: application.country.cover_image }] : [{ url: '/default-visa.jpg' }],
               travelers: application.travelers,
               passport_number: application.passport_number,
               passport_expiry: application.passport_expiry,
@@ -397,6 +392,7 @@ export default function MyBookings() {
               passenger: booking.contact_name,
               email: booking.email,
               image: booking.package?.featured_image || '/default-umrah.jpg',
+              photos: booking.package?.featured_image ? [{ url: booking.package.featured_image }] : [{ url: '/default-umrah.jpg' }],
               packageDetails: booking.package || {},
               travelers: booking.travelers,
               custom_request: booking.custom_request,
@@ -423,7 +419,6 @@ export default function MyBookings() {
     }
   };
 
-  // Check for booking success message and specific booking
   useEffect(() => {
     const bookingId = searchParams.get('booking_id');
     const tab = searchParams.get('tab');
@@ -437,7 +432,6 @@ export default function MyBookings() {
     }
   }, [searchParams]);
 
-  // Fetch bookings when category changes
   useEffect(() => {
     fetchBookings();
   }, [activeCategory]);
@@ -517,7 +511,6 @@ export default function MyBookings() {
       content += `Arrival: ${new Date(booking.arrival_time).toLocaleString()}\n`;
       content += `Cabin Class: ${booking.cabin_class}\n`;
       
-      // Add slice information
       if (booking.slices && booking.slices.length > 0) {
         content += `\nJourney Details:\n`;
         booking.slices.forEach((slice, index) => {
@@ -608,36 +601,6 @@ export default function MyBookings() {
             <Link
               href="/profile"
               className={`flex items-center px-4 py-3 rounded-lg text-sm font-medium ${pathname === '/profile' ? 'bg-[#55C3A9] text-white' : 'text-gray-700 hover:bg-gray-100'}`}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-              </svg>
-              Profile
-            </Link>
-            <Link
-              href="/profile/travellers"
-              className={`flex items-center px-4 py-3 rounded-lg text-sm font-medium ${pathname === '/profile/travellers' ? 'bg-[#55C3A9] text-white' : 'text-gray-700 hover:bg-gray-100'}`}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
-              </svg>
-              Travellers
-            </Link>
-            <Link
-              href="/profile/my-bookings"
-              className={`flex items-center px-4 py-3 rounded-lg text-sm font-medium ${pathname === '/profile/my-bookings' ? 'bg-[#55C3A9] text-white' : 'text-gray-700 hover:bg-gray-100'}`}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-              </svg>
-              My Bookings
-            </Link>
-            <Link
-              href="/profile/loyalty"
-              className={`flex items-center px-4 py-3 rounded-lg text-sm font-medium ${pathname === '/profile/loyalty' ? 'bg-[#55C3A9] text-white' : 'text-gray-700 hover:bg-gray-100'}`}
               onClick={() => setMobileMenuOpen(false)}
             >
               <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1100,12 +1063,12 @@ export default function MyBookings() {
                           <div className="p-4">
                             <div className="flex flex-col md:flex-row md:items-start">
                               {/* Image */}
-                              <div className="w-full md:w-30 h-42 md:mr-4 rounded-lg overflow-hidden mb-4 md:mb-0">
+                              <div className="w-full md:w-48 h-32 md:mr-4 rounded-lg overflow-hidden mb-4 md:mb-0 flex-shrink-0">
                                 <Image 
-                                  src={booking.image} 
+                                  src={booking.photos?.[0]?.url || booking.image} 
                                   alt={booking.destination || booking.hotel || booking.country}
-                                  width={400}
-                                  height={192}
+                                  width={192}
+                                  height={128}
                                   className="w-full h-full object-cover"
                                 />
                               </div>
@@ -1209,7 +1172,7 @@ export default function MyBookings() {
                                     View Details
                                   </button>
                               
-                                  {booking.status !== 'completed' && booking.status !== 'cancelled' && (
+                                  {booking.status !== 'completed' && booking.status !== 'cancelled' && (activeCategory === 'holidays' || activeCategory === 'umrah') && (
                                     <button 
                                       onClick={() => handleCancelBooking(booking.id)}
                                       className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
@@ -1259,4 +1222,4 @@ export default function MyBookings() {
       </div>
     </div>
   );
-}
+} 

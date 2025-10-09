@@ -30,6 +30,17 @@ const VisaSubmissionPage = () => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isFormValid, setIsFormValid] = useState(false);
 
+  // Calculate fees
+  const calculateFees = () => {
+    if (!visaDetails) return { visaFee: 0, processingFee: 0, totalAmount: 0 };
+    
+    const visaFee = parseFloat(visaDetails.visaType.fee || 0) * formData.travelers;
+    const processingFee = parseFloat(visaDetails.country.fee || 0) * formData.travelers;
+    const totalAmount = visaFee + processingFee;
+    
+    return { visaFee, processingFee, totalAmount };
+  };
+
   useEffect(() => {
     const fetchVisaDetails = async () => {
       try {
@@ -111,6 +122,28 @@ const VisaSubmissionPage = () => {
         throw new Error('Authentication required');
       }
 
+      const { visaFee, processingFee, totalAmount } = calculateFees();
+
+      const requestData = {
+        visa_type: id,  // Visa type ID from URL (12)
+        country_id: visaDetails.country.id,  // Country ID (23)
+        contact_name: formData.contactName,
+        email: formData.email,
+        phone: formData.mobileNumber,
+        departure_date: formData.departureDate,
+        travelers: formData.travelers,
+        passport_number: formData.passportNumber,
+        passport_expiry: formData.passportExpiry,
+        additional_info: formData.message,
+        // Add the required fee fields
+        visa_fee: visaFee.toString(),
+        processing_fee: processingFee.toString(),
+        total_amount: totalAmount.toString(),
+        user: user.id || user.pk  // Assuming your user object has id or pk field
+      };
+
+      console.log('Submitting visa application:', requestData);
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/visa-applications/`,
         {
@@ -119,24 +152,14 @@ const VisaSubmissionPage = () => {
             'Content-Type': 'application/json',
             'Authorization': `Token ${token}`
           },
-          body: JSON.stringify({
-            visa_type: id,  // Visa type ID from URL (12)
-            country_id: visaDetails.country.id,  // Country ID (23)
-            contact_name: formData.contactName,
-            email: formData.email,
-            phone: formData.mobileNumber,
-            departure_date: formData.departureDate,
-            travelers: formData.travelers,
-            passport_number: formData.passportNumber,
-            passport_expiry: formData.passportExpiry,
-            additional_info: formData.message
-          })
+          body: JSON.stringify(requestData)
         }
       );
 
+      const responseData = await response.json();
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || errorData.message || 'Application failed');
+        throw new Error(responseData.detail || responseData.message || JSON.stringify(responseData) || 'Application failed');
       }
       
       setShowSuccessModal(true);
@@ -156,6 +179,8 @@ const VisaSubmissionPage = () => {
     setShowSuccessModal(false);
     router.push('/profile/my-bookings');
   };
+
+  const { visaFee, processingFee, totalAmount } = calculateFees();
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">
@@ -249,175 +274,175 @@ const VisaSubmissionPage = () => {
 
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Left Side - Visa Form */}
-        <div className="">
-            <div className="">
-          <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-lg p-8">
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-800 mb-6 pb-2 border-b border-gray-100">
-                Contact Information
-              </h2>
-              <p className="text-gray-500 mb-6">Please provide your contact details</p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
-                  <input
-                    type="text"
-                    name="contactName"
-                    value={formData.contactName}
-                    onChange={handleChange}
-                    className="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Mobile Number *</label>
-                  <div className="flex">
-                    <div className="relative w-24 mr-3">
-                      <select className="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent appearance-none bg-white">
-                        <option>+880</option>
-                      </select>
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                        <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </div>
-                    </div>
-                    <input
-                      type="tel"
-                      name="mobileNumber"
-                      value={formData.mobileNumber}
-                      onChange={handleChange}
-                      className="flex-1 p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      placeholder="1XXXXXXXXX"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email Address *</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    className="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Departure Date *</label>
-                  <div className="relative">
-                    <input
-                      type="date"
-                      name="departureDate"
-                      value={formData.departureDate}
-                      onChange={handleChange}
-                      className="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-12"
-                      required
-                      min={new Date().toISOString().split('T')[0]}
-                    />
-                    <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
-                      <FaCalendarAlt className="text-gray-400" />
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Number of Travellers</label>
-                  <div className="flex items-center bg-gray-50 rounded-xl p-1 w-fit">
-                    <button
-                      type="button"
-                      onClick={() => handleTravelerChange(false)}
-                      disabled={formData.travelers <= 1}
-                      className={`p-3 rounded-lg ${formData.travelers <= 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100'}`}
-                    >
-                      <FaUserMinus size={18} />
-                    </button>
-                    <span className="mx-4 text-lg font-medium w-8 text-center">{formData.travelers}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleTravelerChange(true)}
-                      className="p-3 rounded-lg text-gray-600 hover:bg-gray-100"
-                    >
-                      <FaUserPlus size={18} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6">
+        <div className="lg:w-2/3">
+          <div className="bg-white rounded-2xl shadow-lg p-8">
+            <form onSubmit={handleSubmit}>
+              <div className="mb-8">
                 <h2 className="text-2xl font-bold text-gray-800 mb-6 pb-2 border-b border-gray-100">
-                  Passport Information
+                  Contact Information
                 </h2>
+                <p className="text-gray-500 mb-6">Please provide your contact details</p>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Passport Number *</label>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
                     <input
                       type="text"
-                      name="passportNumber"
-                      value={formData.passportNumber}
+                      name="contactName"
+                      value={formData.contactName}
                       onChange={handleChange}
-                      className="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                       required
                     />
                   </div>
+
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Passport Expiry Date *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Mobile Number *</label>
+                    <div className="flex">
+                      <div className="relative w-24 mr-3">
+                        <select className="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent appearance-none bg-white">
+                          <option>+880</option>
+                        </select>
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                          <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
+                      <input
+                        type="tel"
+                        name="mobileNumber"
+                        value={formData.mobileNumber}
+                        onChange={handleChange}
+                        className="flex-1 p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        placeholder="1XXXXXXXXX"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Email Address *</label>
                     <input
-                      type="date"
-                      name="passportExpiry"
-                      value={formData.passportExpiry}
+                      type="email"
+                      name="email"
+                      value={formData.email}
                       onChange={handleChange}
                       className="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       required
-                      min={new Date().toISOString().split('T')[0]}
                     />
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Departure Date *</label>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        name="departureDate"
+                        value={formData.departureDate}
+                        onChange={handleChange}
+                        className="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-12"
+                        required
+                        min={new Date().toISOString().split('T')[0]}
+                      />
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
+                        <FaCalendarAlt className="text-gray-400" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Number of Travellers</label>
+                    <div className="flex items-center bg-gray-50 rounded-xl p-1 w-fit">
+                      <button
+                        type="button"
+                        onClick={() => handleTravelerChange(false)}
+                        disabled={formData.travelers <= 1}
+                        className={`p-3 rounded-lg ${formData.travelers <= 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100'}`}
+                      >
+                        <FaUserMinus size={18} />
+                      </button>
+                      <span className="mx-4 text-lg font-medium w-8 text-center">{formData.travelers}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleTravelerChange(true)}
+                        className="p-3 rounded-lg text-gray-600 hover:bg-gray-100"
+                      >
+                        <FaUserPlus size={18} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                  <h2 className="text-2xl font-bold text-gray-800 mb-6 pb-2 border-b border-gray-100">
+                    Passport Information
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Passport Number *</label>
+                      <input
+                        type="text"
+                        name="passportNumber"
+                        value={formData.passportNumber}
+                        onChange={handleChange}
+                        className="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Passport Expiry Date *</label>
+                      <input
+                        type="date"
+                        name="passportExpiry"
+                        value={formData.passportExpiry}
+                        onChange={handleChange}
+                        className="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        required
+                        min={new Date().toISOString().split('T')[0]}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Additional Message</label>
+                  <textarea
+                    name="message"
+                    value={formData.message}
+                    onChange={handleChange}
+                    className="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    rows="4"
+                    placeholder="Any special requirements or notes..."
+                  />
                 </div>
               </div>
 
-              <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Additional Message</label>
-                <textarea
-                  name="message"
-                  value={formData.message}
-                  onChange={handleChange}
-                  className="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  rows="4"
-                  placeholder="Any special requirements or notes..."
+              <div className="flex items-start mb-8">
+                <input
+                  type="checkbox"
+                  id="terms"
+                  className="mt-1 mr-3 h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                  required
                 />
+                <label htmlFor="terms" className="text-sm text-gray-600">
+                  I agree to the <a href="#" className="text-purple-600 hover:underline font-medium">Terms & Conditions</a>, <a href="#" className="text-purple-600 hover:underline font-medium">Privacy Policy</a> and <a href="#" className="text-purple-600 hover:underline font-medium">Refund Policy</a>.
+                </label>
               </div>
-            </div>
 
-            <div className="flex items-start mb-8">
-              <input
-                type="checkbox"
-                id="terms"
-                className="mt-1 mr-3 h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-                required
-              />
-              <label htmlFor="terms" className="text-sm text-gray-600">
-                I agree to the <a href="#" className="text-purple-600 hover:underline font-medium">Terms & Conditions</a>, <a href="#" className="text-purple-600 hover:underline font-medium">Privacy Policy</a> and <a href="#" className="text-purple-600 hover:underline font-medium">Refund Policy</a>.
-              </label>
-            </div>
-
-            <button
-              type="submit"
-              disabled={!isFormValid || isSubmitting || !user}
-              className={`w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-300 ${
-                isFormValid && user 
-                  ? 'bg-purple-600 hover:bg-purple-700 shadow-md hover:shadow-lg' 
-                  : 'bg-gray-400 cursor-not-allowed'
-              }`}
-            >
-              {!user ? 'Sign In to Apply' : isSubmitting ? 'Processing...' : 'Submit Visa Request'}
-            </button>
-          </form>
-        </div>
+              <button
+                type="submit"
+                disabled={!isFormValid || isSubmitting || !user}
+                className={`w-full py-4 px-6 rounded-xl font-semibold text-white transition-all duration-300 ${
+                  isFormValid && user 
+                    ? 'bg-purple-600 hover:bg-purple-700 shadow-md hover:shadow-lg' 
+                    : 'bg-gray-400 cursor-not-allowed'
+                }`}
+              >
+                {!user ? 'Sign In to Apply' : isSubmitting ? 'Processing...' : 'Submit Visa Request'}
+              </button>
+            </form>
+          </div>
         </div>
         
         {/* Right Side - Price Summary */}
@@ -429,23 +454,20 @@ const VisaSubmissionPage = () => {
               <div className="flex justify-between">
                 <span className="text-gray-600">Visa Fee × {formData.travelers}</span>
                 <span className="font-medium">
-                  {(parseFloat(visaDetails.visaType.fee || 0) * formData.travelers).toFixed(2)} BDT
+                  {visaFee.toFixed(2)} BDT
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Processing Fee × {formData.travelers}</span>
                 <span className="font-medium">
-                  {(parseFloat(visaDetails.country.fee || 0) * formData.travelers).toFixed(2)} BDT
+                  {processingFee.toFixed(2)} BDT
                 </span>
               </div>
               <div className="border-t border-gray-200 pt-4 mt-2">
                 <div className="flex justify-between">
                   <span className="font-semibold text-lg">Total Payable</span>
                   <span className="font-bold text-xl text-purple-600">
-                    {(
-                      parseFloat(visaDetails.visaType.fee || 0) + 
-                      parseFloat(visaDetails.country.fee || 0)
-                    ) * formData.travelers} BDT
+                    {totalAmount.toFixed(2)} BDT
                   </span>
                 </div>
               </div>

@@ -85,6 +85,12 @@ const nextConfig = {
         port: '',
         pathname: '/**',
       },
+          {
+        protocol: 'https',
+        hostname: '**.stechholidays.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
 };
