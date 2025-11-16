@@ -13,6 +13,7 @@ urlpatterns = [
 
 # Profile & CSRF
     path('profile/', ProfileView.as_view(), name='profile'),
+    
 
 
      # Admin

@@ -254,3 +254,103 @@ class UmrahBooking(models.Model):
     
     def __str__(self):
         return f"Umrah Booking #{self.id} - {self.package.title}"
+    
+
+
+
+ # holidays_visa/models.py (add to existing models)
+
+class CustomHolidayRequest(models.Model):
+    STATUS_CHOICES = [
+        ('new', 'New'),
+        ('contacted', 'Contacted'),
+        ('confirmed', 'Confirmed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    # Basic Information
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='custom_holiday_requests', null=True, blank=True)
+    contact_name = models.CharField(max_length=100)
+    email = models.EmailField()
+    phone = models.CharField(max_length=20)
+    
+    # Travel Details
+    destination = models.CharField(max_length=100)
+    departure_place = models.CharField(max_length=100)
+    travel_date = models.DateField()
+    number_of_travelers = models.PositiveIntegerField(default=1)
+    budget = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    requirements = models.TextField()
+    
+    # Lead Management
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='new')
+    internal_notes = models.TextField(blank=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Custom Request #{self.id} - {self.destination} - {self.contact_name}"
+    
+
+
+
+
+    # umrah/models.py
+
+
+class CustomUmrahRequest(models.Model):
+    STATUS_CHOICES = [
+        ('new', 'New'),
+        ('contacted', 'Contacted'),
+        ('confirmed', 'Confirmed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    PACKAGE_TYPE_CHOICES = [
+        ('standard', 'Standard Umrah'),
+        ('premium', 'Premium Umrah'),
+        ('deluxe', 'Deluxe Umrah'),
+        ('family', 'Family Package'),
+        ('group', 'Group Package'),
+    ]
+    
+    ACCOMMODATION_CHOICES = [
+        ('3-star', '3 Star Hotel'),
+        ('4-star', '4 Star Hotel'),
+        ('5-star', '5 Star Hotel'),
+        ('premium', 'Premium Hotel'),
+        ('walking-distance', 'Walking Distance to Haram'),
+    ]
+    
+    # Basic Information
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='custom_umrah_requests', null=True, blank=True)
+    contact_name = models.CharField(max_length=100)
+    email = models.EmailField()
+    phone = models.CharField(max_length=20)
+    
+    # Umrah Details
+    package_type = models.CharField(max_length=20, choices=PACKAGE_TYPE_CHOICES, default='standard')
+    departure_date = models.DateField()
+    duration = models.CharField(max_length=10, default='7')
+    number_of_pilgrims = models.PositiveIntegerField(default=1)
+    accommodation_type = models.CharField(max_length=20, choices=ACCOMMODATION_CHOICES, default='3-star')
+    special_requirements = models.TextField(blank=True)
+    
+    # Lead Management
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='new')
+    internal_notes = models.TextField(blank=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Custom Umrah Request #{self.id} - {self.package_type} - {self.contact_name}"

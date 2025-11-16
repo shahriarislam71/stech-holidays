@@ -410,3 +410,77 @@ def umrah_package_list(request):
     return Response({
         'packages': list(packages)
     })
+
+
+
+
+
+# holidays_visa/views.py (add to existing views)
+
+class CustomHolidayRequestListCreate(generics.ListCreateAPIView):
+    serializer_class = CustomHolidayRequestSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    
+    def get_queryset(self):
+        if self.request.user.is_authenticated:
+            if self.request.user.is_staff:  # Admin sees all
+                return CustomHolidayRequest.objects.all()
+            else:  # Regular users see only their own
+                return CustomHolidayRequest.objects.filter(user=self.request.user)
+        return CustomHolidayRequest.objects.none()
+    
+    def perform_create(self, serializer):
+        serializer.save()
+
+class CustomHolidayRequestDetail(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = CustomHolidayRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return CustomHolidayRequest.objects.all()
+        return CustomHolidayRequest.objects.filter(user=self.request.user)
+
+class CustomHolidayRequestUpdateStatus(generics.UpdateAPIView):
+    """Admin only - update status and internal notes"""
+    serializer_class = CustomHolidayRequestStatusSerializer
+    permission_classes = [permissions.IsAdminUser]
+    
+    def get_queryset(self):
+        return CustomHolidayRequest.objects.all()
+
+
+# umrah/views.py
+
+
+class CustomUmrahRequestListCreate(generics.ListCreateAPIView):
+    serializer_class = CustomUmrahRequestSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    
+    def get_queryset(self):
+        if self.request.user.is_authenticated:
+            if self.request.user.is_staff:  # Admin sees all
+                return CustomUmrahRequest.objects.all()
+            else:  # Regular users see only their own
+                return CustomUmrahRequest.objects.filter(user=self.request.user)
+        return CustomUmrahRequest.objects.none()
+    
+    def perform_create(self, serializer):
+        serializer.save()
+
+class CustomUmrahRequestDetail(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = CustomUmrahRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return CustomUmrahRequest.objects.all()
+        return CustomUmrahRequest.objects.filter(user=self.request.user)
+
+class CustomUmrahRequestUpdateStatus(generics.UpdateAPIView):
+    """Admin only - update status and internal notes"""
+    serializer_class = CustomUmrahRequestStatusSerializer
+    permission_classes = [permissions.IsAdminUser]
+    
+    def get_queryset(self):
+        return CustomUmrahRequest.objects.all()

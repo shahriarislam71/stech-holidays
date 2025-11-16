@@ -53,7 +53,14 @@ urlpatterns = [
 
 
 
+# Custom Holiday Requests
+    path('custom-holiday-requests/', CustomHolidayRequestListCreate.as_view(), name='custom-holiday-request-list'),
+    path('custom-holiday-requests/<int:pk>/', CustomHolidayRequestDetail.as_view(), name='custom-holiday-request-detail'),
+    path('custom-holiday-requests/<int:pk>/status/', CustomHolidayRequestUpdateStatus.as_view(), name='custom-holiday-request-status'),
 
 
+path('custom-umrah-requests/', CustomUmrahRequestListCreate.as_view(), name='custom-umrah-request-list'),
+    path('custom-umrah-requests/<int:pk>/', CustomUmrahRequestDetail.as_view(), name='custom-umrah-request-detail'),
+    path('custom-umrah-requests/<int:pk>/status/', CustomUmrahRequestUpdateStatus.as_view(), name='custom-umrah-request-status'),
 
 ]

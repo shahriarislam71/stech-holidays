@@ -2016,7 +2016,7 @@ const handleFlightSearch = () => {
 
                 <div className="mt-6 flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
                   <p className="text-white/90 font-medium text-sm sm:text-base">
-                    Need a customised holiday?
+                    Need a customised holiday? <span onClick={() => router.push("/holidays/custom-package")} className="text-[#5A53A7] px-3 py-2 bg-white rounded hover:text-xl   border-b-2 border-[#5A53A7] cursor-pointer">Request Now</span>
                   </p>
                   <button className="bg-white text-[#5A53A7] px-4 py-2 sm:px-6 sm:py-2 rounded-full flex items-center font-medium hover:bg-white/90 transition text-sm sm:text-base">
                     Request Now
@@ -2057,7 +2057,7 @@ const handleFlightSearch = () => {
 
                 <div className="mt-6">
                   <button
-                    onClick={() => router.push("/contact")}
+                    
                     className="text-white/80 hover:text-white text-xs sm:text-sm flex items-center justify-center mx-auto"
                   >
                     <svg
@@ -2069,7 +2069,7 @@ const handleFlightSearch = () => {
                       <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
                       <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
                     </svg>
-                    Need assistance? Contact us
+                    Need custom Umrah?  <span onClick={() => router.push("/umrah/custom-package")} className="text-[#5A53A7] px-3 ml-2 py-2 bg-white rounded    border-b-2 border-[#5A53A7] cursor-pointer">Request Now</span>
                   </button>
                 </div>
               </div>

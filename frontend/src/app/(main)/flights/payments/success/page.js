@@ -13,7 +13,7 @@ const PaymentSuccessPage = () => {
   useEffect(() => {
     const fetchConfirmation = async () => {
       try {
-        const response = await fetch(`/api/flights/payment/success/?order_id=${orderId}`);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/flights/payment/success/?order_id=${orderId}`);
         const data = await response.json();
         
         if (response.ok) {

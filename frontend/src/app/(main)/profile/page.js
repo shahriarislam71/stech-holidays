@@ -7,7 +7,7 @@ import useAuth from '@/app/hooks/useAuth';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { toast } from 'react-toastify';
+import Swal from 'sweetalert2';
 
 // Validation schema
 const profileSchema = z.object({
@@ -28,6 +28,10 @@ export default function ProfilePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [profileImage, setProfileImage] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [customPackagesOpen, setCustomPackagesOpen] = useState(false);
+  const [holidayRequests, setHolidayRequests] = useState([]);
+  const [umrahRequests, setUmrahRequests] = useState([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
 
   const {
     register,
@@ -38,46 +42,142 @@ export default function ProfilePage() {
     resolver: zodResolver(profileSchema),
   });
 
-  // Reset form when user data changes
-  useEffect(() => {
-    if (user) {
-      reset({
-        first_name: user.first_name || '',
-        last_name: user.last_name || '',
-        phone_number: user.profile?.phone_number || '',
-        date_of_birth: user.profile?.date_of_birth?.split('T')[0] || '',
-        address: user.profile?.address || '',
-        city: user.profile?.city || '',
-        country: user.profile?.country || '',
-        postal_code: user.profile?.postal_code || '',
+  // Fetch custom package requests
+  const fetchCustomPackageRequests = async () => {
+    if (!user) return;
+    
+    setLoadingRequests(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      
+      // Fetch holiday requests
+      const holidayResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/custom-holiday-requests/`, {
+        headers: {
+          'Authorization': `Token ${token}`,
+        },
       });
       
-      if (user.profile?.profile_picture) {
-        setProfileImage(user.profile.profile_picture);
+      if (holidayResponse.ok) {
+        const holidayData = await holidayResponse.json();
+        setHolidayRequests(holidayData);
       }
+      
+      // Fetch umrah requests
+      const umrahResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/holidays-visa/custom-umrah-requests/`, {
+        headers: {
+          'Authorization': `Token ${token}`,
+        },
+      });
+      
+      if (umrahResponse.ok) {
+        const umrahData = await umrahResponse.json();
+        setUmrahRequests(umrahData);
+      }
+    } catch (error) {
+      console.error('Error fetching custom package requests:', error);
+      Swal.fire({
+        title: 'Error!',
+        text: 'Failed to load custom package requests',
+        icon: 'error',
+        confirmButtonColor: '#5A53A7'
+      });
+    } finally {
+      setLoadingRequests(false);
     }
-  }, [user, reset]);
+  };
+
+  // Reset form when user data changes
+  // Reset form when user data changes
+useEffect(() => {
+  if (user) {
+    // Format date for input field (YYYY-MM-DD)
+    let formattedDate = '';
+    if (user.profile?.date_of_birth) {
+      const date = new Date(user.profile.date_of_birth);
+      formattedDate = date.toISOString().split('T')[0];
+    }
+    
+    reset({
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      phone_number: user.profile?.phone_number || '',
+      date_of_birth: formattedDate,
+      address: user.profile?.address || '',
+      city: user.profile?.city || '',
+      country: user.profile?.country || '',
+      postal_code: user.profile?.postal_code || '',
+    });
+    
+    // Set profile image - ensure full URL
+    if (user.profile?.profile_picture) {
+      // If it's already a full URL, use it directly
+      if (user.profile.profile_picture.startsWith('http')) {
+        setProfileImage(user.profile.profile_picture);
+      } else {
+        // If it's a relative path, construct full URL
+        setProfileImage(`http://localhost:8000${user.profile.profile_picture}`);
+      }
+    } else {
+      setProfileImage(null);
+    }
+  }
+}, [user, reset]);
+
+  // Fetch custom packages when tab is active
+  useEffect(() => {
+    if (activeTab === 'custom-holidays' || activeTab === 'custom-umrah') {
+      fetchCustomPackageRequests();
+    }
+  }, [activeTab, user]);
 
   const onSubmit = async (formData) => {
+    setIsSubmitting(true);
+    
+    // Prepare the payload with proper structure
     const payload = {
       first_name: formData.first_name,
       last_name: formData.last_name,
       profile: {
-        phone_number: formData.phone_number,
-        date_of_birth: formData.date_of_birth,
-        address: formData.address,
-        city: formData.city,
-        country: formData.country,
-        postal_code: formData.postal_code,
+        phone_number: formData.phone_number || '',
+        date_of_birth: formData.date_of_birth || null,
+        address: formData.address || '',
+        city: formData.city || '',
+        country: formData.country || '',
+        postal_code: formData.postal_code || '',
       },
     };
 
+    // Remove empty profile fields
+    Object.keys(payload.profile).forEach(key => {
+      if (payload.profile[key] === '' || payload.profile[key] === null) {
+        delete payload.profile[key];
+      }
+    });
+
+    // Remove profile object if it's empty
+    if (Object.keys(payload.profile).length === 0) {
+      delete payload.profile;
+    }
+
     try {
       await updateProfile(payload);
-      toast.success("Profile updated!");
-      setIsEditing(false); // Exit edit mode
+      await Swal.fire({
+        title: 'Success!',
+        text: 'Profile updated successfully!',
+        icon: 'success',
+        confirmButtonColor: '#5A53A7'
+      });
+      setIsEditing(false);
     } catch (err) {
-      toast.error("Update failed!");
+      console.error('Profile update error:', err);
+      await Swal.fire({
+        title: 'Error!',
+        text: err.message || 'Failed to update profile',
+        icon: 'error',
+        confirmButtonColor: '#5A53A7'
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -86,43 +186,102 @@ export default function ProfilePage() {
   };
 
   const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const file = e.target.files[0];
+  if (!file) return;
 
-    try {
-      setIsSubmitting(true);
-      
-      // Get CSRF token
-      const csrfResponse = await fetch('http://localhost:8000/api/auth/csrf/', {
-        credentials: 'include'
-      });
-      const csrfData = await csrfResponse.json();
-      const csrfToken = csrfData.csrfToken;
+  // Validate file type
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+  if (!allowedTypes.includes(file.type)) {
+    await Swal.fire({
+      title: 'Invalid File',
+      text: 'Please select a JPEG, PNG, or GIF image',
+      icon: 'warning',
+      confirmButtonColor: '#5A53A7'
+    });
+    return;
+  }
 
-      const formData = new FormData();
-      formData.append('profile_picture', file);
+  // Validate file size (5MB)
+  if (file.size > 5 * 1024 * 1024) {
+    await Swal.fire({
+      title: 'File Too Large',
+      text: 'Please select an image smaller than 5MB',
+      icon: 'warning',
+      confirmButtonColor: '#5A53A7'
+    });
+    return;
+  }
 
-      const response = await fetch('http://localhost:8000/api/auth/profile/picture/', {
-        method: 'POST',
-        headers: {
-          'X-CSRFToken': csrfToken,
-        },
-        credentials: 'include',
-        body: formData,
-      });
-
-      if (response.ok) {
-        const updatedUser = await response.json();
-        setProfileImage(URL.createObjectURL(file));
-        toast.success('Profile picture updated!');
-      } else {
-        throw new Error('Failed to upload image');
-      }
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setIsSubmitting(false);
+  try {
+    setIsSubmitting(true);
+    
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      throw new Error('Authentication token not found');
     }
+
+    const formData = new FormData();
+    formData.append('profile_picture', file);
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/profile/`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Token ${token}`,
+      },
+      body: formData,
+    });
+
+    if (response.ok) {
+      const updatedUser = await response.json();
+      
+      // Update the user state with the new profile data from backend
+      // This ensures the profile picture URL is persistent
+      if (updatedUser.profile?.profile_picture) {
+        setProfileImage(updatedUser.profile.profile_picture);
+        // Also update the user in your auth context if needed
+        if (updateProfile) {
+          // If your useAuth hook has a way to update user, use it
+          // This depends on your useAuth implementation
+        }
+      }
+      
+      await Swal.fire({
+        title: 'Success!',
+        text: 'Profile picture updated successfully!',
+        icon: 'success',
+        confirmButtonColor: '#5A53A7'
+      });
+    } else {
+      const errorData = await response.json();
+      throw new Error(errorData.error || errorData.detail || 'Failed to upload image');
+    }
+  } catch (error) {
+    console.error('Image upload error:', error);
+    await Swal.fire({
+      title: 'Upload Failed',
+      text: error.message || 'Failed to upload profile picture',
+      icon: 'error',
+      confirmButtonColor: '#5A53A7'
+    });
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
+  const getStatusBadge = (status) => {
+    const statusConfig = {
+      'new': { color: 'bg-blue-100 text-blue-800', label: 'New' },
+      'contacted': { color: 'bg-yellow-100 text-yellow-800', label: 'Contacted' },
+      'confirmed': { color: 'bg-green-100 text-green-800', label: 'Confirmed' },
+      'cancelled': { color: 'bg-red-100 text-red-800', label: 'Cancelled' },
+    };
+    
+    const config = statusConfig[status] || statusConfig.new;
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${config.color}`}>
+        {config.label}
+      </span>
+    );
   };
 
   if (isLoading) {
@@ -185,6 +344,54 @@ export default function ProfilePage() {
             >
               Personal Information
             </button>
+            
+            {/* Custom Packages Dropdown for Mobile */}
+            <div className="space-y-1">
+              <button
+                onClick={() => setCustomPackagesOpen(!customPackagesOpen)}
+                className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium flex items-center justify-between ${
+                  activeTab.startsWith('custom-')
+                    ? 'bg-[#55C3A9] text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <span>Custom Packages</span>
+                <svg 
+                  className={`w-4 h-4 transition-transform ${customPackagesOpen ? 'rotate-180' : ''}`} 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              
+              {customPackagesOpen && (
+                <div className="ml-4 space-y-1">
+                  <button
+                    onClick={() => { setActiveTab('custom-holidays'); setMobileMenuOpen(false); }}
+                    className={`w-full text-left px-4 py-2 rounded-lg text-sm ${
+                      activeTab === 'custom-holidays'
+                        ? 'bg-[#55C3A9] text-white'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    Holidays Packages
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('custom-umrah'); setMobileMenuOpen(false); }}
+                    className={`w-full text-left px-4 py-2 rounded-lg text-sm ${
+                      activeTab === 'custom-umrah'
+                        ? 'bg-[#55C3A9] text-white'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    Umrah Packages
+                  </button>
+                </div>
+              )}
+            </div>
+
             <Link
               href="/profile/my-bookings"
               className="block px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100"
@@ -238,8 +445,8 @@ export default function ProfilePage() {
           {/* Profile Card Design for Mobile */}
           <div className="bg-white rounded-2xl p-5 shadow-lg md:shadow-none md:bg-transparent md:p-0">
             <div className="flex flex-col items-center text-center md:flex-row md:text-left md:items-start">
-              {/* Profile Image */}
-              <div className="relative h-24 w-24 md:h-24 md:w-24 rounded-full bg-gray-100 overflow-hidden shadow-lg mb-4 md:mb-0 md:mr-6">
+              {/* Profile Image - Updated with better alignment */}
+              <div className="relative h-24 w-24 md:h-24 md:w-24 rounded-full bg-gray-100 overflow-hidden shadow-lg mb-4 md:mb-0 md:mr-8">
                 <label htmlFor="profile-picture" className="cursor-pointer group">
                   {profileImage ? (
                     <Image
@@ -344,6 +551,54 @@ export default function ProfilePage() {
               >
                 Personal Information
               </button>
+              
+              {/* Custom Packages Dropdown for Desktop */}
+              <div className="space-y-1">
+                <button
+                  onClick={() => setCustomPackagesOpen(!customPackagesOpen)}
+                  className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium flex items-center justify-between ${
+                    activeTab.startsWith('custom-')
+                      ? 'bg-[#55C3A9] text-white'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <span>Custom Packages</span>
+                  <svg 
+                    className={`w-4 h-4 transition-transform ${customPackagesOpen ? 'rotate-180' : ''}`} 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {customPackagesOpen && (
+                  <div className="ml-4 space-y-1">
+                    <button
+                      onClick={() => setActiveTab('custom-holidays')}
+                      className={`w-full text-left px-4 py-2 rounded-lg text-sm ${
+                        activeTab === 'custom-holidays'
+                          ? 'bg-[#55C3A9] text-white'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      Holidays Packages
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('custom-umrah')}
+                      className={`w-full text-left px-4 py-2 rounded-lg text-sm ${
+                        activeTab === 'custom-umrah'
+                          ? 'bg-[#55C3A9] text-white'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      Umrah Packages
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <Link
                 href="/profile/my-bookings"
                 className="block px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100"
@@ -376,264 +631,416 @@ export default function ProfilePage() {
           {/* Profile Content */}
           <div className="flex-1 bg-white rounded-xl shadow-sm overflow-hidden">
             <div className="p-5 md:p-6">
-              <div className="flex justify-between items-center mb-5 md:mb-6">
-                <h2 className="text-lg md:text-xl font-bold text-[#445494]">
-                  Personal Information
-                </h2>
-                {!isEditing ? (
-                  <button
-                    onClick={handleEditClick}
-                    className="px-4 py-2 bg-[#5A53A7] text-white rounded-lg hover:bg-[#4a4490] transition-colors font-medium flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    Edit Profile
-                  </button>
-                ) : (
-                  <div className="text-xs md:text-sm text-gray-500">
-                    {isDirty ? 'You have unsaved changes' : 'All changes saved'}
-                  </div>
-                )}
-              </div>
-
-              {isEditing ? (
-                <form onSubmit={handleSubmit(onSubmit)}>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
-                    {/* Basic Info Section */}
-                    <div>
-                      <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">
-                        Basic Info
-                      </h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-2">
-                            First Name *
-                          </label>
-                          <input
-                            id="first_name"
-                            {...register("first_name")}
-                            className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 ${
-                              errors.first_name
-                                ? 'border-red-500 focus:ring-red-200'
-                                : 'border-gray-300 focus:ring-[#55C3A9]'
-                            }`}
-                          />
-                          {errors.first_name && (
-                            <p className="text-red-500 text-xs md:text-sm mt-1">{errors.first_name.message}</p>
-                          )}
-                        </div>
-                        <div>
-                          <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 mb-2">
-                            Last Name
-                          </label>
-                          <input
-                            id="last_name"
-                            {...register("last_name")}
-                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#55C3A9]"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Contact Details Section */}
-                    <div>
-                      <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">
-                        Contact Details
-                      </h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 mb-2">
-                            Phone Number
-                          </label>
-                          <input
-                            id="phone_number"
-                            {...register("phone_number")}
-                            placeholder="+1234567890"
-                            className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 ${
-                              errors.phone_number
-                                ? 'border-red-500 focus:ring-red-200'
-                                : 'border-gray-300 focus:ring-[#55C3A9]'
-                            }`}
-                          />
-                          {errors.phone_number && (
-                            <p className="text-red-500 text-xs md:text-sm mt-1">{errors.phone_number.message}</p>
-                          )}
-                        </div>
-                        <div>
-                          <label htmlFor="date_of_birth" className="block text-sm font-medium text-gray-700 mb-2">
-                            Date of Birth
-                          </label>
-                          <input
-                            id="date_of_birth"
-                            type="date"
-                            {...register("date_of_birth")}
-                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#55C3A9]"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Address Section */}
-                  <div className="mt-6 md:mt-8">
-                    <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">
-                      Address
-                    </h3>
-                    <div className="space-y-4">
-                      <div>
-                        <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
-                          Street Address
-                        </label>
-                        <textarea
-                          id="address"
-                          {...register("address")}
-                          rows={3}
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#55C3A9]"
-                        />
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-2">
-                            City
-                          </label>
-                          <input
-                            id="city"
-                            {...register("city")}
-                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#55C3A9]"
-                          />
-                        </div>
-                        <div>
-                          <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-2">
-                            Country
-                          </label>
-                          <input
-                            id="country"
-                            {...register("country")}
-                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#55C3A9]"
-                          />
-                        </div>
-                        <div>
-                          <label htmlFor="postal_code" className="block text-sm font-medium text-gray-700 mb-2">
-                            Postal Code
-                          </label>
-                          <input
-                            id="postal_code"
-                            {...register("postal_code")}
-                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#55C3A9]"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Form Actions */}
-                  <div className="mt-8 flex flex-col-reverse sm:flex-row justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setIsEditing(false)}
-                      disabled={isSubmitting}
-                      className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isSubmitting || !isDirty}
-                      className={`px-6 py-2.5 text-white rounded-lg transition-colors font-medium ${
-                        isSubmitting || !isDirty
-                          ? 'bg-[#55C3A9] opacity-70 cursor-not-allowed'
-                          : 'bg-[#55C3A9] hover:bg-[#54ACA4]'
-                      }`}
-                    >
-                      {isSubmitting ? 'Saving...' : 'Save Changes'}
-                    </button>
-                  </div>
-                </form>
-              ) : (
+              {activeTab === 'personal' && (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
-                    {/* Basic Info Display */}
-                    <div>
-                      <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">
-                        Basic Info
-                      </h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-500 mb-2">
-                            Full Name
-                          </label>
-                          <p className="text-gray-900 font-medium">
-                            {user.first_name} {user.last_name}
-                          </p>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-500 mb-2">
-                            Email
-                          </label>
-                          <p className="text-gray-900 font-medium">{user.email}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Contact Details Display */}
-                    {user.profile && (
-                      <div>
-                        <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">
-                          Contact Details
-                        </h3>
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-500 mb-2">
-                              Phone
-                            </label>
-                            <p className="text-gray-900 font-medium">
-                              {user.profile.phone_number || (
-                                <span className="text-gray-400">Not provided</span>
-                              )}
-                            </p>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-500 mb-2">
-                              Date of Birth
-                            </label>
-                            <p className="text-gray-900 font-medium">
-                              {user.profile.date_of_birth ? (
-                                new Date(user.profile.date_of_birth).toLocaleDateString()
-                              ) : (
-                                <span className="text-gray-400">Not provided</span>
-                              )}
-                            </p>
-                          </div>
-                        </div>
+                  <div className="flex justify-between items-center mb-5 md:mb-6">
+                    <h2 className="text-lg md:text-xl font-bold text-[#445494]">
+                      Personal Information
+                    </h2>
+                    {!isEditing ? (
+                      <button
+                        onClick={handleEditClick}
+                        className="px-4 py-2 bg-[#5A53A7] text-white rounded-lg hover:bg-[#4a4490] transition-colors font-medium flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Edit Profile
+                      </button>
+                    ) : (
+                      <div className="text-xs md:text-sm text-gray-500">
+                        {isDirty ? 'You have unsaved changes' : 'All changes saved'}
                       </div>
                     )}
                   </div>
 
-                  {/* Address Display */}
-                  {user.profile && (
-                    <div className="mt-8">
-                      <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">
-                        Address
-                      </h3>
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        {user.profile.address ? (
-                          <>
-                            <p className="text-gray-700 font-medium">{user.profile.address}</p>
-                            <p className="text-gray-700 font-medium mt-2">
-                              {user.profile.city}, {user.profile.country}
-                            </p>
-                            {user.profile.postal_code && (
-                              <p className="text-gray-700 font-medium mt-2">{user.profile.postal_code}</p>
-                            )}
-                          </>
-                        ) : (
-                          <p className="text-gray-400">No address provided</p>
+                  {isEditing ? (
+                    <form onSubmit={handleSubmit(onSubmit)}>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
+                        {/* Basic Info Section */}
+                        <div>
+                          <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">
+                            Basic Info
+                          </h3>
+                          <div className="space-y-4">
+                            <div>
+                              <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 mb-2">
+                                First Name *
+                              </label>
+                              <input
+                                id="first_name"
+                                {...register("first_name")}
+                                className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 ${
+                                  errors.first_name
+                                    ? 'border-red-500 focus:ring-red-200'
+                                    : 'border-gray-300 focus:ring-[#55C3A9]'
+                                }`}
+                              />
+                              {errors.first_name && (
+                                <p className="text-red-500 text-xs md:text-sm mt-1">{errors.first_name.message}</p>
+                              )}
+                            </div>
+                            <div>
+                              <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 mb-2">
+                                Last Name
+                              </label>
+                              <input
+                                id="last_name"
+                                {...register("last_name")}
+                                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#55C3A9]"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Contact Details Section */}
+                        <div>
+                          <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">
+                            Contact Details
+                          </h3>
+                          <div className="space-y-4">
+                            <div>
+                              <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 mb-2">
+                                Phone Number
+                              </label>
+                              <input
+                                id="phone_number"
+                                {...register("phone_number")}
+                                placeholder="+1234567890"
+                                className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 ${
+                                  errors.phone_number
+                                    ? 'border-red-500 focus:ring-red-200'
+                                    : 'border-gray-300 focus:ring-[#55C3A9]'
+                                }`}
+                              />
+                              {errors.phone_number && (
+                                <p className="text-red-500 text-xs md:text-sm mt-1">{errors.phone_number.message}</p>
+                              )}
+                            </div>
+                            <div>
+                              <label htmlFor="date_of_birth" className="block text-sm font-medium text-gray-700 mb-2">
+                                Date of Birth
+                              </label>
+                              <input
+                                id="date_of_birth"
+                                type="date"
+                                {...register("date_of_birth")}
+                                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#55C3A9]"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Address Section */}
+                      <div className="mt-6 md:mt-8">
+                        <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">
+                          Address
+                        </h3>
+                        <div className="space-y-4">
+                          <div>
+                            <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
+                              Street Address
+                            </label>
+                            <textarea
+                              id="address"
+                              {...register("address")}
+                              rows={3}
+                              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#55C3A9]"
+                            />
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                              <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-2">
+                                City
+                              </label>
+                              <input
+                                id="city"
+                                {...register("city")}
+                                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#55C3A9]"
+                              />
+                            </div>
+                            <div>
+                              <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-2">
+                                Country
+                              </label>
+                              <input
+                                id="country"
+                                {...register("country")}
+                                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#55C3A9]"
+                              />
+                            </div>
+                            <div>
+                              <label htmlFor="postal_code" className="block text-sm font-medium text-gray-700 mb-2">
+                                Postal Code
+                              </label>
+                              <input
+                                id="postal_code"
+                                {...register("postal_code")}
+                                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#55C3A9]"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Form Actions */}
+                      <div className="mt-8 flex flex-col-reverse sm:flex-row justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setIsEditing(false)}
+                          disabled={isSubmitting}
+                          className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={isSubmitting || !isDirty}
+                          className={`px-6 py-2.5 text-white rounded-lg transition-colors font-medium ${
+                            isSubmitting || !isDirty
+                              ? 'bg-[#55C3A9] opacity-70 cursor-not-allowed'
+                              : 'bg-[#55C3A9] hover:bg-[#54ACA4]'
+                          }`}
+                        >
+                          {isSubmitting ? 'Saving...' : 'Save Changes'}
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6">
+                        {/* Basic Info Display */}
+                        <div>
+                          <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">
+                            Basic Info
+                          </h3>
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-500 mb-2">
+                                Full Name
+                              </label>
+                              <p className="text-gray-900 font-medium">
+                                {user.first_name} {user.last_name}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-500 mb-2">
+                                Email
+                              </label>
+                              <p className="text-gray-900 font-medium">{user.email}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Contact Details Display */}
+                        {user.profile && (
+                          <div>
+                            <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">
+                              Contact Details
+                            </h3>
+                            <div className="space-y-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-500 mb-2">
+                                  Phone
+                                </label>
+                                <p className="text-gray-900 font-medium">
+                                  {user.profile.phone_number || (
+                                    <span className="text-gray-400">Not provided</span>
+                                  )}
+                                </p>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-500 mb-2">
+                                  Date of Birth
+                                </label>
+                                <p className="text-gray-900 font-medium">
+                                  {user.profile.date_of_birth ? (
+                                    new Date(user.profile.date_of_birth).toLocaleDateString()
+                                  ) : (
+                                    <span className="text-gray-400">Not provided</span>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
                         )}
                       </div>
-                    </div>
+
+                      {/* Address Display */}
+                      {user.profile && (
+                        <div className="mt-8">
+                          <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-4">
+                            Address
+                          </h3>
+                          <div className="bg-gray-50 p-4 rounded-lg">
+                            {user.profile.address ? (
+                              <>
+                                <p className="text-gray-700 font-medium">{user.profile.address}</p>
+                                <p className="text-gray-700 font-medium mt-2">
+                                  {user.profile.city}, {user.profile.country}
+                                </p>
+                                {user.profile.postal_code && (
+                                  <p className="text-gray-700 font-medium mt-2">{user.profile.postal_code}</p>
+                                )}
+                              </>
+                            ) : (
+                              <p className="text-gray-400">No address provided</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
+              )}
+
+              {/* Custom Holidays Packages Tab */}
+              {activeTab === 'custom-holidays' && (
+                <div>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold text-[#445494]">Custom Holiday Requests</h2>
+                    <Link 
+                      href="/holidays/custom-package"
+                      className="px-4 py-2 bg-[#5A53A7] text-white rounded-lg hover:bg-[#4a4490] transition-colors font-medium flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      New Request
+                    </Link>
+                  </div>
+
+                  {loadingRequests ? (
+                    <div className="flex justify-center py-12">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#55C3A9] mx-auto mb-4"></div>
+                        <p className="text-gray-600">Loading your holiday requests...</p>
+                      </div>
+                    </div>
+                  ) : holidayRequests.length > 0 ? (
+                    <div className="space-y-4">
+                      {holidayRequests.map((request) => (
+                        <div key={request.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <h3 className="font-semibold text-gray-800 text-lg">{request.destination}</h3>
+                              <p className="text-sm text-gray-600 mt-1">
+                                From {request.departure_place} • {request.number_of_travelers} traveler{request.number_of_travelers > 1 ? 's' : ''}
+                              </p>
+                            </div>
+                            {getStatusBadge(request.status)}
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                            <div>
+                              <span className="text-gray-500">Travel Date:</span>
+                              <p className="font-medium">{new Date(request.travel_date).toLocaleDateString()}</p>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Created:</span>
+                              <p className="font-medium">{new Date(request.created_at).toLocaleDateString()}</p>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Requirements:</span>
+                              <p className="font-medium truncate">{request.requirements || 'No specific requirements'}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No holiday requests yet</h3>
+                      <p className="text-gray-500 mb-6">Create your first custom holiday package request</p>
+                      <Link 
+                        href="/holidays/custom-package"
+                        className="px-6 py-3 bg-[#5A53A7] text-white rounded-lg hover:bg-[#4a4490] transition-colors font-medium inline-flex items-center gap-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Create Holiday Request
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Custom Umrah Packages Tab */}
+              {activeTab === 'custom-umrah' && (
+                <div>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold text-[#445494]">Custom Umrah Requests</h2>
+                    <Link 
+                      href="/umrah/custom-package"
+                      className="px-4 py-2 bg-[#5A53A7] text-white rounded-lg hover:bg-[#4a4490] transition-colors font-medium flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      New Request
+                    </Link>
+                  </div>
+
+                  {loadingRequests ? (
+                    <div className="flex justify-center py-12">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#55C3A9] mx-auto mb-4"></div>
+                        <p className="text-gray-600">Loading your Umrah requests...</p>
+                      </div>
+                    </div>
+                  ) : umrahRequests.length > 0 ? (
+                    <div className="space-y-4">
+                      {umrahRequests.map((request) => (
+                        <div key={request.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <h3 className="font-semibold text-gray-800 text-lg capitalize">{request.package_type.replace('-', ' ')} Package</h3>
+                              <p className="text-sm text-gray-600 mt-1">
+                                {request.number_of_pilgrims} pilgrim{request.number_of_pilgrims > 1 ? 's' : ''} • {request.duration} days
+                              </p>
+                            </div>
+                            {getStatusBadge(request.status)}
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                            <div>
+                              <span className="text-gray-500">Departure:</span>
+                              <p className="font-medium">{new Date(request.departure_date).toLocaleDateString()}</p>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Accommodation:</span>
+                              <p className="font-medium capitalize">{request.accommodation_type.replace('-', ' ')}</p>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Requirements:</span>
+                              <p className="font-medium truncate">{request.special_requirements || 'No special requirements'}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No Umrah requests yet</h3>
+                      <p className="text-gray-500 mb-6">Create your first custom Umrah package request</p>
+                      <Link 
+                        href="/umrah/custom-package"
+                        className="px-6 py-3 bg-[#5A53A7] text-white rounded-lg hover:bg-[#4a4490] transition-colors font-medium inline-flex items-center gap-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Create Umrah Request
+                      </Link>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>

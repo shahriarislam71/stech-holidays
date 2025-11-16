@@ -10,6 +10,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('user', 'created_at', 'updated_at', 'loyalty_points')
 
+# serializers.py
 class UserSerializer(serializers.ModelSerializer):
     profile = UserProfileSerializer(required=False)
     
@@ -24,9 +25,11 @@ class UserSerializer(serializers.ModelSerializer):
         # Update user fields
         instance = super().update(instance, validated_data)
         
-        # Update profile if data exists
-        if profile_data and hasattr(instance, 'profile'):
-            profile_serializer = self.fields['profile']
-            profile_serializer.update(instance.profile, profile_data)
+        # Update or create profile
+        if profile_data:
+            profile, created = UserProfile.objects.get_or_create(user=instance)
+            for attr, value in profile_data.items():
+                setattr(profile, attr, value)
+            profile.save()
         
         return instance

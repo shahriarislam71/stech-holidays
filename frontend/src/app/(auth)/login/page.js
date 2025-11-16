@@ -3,9 +3,12 @@
 import { useEffect } from 'react';
 import Image from 'next/image';
 import useAuth from '@/app/hooks/useAuth';
+import { useSearchParams } from 'next/navigation';
 
 export default function LoginPage() {
   const { isLoading, errorMsg, initGoogleLogin } = useAuth({ redirectToLogin: false });
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get('redirect');
 
   // Initialize Google Login button once on mount
   useEffect(() => {
@@ -53,6 +56,11 @@ export default function LoginPage() {
           <p className="text-[#5A53A7]/80 text-lg font-medium select-none">
             Sign in with Google to continue
           </p>
+          {redirect && (
+            <p className="text-sm text-gray-500 mt-2">
+              You'll be redirected back to your previous page after login.
+            </p>
+          )}
         </div>
 
         {/* Error Message */}

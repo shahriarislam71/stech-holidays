@@ -197,3 +197,36 @@ class UmrahBookingSerializer(serializers.ModelSerializer):
         return rep
     
 
+# holidays_visa/serializers.py (add to existing serializers)
+
+class CustomHolidayRequestSerializer(serializers.ModelSerializer):
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    
+    class Meta:
+        model = CustomHolidayRequest
+        fields = '__all__'
+        read_only_fields = ['created_at', 'updated_at']
+
+class CustomHolidayRequestStatusSerializer(serializers.ModelSerializer):
+    """Serializer for admin status updates"""
+    class Meta:
+        model = CustomHolidayRequest
+        fields = ['status', 'internal_notes']
+
+
+
+# umrah/serializers.py
+
+class CustomUmrahRequestSerializer(serializers.ModelSerializer):
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    
+    class Meta:
+        model = CustomUmrahRequest
+        fields = '__all__'
+        read_only_fields = ['created_at', 'updated_at']
+
+class CustomUmrahRequestStatusSerializer(serializers.ModelSerializer):
+    """Serializer for admin status updates"""
+    class Meta:
+        model = CustomUmrahRequest
+        fields = ['status', 'internal_notes']

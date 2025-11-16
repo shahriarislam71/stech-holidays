@@ -39,13 +39,58 @@ from rest_framework.response import Response
 from .serializers import UserSerializer
 from django.conf import settings
 
+# views.py
+# views.py
+from rest_framework.parsers import MultiPartParser, JSONParser
+
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, JSONParser]
 
     def get(self, request):
         user = request.user
         serializer = UserSerializer(user)
         return Response(serializer.data)
+
+    def patch(self, request):
+        user = request.user
+        data = request.data.copy()
+        
+        # Handle profile picture upload
+        if 'profile_picture' in request.FILES:
+            profile_picture = request.FILES['profile_picture']
+            
+            # Validate file type
+            allowed_types = ['image/jpeg', 'image/png', 'image/gif']
+            if profile_picture.content_type not in allowed_types:
+                return Response(
+                    {'error': 'Invalid file type. Only JPEG, PNG, and GIF are allowed.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Validate file size (max 5MB)
+            if profile_picture.size > 5 * 1024 * 1024:
+                return Response(
+                    {'error': 'File too large. Maximum size is 5MB.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Create or get user profile
+            profile, created = UserProfile.objects.get_or_create(user=user)
+            profile.profile_picture = profile_picture
+            profile.save()
+            
+            # Return updated user data
+            serializer = UserSerializer(user)
+            return Response(serializer.data)
+        
+        # Handle regular profile updates
+        serializer = UserSerializer(user, data=data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
 
 
 

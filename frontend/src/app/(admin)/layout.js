@@ -2,13 +2,14 @@
 'use client';
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import useAuth from "@/app/hooks/useAuth";
 
 export default function AdminLayout({ children }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, isLoading } = useAuth({ redirectToLogin: false });
+  const [isCustomPackageOpen, setIsCustomPackageOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading && (!user || !user.is_admin)) {
@@ -70,6 +71,62 @@ export default function AdminLayout({ children }) {
             <NavItem href="/dashboard/umrah" active={pathname === '/dashboard/umrah'} icon="M12 19l9 2-9-18-9 18 9-2zm0 0v-8">
               Umrah
             </NavItem>
+
+            {/* Custom Package Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setIsCustomPackageOpen(!isCustomPackageOpen)}
+                className={`flex items-center justify-between w-full px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${
+                  pathname.includes('/dashboard/custom-package') 
+                    ? 'bg-gradient-to-r from-[#55C3A9] to-[#5A53A7] text-white shadow-md'
+                    : 'text-gray-600 hover:bg-[#54ACA4]/10 hover:text-[#5A53A7]'
+                }`}
+              >
+                <div className="flex items-center">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className={`flex-shrink-0 h-5 w-5 mr-3 ${
+                      pathname.includes('/dashboard/custom-package') ? 'text-white' : 'text-gray-400'
+                    }`}
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+                  </svg>
+                  Custom Package
+                </div>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className={`h-4 w-4 transition-transform duration-200 ${
+                    isCustomPackageOpen ? 'rotate-180' : ''
+                  } ${pathname.includes('/dashboard/custom-package') ? 'text-white' : 'text-gray-400'}`}
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+              
+              {/* Dropdown Menu */}
+              {isCustomPackageOpen && (
+                <div className="ml-6 mt-1 space-y-1">
+                  <NavItem 
+                    href="/dashboard/custom-package/holidays" 
+                    active={pathname === '/dashboard/custom-package/holidays'}
+                    icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  >
+                    Holidays Package
+                  </NavItem>
+                  <NavItem 
+                    href="/dashboard/custom-package/umrah" 
+                    active={pathname === '/dashboard/custom-package/umrah'}
+                    icon="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                  >
+                    Umrah Package
+                  </NavItem>
+                </div>
+              )}
+            </div>
 
             <NavItem href="/customers" active={pathname === '/customers'} icon="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z">
               Customers
