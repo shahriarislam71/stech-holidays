@@ -20,7 +20,7 @@ const DiscountCarousel = () => {
   const [uploadingImage, setUploadingImage] = useState(null);
   const scrollInterval = useRef(null);
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
   const ENDPOINT = `${API_BASE}/home/carousel/`;
   const PROFILE_ENDPOINT = `${API_BASE}/auth/profile/`;
 
@@ -505,6 +505,9 @@ const DiscountCarousel = () => {
   const startAutoScroll = () => {
     if (scrollInterval.current) clearInterval(scrollInterval.current);
 
+    // Don't start auto-scroll in edit mode
+    if (editMode) return;
+
     scrollInterval.current = setInterval(() => {
       if (carouselRef.current) {
         const scrollAmount = isMobile ? 280 : 300;
@@ -526,6 +529,10 @@ const DiscountCarousel = () => {
   const resetAutoScroll = () => {
     setIsAutoScrolling(false);
     if (scrollInterval.current) clearInterval(scrollInterval.current);
+    
+    // Don't restart auto-scroll in edit mode
+    if (editMode) return;
+    
     setTimeout(() => {
       setIsAutoScrolling(true);
       startAutoScroll();
@@ -533,13 +540,19 @@ const DiscountCarousel = () => {
   };
 
   useEffect(() => {
-    if (isAutoScrolling && tempData) {
+    // Clear any existing interval when edit mode changes
+    if (scrollInterval.current) {
+      clearInterval(scrollInterval.current);
+    }
+
+    if (isAutoScrolling && tempData && !editMode) {
       startAutoScroll();
     }
+    
     return () => {
       if (scrollInterval.current) clearInterval(scrollInterval.current);
     };
-  }, [isAutoScrolling, filteredOffers, isMobile, tempData]);
+  }, [isAutoScrolling, filteredOffers, isMobile, tempData, editMode]);
 
   if (isLoading) {
     return (
@@ -791,7 +804,7 @@ const DiscountCarousel = () => {
         )}
 
         {/* Mobile indicator dots */}
-        {isMobile && (
+        {isMobile && !editMode && (
           <div className="flex justify-center mt-4 space-x-2">
             {filteredOffers.map((_, index) => (
               <div
