@@ -1,0 +1,116 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+.env
+.env.prod
+.env.dev
+.env.local
+
+# Django
+*.sqlite3
+db.sqlite3
+media/
+static/
+staticfiles/
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+
+# OS
+.DS_Store
+Thumbs.db
+*.bak
+*.tmp
+*.temp
+
+# Logs
+*.log
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+tests/
+test_*.py
+*.cover
+.hypothesis/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+*.pyc
+*.pyo
+
+# Docker
+docker-compose*
+Dockerfile*
+.dockerignore
+
+# Git
+.git/
+.gitignore
+.gitattributes
+.gitmodules
+
+# Secrets - CRITICAL: Never include these in image
+secrets/
+keys/
+*.pem
+*.key
+id_rsa
+id_dsa
+*.crt
+*.cert
+*.p12
+*.pfx
+*.der
+*.csr
+*.p8
+
+# Database backups
+*.dump
+*.backup
+*.sql.gz
+
+# Media cache
+.cache/
+.mypy_cache/
+__pycache__/
+
+# Temporary uploads
+uploads/
+temp/
+
+# Specific to your project
+# Exclude local development files
+local_settings.py
+settings/local.py
+
+# Exclude large files
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+
+# Documentation
+docs/_build/
