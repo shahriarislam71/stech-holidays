@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hotel Booking Confirmation - {{ booking.reference_number }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; }
+        .header { background: linear-gradient(135deg, #5A53A7 0%, #55C3A9 100%); color: white; padding: 30px; text-align: center; }
+        .content { padding: 30px; }
+        .section { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; border: 1px solid #e1e1e1; }
+        .section-title { color: #5A53A7; border-bottom: 2px solid #5A53A7; padding-bottom: 10px; margin-bottom: 15px; font-size: 18px; font-weight: bold; }
+        .info-row { display: flex; justify-content: space-between; margin-bottom: 8px; padding: 5px 0; }
+        .label { font-weight: bold; color: #555; min-width: 180px; }
+        .value { color: #333; text-align: right; }
+        .total-row { font-size: 18px; font-weight: bold; color: #5A53A7; border-top: 2px solid #e1e1e1; padding-top: 15px; margin-top: 15px; }
+        .policy-box { background: #fff8e1; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px; }
+        .business-info { background: #f0f7ff; border: 1px solid #c2e0ff; padding: 20px; border-radius: 8px; margin: 25px 0; }
+        .footer { background: #f5f5f5; padding: 20px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #ddd; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; margin-right: 5px; }
+        .refundable-badge { background: #d4edda; color: #155724; }
+        .non-refundable-badge { background: #f8d7da; color: #721c24; }
+        .highlight-box { background: #e8f4ff; border: 1px dashed #5A53A7; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .terms-link { color: #5A53A7; text-decoration: none; }
+        .terms-link:hover { text-decoration: underline; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        table th { background: #f8f9fa; padding: 10px; text-align: left; border-bottom: 1px solid #dee2e6; }
+        table td { padding: 10px; border-bottom: 1px solid #dee2e6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1 style="margin: 0 0 10px 0;">Booking Confirmed! 🎉</h1>
+            <p style="margin: 0; opacity: 0.9;">Your hotel reservation has been successfully processed</p>
+        </div>
+        
+        <div class="content">
+            <!-- Booking Reference Section -->
+            <div class="section">
+                <h2 class="section-title">📋 Booking Details</h2>
+                <div class="info-row">
+                    <span class="label">Booking Reference:</span>
+                    <span class="value"><strong>{{ booking.booking_reference }}</strong></span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Confirmation Number:</span>
+                    <span class="value">{{ booking.confirmation_number }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Booking Confirmed:</span>
+                    <span class="value">{{ booking.booking_confirmed_date }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Booking Status:</span>
+                    <span class="value">
+                        {% if booking.status == 'confirmed' %}
+                            <span style="color: #28a745;">✓ Confirmed</span>
+                        {% else %}
+                            {{ booking.status|title }}
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Payment Status:</span>
+                    <span class="value">
+                        {% if booking.payment_status == 'paid' %}
+                            <span style="color: #28a745;">✓ Paid</span>
+                        {% else %}
+                            {{ booking.payment_status|title }}
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Hotel Information -->
+            <div class="section">
+                <h2 class="section-title">🏨 Hotel Information</h2>
+                <div class="info-row">
+                    <span class="label">Hotel Name:</span>
+                    <span class="value"><strong>{{ booking.hotel_name }}</strong></span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Hotel Address:</span>
+                    <span class="value">{{ booking.hotel_address }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">City/Country:</span>
+                    <span class="value">{{ booking.hotel_city }}, {{ booking.hotel_country }}</span>
+                </div>
+            </div>
+
+            <!-- Stay Details -->
+            <div class="section">
+                <h2 class="section-title">📅 Stay Details</h2>
+                <div class="info-row">
+                    <span class="label">Check-in Date:</span>
+                    <span class="value">{{ booking.check_in_date }} <em>(after {{ booking.check_in_time }})</em></span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Check-out Date:</span>
+                    <span class="value">{{ booking.check_out_date }} <em>(before {{ booking.check_out_time }})</em></span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Number of Nights:</span>
+                    <span class="value">{{ booking.nights }} night(s)</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Room Type:</span>
+                    <span class="value">{{ booking.room_type }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Board Type:</span>
+                    <span class="value">{{ booking.board_type|title }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Number of Guests:</span>
+                    <span class="value">{{ booking.adults }} adult(s), {{ booking.children }} child(ren)</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Number of Rooms:</span>
+                    <span class="value">{{ booking.rooms }} room(s)</span>
+                </div>
+                
+                {% if booking.special_requests %}
+                <div class="highlight-box">
+                    <strong>Special Requests:</strong><br>
+                    {{ booking.special_requests }}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Guest Information -->
+            <div class="section">
+                <h2 class="section-title">👤 Guest Information</h2>
+                <div class="info-row">
+                    <span class="label">Guest Name:</span>
+                    <span class="value">{{ booking.guest_name }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Email Address:</span>
+                    <span class="value">{{ booking.guest_email }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Phone Number:</span>
+                    <span class="value">{{ booking.guest_country_code }} {{ booking.guest_phone }}</span>
+                </div>
+            </div>
+
+            <!-- Price Summary -->
+            <div class="section">
+                <h2 class="section-title">💰 Price Summary</h2>
+                <div class="info-row">
+                    <span class="label">Room Rate ({{ booking.nights }} night{% if booking.nights > 1 %}s{% endif %}):</span>
+                    <span class="value">{{ booking.currency }} {{ booking.room_rate|floatformat:2 }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Taxes & Fees:</span>
+                    <span class="value">{{ booking.currency }} {{ booking.tax_amount|floatformat:2 }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Service Charge:</span>
+                    <span class="value">{{ booking.currency }} {{ booking.fee_amount|floatformat:2 }}</span>
+                </div>
+                
+                {% if booking.due_at_accommodation_amount and booking.due_at_accommodation_amount > 0 %}
+                <div class="info-row" style="color: #5A53A7; font-weight: bold;">
+                    <span class="label">Due at Accommodation:</span>
+                    <span class="value">{{ booking.currency }} {{ booking.due_at_accommodation_amount|floatformat:2 }}</span>
+                </div>
+                <div style="font-size: 12px; color: #666; margin-bottom: 10px; padding-left: 180px;">
+                    <em>This amount is payable directly to the hotel upon check-in or check-out</em>
+                </div>
+                {% endif %}
+                
+                <div class="info-row total-row">
+                    <span class="label">Total Amount Paid:</span>
+                    <span class="value">{{ booking.currency }} {{ booking.total_amount_paid|floatformat:2 }}</span>
+                </div>
+            </div>
+
+            <!-- Cancellation Policy -->
+            <div class="policy-box">
+                <h3 style="margin-top: 0; color: #5A53A7;">⚠️ Cancellation Policy</h3>
+                <p>{{ booking.cancellation_policy }}</p>
+                <p>
+                    <strong>Refundable:</strong> 
+                    {% if booking.refundability %}
+                        <span class="badge refundable-badge">Yes - Refundable</span>
+                    {% else %}
+                        <span class="badge non-refundable-badge">No - Non-refundable</span>
+                    {% endif %}
+                </p>
+                
+                {% if booking.cancellation_timeline %}
+                <div style="margin-top: 15px;">
+                    <strong>Cancellation Timeline:</strong>
+                    <ul style="margin: 8px 0 0 20px; padding: 0;">
+                        {% for timeline in booking.cancellation_timeline %}
+                        <li>{{ timeline }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                
+                {% if booking.rate_conditions %}
+                <div style="margin-top: 15px;">
+                    <strong>Rate Conditions:</strong>
+                    <ul style="margin: 8px 0 0 20px; padding: 0;">
+                        {% for condition in booking.rate_conditions %}
+                        <li>{{ condition }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Business Information -->
+            <div class="business-info">
+                <h3 style="margin-top: 0; color: #5A53A7;">📞 Our Contact Information</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div>
+                        <p style="margin: 0 0 10px 0;"><strong>{{ booking.business_name }}</strong></p>
+                        <p style="margin: 0 0 10px 0; font-size: 14px;">{{ booking.business_address }}</p>
+                    </div>
+                    <div>
+                        <p style="margin: 0 0 8px 0;"><strong>Customer Service:</strong></p>
+                        <p style="margin: 0 0 5px 0; font-size: 14px;">📞 {{ booking.customer_service_phone }}</p>
+                        <p style="margin: 0 0 5px 0; font-size: 14px;">✉️ {{ booking.customer_service_email }}</p>
+                        <p style="margin: 0; font-size: 14px;">🌐 <a href="{{ booking.terms_url }}" class="terms-link">View Terms & Conditions</a></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Important Notes -->
+            <div class="section">
+                <h3 style="color: #5A53A7; margin-top: 0;">📌 Important Information</h3>
+                <ul style="padding-left: 20px; margin: 0;">
+                    <li>Please present this confirmation email and a valid ID/passport at check-in</li>
+                    <li>Standard check-in time: After {{ booking.check_in_time|default:"2:00 PM" }}</li>
+                    <li>Standard check-out time: Before {{ booking.check_out_time|default:"12:00 PM" }}</li>
+                    <li>Early check-in and late check-out are subject to availability and additional charges</li>
+                    <li>For modifications or cancellations, please contact our customer service</li>
+                    <li>Please review the hotel's specific policies and amenities</li>
+                </ul>
+            </div>
+
+            <!-- Footer -->
+            <div class="footer">
+                <p style="margin: 0 0 10px 0;">This is an automated confirmation email. Please do not reply to this email.</p>
+                <p style="margin: 0 0 10px 0;">For assistance, contact us at {{ booking.customer_service_phone }} or {{ booking.customer_service_email }}</p>
+                <p style="margin: 0; font-size: 11px; color: #999;">
+                    © {% now "Y" %} {{ booking.business_name }}. All rights reserved.<br>
+                    This email was sent to {{ booking.guest_email }}
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

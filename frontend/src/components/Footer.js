@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import Link from 'next/link';
 import React from 'react';
 
 const Footer = () => {
@@ -68,19 +69,30 @@ const Footer = () => {
             </ul>
           </div>
 
-          {/* Useful Links section */}
-          <div className="w-full md:w-1/4 mt-6 md:mt-0 text-center md:text-left">
-            <h3 className="text-lg font-semibold mb-4 text-white">Useful Links</h3>
-            <ul className="space-y-2">
-              <li><a href="#" className="hover:text-[#54ACA4] transition text-white text-opacity-80 hover:text-opacity-100">About Us</a></li>
-              <li><a href="#" className="hover:text-[#54ACA4] transition text-white text-opacity-80 hover:text-opacity-100">Contact Us</a></li>
-              <li><a href="#" className="hover:text-[#54ACA4] transition text-white text-opacity-80 hover:text-opacity-100">Visa Guide & Application</a></li>
-              <li><a href="#" className="hover:text-[#54ACA4] transition text-white text-opacity-80 hover:text-opacity-100">Terms & Conditions</a></li>
-              <li><a href="#" className="hover:text-[#54ACA4] transition text-white text-opacity-80 hover:text-opacity-100">Privacy Policy</a></li>
-              <li><a href="#" className="hover:text-[#54ACA4] transition text-white text-opacity-80 hover:text-opacity-100">Refund & Cancellation</a></li>
-              <li><a href="#" className="hover:text-[#54ACA4] transition text-white text-opacity-80 hover:text-opacity-100">Void & Rescheduling Policy</a></li>
-            </ul>
-          </div>
+         {/* Useful Links section */}
+<div className="w-full md:w-1/4 mt-6 md:mt-0 text-center md:text-left">
+  <h3 className="text-lg font-semibold mb-4 text-white">Useful Links</h3>
+  <ul className="space-y-2">
+    <li>
+      <Link href="/about-us" className="hover:text-[#54ACA4] transition text-white text-opacity-80 hover:text-opacity-100">
+        About Us
+      </Link>
+    </li>
+
+
+    <li>
+      <Link href="/terms" className="hover:text-[#54ACA4] transition text-white text-opacity-80 hover:text-opacity-100">
+        Terms & Conditions
+      </Link>
+    </li>
+    <li>
+      <Link href="/privacy-policy" className="hover:text-[#54ACA4] transition text-white text-opacity-80 hover:text-opacity-100">
+        Privacy Policy
+      </Link>
+    </li>
+
+  </ul>
+</div>
 
           {/* Contact Us section */}
           <div className="w-full md:w-1/4 mt-6 md:mt-0 text-center md:text-left">

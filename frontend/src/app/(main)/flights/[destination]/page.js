@@ -7,26 +7,6 @@ import FlightSearchFilters from "@/components/FlightSearchFilters";
 import { format } from "date-fns";
 import { FiFilter, FiX } from "react-icons/fi";
 
-// Currency conversion: GBP to BDT (approximate rate: 1 GBP = 155 BDT)
-const GBP_TO_BDT = 155;
-
-const convertGBPToBDT = (gbpAmount) => {
-  return Math.round(gbpAmount * GBP_TO_BDT);
-};
-
-// Helper function to convert price string from GBP to BDT
-const convertPriceString = (priceString) => {
-  if (!priceString) return priceString;
-  // Extract number from string like "£500" or "GBP 500"
-  const match = priceString.match(/[\d,.]+/);
-  if (match) {
-    const amount = parseFloat(match[0].replace(/,/g, ''));
-    const bdtAmount = convertGBPToBDT(amount);
-    return `৳${bdtAmount.toLocaleString()}`;
-  }
-  return priceString;
-};
-
 const FlightDestinationPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -37,7 +17,7 @@ const FlightDestinationPage = () => {
   const [apiFilters, setApiFilters] = useState({});
   const [filters, setFilters] = useState({
     airlines: [],
-    priceRange: [0, 155000], // 1000 GBP * 155
+    priceRange: [0, 1000], // Keep in USD (1000 USD max)
     departureTimes: [],
     stops: [],
   });
@@ -187,42 +167,28 @@ const FlightDestinationPage = () => {
       console.log("API Response data:", data);
       
       if (data.status === "success") {
-        // Convert flight prices from GBP to BDT
-        const flightsWithBDT = data.results.itineraries.map(flight => ({
+        // Keep prices in original format - FlightSearchResults will handle conversion
+        const processedFlights = data.results.itineraries.map(flight => ({
           ...flight,
-          priceAmount: convertGBPToBDT(flight.priceAmount),
-          originalPriceGBP: flight.priceAmount,
-          totalPrice: convertPriceString(flight.totalPrice),
-          currency: 'BDT',
-          // Convert offer details if present
-          offerDetails: flight.offerDetails ? {
-            ...flight.offerDetails,
-            base_amount: `৳${convertGBPToBDT(parseFloat(flight.offerDetails.base_amount?.replace(/[^0-9.]/g, '') || 0)).toLocaleString()}`,
-            tax_amount: `৳${convertGBPToBDT(parseFloat(flight.offerDetails.tax_amount?.replace(/[^0-9.]/g, '') || 0)).toLocaleString()}`,
-            base_currency: 'BDT',
-            tax_currency: 'BDT'
-          } : null
+          // Keep original price format (e.g., "USD 288")
+          priceAmount: flight.priceAmount,
+          totalPrice: flight.totalPrice,
+          currency: flight.currency || 'USD',
+          // Keep offer details as-is
+          offerDetails: flight.offerDetails
         }));
         
-        setFlights(flightsWithBDT);
-        setFilteredFlights(flightsWithBDT);
+        setFlights(processedFlights);
+        setFilteredFlights(processedFlights);
         setSearchData(data.search);
         
-        // Convert API filter price ranges to BDT
-        const convertedApiFilters = {
-          ...data.filters,
-          priceRange: {
-            min: convertGBPToBDT(data.filters.priceRange.min),
-            max: convertGBPToBDT(data.filters.priceRange.max),
-            currency: 'BDT'
-          }
-        };
-        setApiFilters(convertedApiFilters);
+        // Keep API filter price ranges in original currency
+        setApiFilters(data.filters);
         
-        // Update local filters with API data (converted to BDT)
+        // Update local filters with API data (keep in original currency)
         setFilters(prev => ({
           ...prev,
-          priceRange: [convertedApiFilters.priceRange.min, convertedApiFilters.priceRange.max],
+          priceRange: [data.filters.priceRange.min, data.filters.priceRange.max],
         }));
       } else {
         throw new Error(data.message || "Failed to fetch flights");
@@ -257,7 +223,7 @@ const FlightDestinationPage = () => {
   const applyFilters = useCallback(() => {
     let results = [...flights];
 
-    // Filter by price range (now in BDT)
+    // Filter by price range (in original currency - USD)
     results = results.filter(
       (flight) =>
         flight.priceAmount >= filters.priceRange[0] &&

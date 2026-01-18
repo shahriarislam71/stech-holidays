@@ -1,5 +1,6 @@
 import Navbar from '@/components/Navbar';
 import './globals.css';
+import { Suspense } from "react";
 
 export const metadata = {
   title: 'STECH Holidays - Your Perfect Travel Companion',
@@ -19,8 +20,11 @@ export default function RootLayout({ children }) {
       </head>
       <body className="min-h-screen bg-gray-50">
 
-        {children}
-      </body>
+    <Suspense fallback={null}>
+          {children}
+        </Suspense>
+        
+              </body>
     </html>
   );
 }

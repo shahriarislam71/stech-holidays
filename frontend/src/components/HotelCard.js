@@ -1,16 +1,12 @@
 import Link from 'next/link';
 import React, { useState } from 'react';
+import { useExchangeRates } from "@/app/hooks/useExchangeRates";
 
 const HotelCard = ({ hotel }) => {
   const [imageError, setImageError] = useState(false);
   
   // Format price based on currency
-  const formatPrice = (price, currency) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency || 'GBP',
-    }).format(price);
-  };
+ const { formatPrice } = useExchangeRates();
 
   // Get first photo or placeholder
   const mainPhoto = hotel.photos?.[0]?.url || '/hotel-placeholder.jpg';
@@ -70,7 +66,7 @@ const HotelCard = ({ hotel }) => {
           <div className="mt-6 flex justify-between items-center">
             <div>
               <span className="text-2xl font-bold text-gray-900">
-                {formatPrice(hotel.pricing?.total_amount, hotel.pricing?.currency)}
+              {formatPrice(`${hotel.pricing?.currency} ${hotel.pricing?.total_amount}`, "hotel", true)}
               </span>
               <span className="text-gray-600"> total</span>
               {hotel.pricing?.due_at_accommodation_amount > 0 && (

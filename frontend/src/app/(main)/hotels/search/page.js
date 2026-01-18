@@ -6,6 +6,7 @@ import HotelFilters from '@/components/HotelFilters';
 import HotelCard from '@/components/HotelCard';
 import { FiFilter, FiX } from 'react-icons/fi';
 import { useSearchParams } from 'next/navigation';
+import { useExchangeRates } from '@/app/hooks/useExchangeRates';
 
 export default function HotelSearchPage() {
   const [filters, setFilters] = useState({
@@ -21,6 +22,13 @@ export default function HotelSearchPage() {
   const [searchParams, setSearchParams] = useState(null);
   const filtersRef = useRef(null);
   
+    const { formatPrice } = useExchangeRates();
+  
+  // Format hotel prices
+  const formatHotelPrice = (price) => {
+    return formatPrice(`USD ${price}`, "hotel", true);
+  };
+
   // Use Next.js useSearchParams hook to react to URL changes
   const urlSearchParams = useSearchParams();
 

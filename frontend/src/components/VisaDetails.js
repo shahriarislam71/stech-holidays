@@ -246,7 +246,7 @@ useEffect(() => {
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Fees</p>
-                          <p className="font-medium" style={{ color: colors.textNavy }}>${visa.fee}</p>
+                          <p className="font-medium" style={{ color: colors.textNavy }}>{visa.visa_fee} + {visa.service_fee}</p>
                         </div>
                       </div>
                       
@@ -254,8 +254,8 @@ useEffect(() => {
                         <div className="text-right">
                           <p className="text-gray-700 font-medium">
                             Total: <span className="font-bold text-lg" style={{ color: colors.primary }}>
-                              {visa.fee} 
-                              <span className="text-sm font-normal"> + {visa.serviceCharge} service</span>
+                              BDT {parseFloat(visa.visa_fee) + parseFloat(visa.service_fee)} 
+
                             </span>
                           </p>
                         </div>
@@ -605,12 +605,12 @@ useEffect(() => {
                     <DetailItem 
                       icon={<FaMoneyBillWave style={{ color: colors.primary }} />}
                       label="Visa Fee"
-                      value={`$${selectedVisa.fee}`}
+                      value={`${selectedVisa.visa_fee}`}
                     />
                     <DetailItem 
                       icon={<FaMoneyBillWave style={{ color: colors.primary }} />}
                       label="Service Charge"
-                      value={`$${selectedVisa.serviceCharge}`}
+                      value={`${selectedVisa.service_fee}`}
                     />
                     <DetailItem 
                       icon={<FaHotel style={{ color: colors.primary }} />}

@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import Image from "next/image";
+import useAuth from "@/app/hooks/useAuth";
+import { useExchangeRates } from "@/app/hooks/useExchangeRates";
 
 const UserInfoPage = () => {
   const searchParams = useSearchParams();
@@ -11,120 +13,95 @@ const UserInfoPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [token, setToken] = useState("");
+    const { formatPrice } = useExchangeRates();
+  // Use the auth hook for authentication and profile data
+
+    const formatFlightPrice = (price) => {
+    return formatPrice(price, "flight", true);
+  };
+  const { user, isLoading: authLoading } = useAuth({ redirectToLogin: true });
+  
+  // Country code data with +880 as default
+  const countryCodes = [
+    { code: "+880", country: "Bangladesh" },
+    { code: "+1", country: "USA/Canada" },
+    { code: "+44", country: "UK" },
+    { code: "+91", country: "India" },
+    { code: "+92", country: "Pakistan" },
+    { code: "+971", country: "UAE" },
+    { code: "+966", country: "Saudi Arabia" },
+    { code: "+65", country: "Singapore" },
+    { code: "+60", country: "Malaysia" },
+    { code: "+61", country: "Australia" },
+    { code: "+64", country: "New Zealand" },
+    { code: "+33", country: "France" },
+    { code: "+49", country: "Germany" },
+    { code: "+81", country: "Japan" },
+    { code: "+82", country: "South Korea" },
+  ];
 
   // Currency conversion rate (GBP to BDT)
-  // You can fetch this from an API for real-time rates
-  const GBP_TO_BDT_RATE = 156.50; // Approximate rate as of 2024
 
-  // Function to convert GBP to BDT
-  const convertToBDT = (priceString) => {
-    if (!priceString) return "BDT 0.00";
-    
-    // Extract currency and amount
-    const parts = priceString.split(" ");
-    if (parts.length < 2) return priceString;
-    
-    const currency = parts[0];
-    const amount = parseFloat(parts[1]);
-    
-    if (isNaN(amount)) return priceString;
-    
-    // Convert if currency is GBP
-    if (currency === "GBP") {
-      const bdtAmount = (amount * GBP_TO_BDT_RATE).toFixed(2);
-      return `BDT ${bdtAmount}`;
+
+  // Function to extract numeric value and currency
+  const parsePrice = (priceString) => {
+    if (!priceString) {
+      console.error("❌ Price string is empty");
+      return { amount: 0, currency: "BDT" };
     }
     
-    // Return as is if already in BDT or other currency
-    return priceString;
-  };
-
-  // Function to extract numeric value and currency
-  // Function to extract numeric value and currency
-const parsePrice = (priceString) => {
-  if (!priceString) {
-    console.error("❌ Price string is empty");
-    return { amount: 0, currency: "BDT" };
-  }
-  
-  console.log("💰 Parsing price string:", priceString);
-  
-  // Handle different price formats
-  let amount = 0;
-  let currency = "BDT";
-  
-  try {
-    // Check if it's already a number (fallback)
-    if (!isNaN(parseFloat(priceString))) {
-      amount = parseFloat(priceString);
-      currency = "BDT";
-    } else {
-      // Try to extract currency and amount from string like "GBP 250.00" or "BDT 250.00"
-      const parts = priceString.trim().split(" ");
-      
-      if (parts.length >= 2) {
-        // Case 1: Currency first, then amount "GBP 250.00"
-        const possibleCurrency = parts[0].toUpperCase();
-        const possibleAmount = parts[1];
+    console.log("💰 Parsing price string:", priceString);
+    
+    let amount = 0;
+    let currency = "BDT";
+    
+    try {
+      if (!isNaN(parseFloat(priceString))) {
+        amount = parseFloat(priceString);
+        currency = "BDT";
+      } else {
+        const parts = priceString.trim().split(" ");
         
-        if (["GBP", "BDT", "USD", "EUR"].includes(possibleCurrency) && !isNaN(parseFloat(possibleAmount))) {
-          currency = possibleCurrency;
-          amount = parseFloat(possibleAmount);
-        } else {
-          // Case 2: Amount first, then currency "250.00 GBP"
-          const possibleAmount = parts[0];
-          const possibleCurrency = parts[1]?.toUpperCase();
+        if (parts.length >= 2) {
+          const possibleCurrency = parts[0].toUpperCase();
+          const possibleAmount = parts[1];
           
-          if (!isNaN(parseFloat(possibleAmount)) && ["GBP", "BDT", "USD", "EUR"].includes(possibleCurrency)) {
-            amount = parseFloat(possibleAmount);
+          if (["GBP", "BDT", "USD", "EUR"].includes(possibleCurrency) && !isNaN(parseFloat(possibleAmount))) {
             currency = possibleCurrency;
+            amount = parseFloat(possibleAmount);
+          } else {
+            const possibleAmount = parts[0];
+            const possibleCurrency = parts[1]?.toUpperCase();
+            
+            if (!isNaN(parseFloat(possibleAmount)) && ["GBP", "BDT", "USD", "EUR"].includes(possibleCurrency)) {
+              amount = parseFloat(possibleAmount);
+              currency = possibleCurrency;
+            }
           }
+        } else if (parts.length === 1 && !isNaN(parseFloat(parts[0]))) {
+          amount = parseFloat(parts[0]);
+          currency = "BDT";
         }
-      } else if (parts.length === 1 && !isNaN(parseFloat(parts[0]))) {
-        // Case 3: Just a number
-        amount = parseFloat(parts[0]);
+      }
+      
+      if (currency === "GBP") {
+        amount = amount * GBP_TO_BDT_RATE;
         currency = "BDT";
       }
-    }
-    
-    // Convert to BDT if needed
-    if (currency === "GBP") {
-      amount = amount * GBP_TO_BDT_RATE;
+      
+      console.log(`✅ Parsed price: ${amount} ${currency}`);
+      
+    } catch (error) {
+      console.error("❌ Error parsing price:", error);
+      amount = 0;
       currency = "BDT";
     }
     
-    console.log(`✅ Parsed price: ${amount} ${currency}`);
-    
-  } catch (error) {
-    console.error("❌ Error parsing price:", error);
-    amount = 0;
-    currency = "BDT";
-  }
-  
-  return {
-    amount: parseFloat(amount.toFixed(2)),
-    currency: currency
-  };
-};
-
-  // Check authentication on component mount
-  useEffect(() => {
-    const checkAuth = () => {
-      const authToken = localStorage.getItem("authToken") || "";
-      setToken(authToken);
-      setIsAuthenticated(!!authToken);
-
-      if (!authToken) {
-        // Redirect to login with current URL as redirect parameter
-        const currentUrl = window.location.pathname + window.location.search;
-        router.push("/login?redirect=" + encodeURIComponent(currentUrl));
-      }
+    return {
+      amount: parseFloat(amount.toFixed(2)),
+      currency: currency
     };
-
-    checkAuth();
-  }, [router]);
+  };
 
   // Extract flight data from URL parameters including passenger_ids
   const flightData = {
@@ -144,7 +121,6 @@ const parsePrice = (priceString) => {
     adults: parseInt(searchParams.get("adults")) || 1,
     children: parseInt(searchParams.get("children")) || 0,
     infants: parseInt(searchParams.get("infants")) || 0,
-    // Extract passenger_ids from URL and convert to array
     passenger_ids: searchParams.get("passenger_ids") 
       ? searchParams.get("passenger_ids").split(',') 
       : []
@@ -156,6 +132,8 @@ const parsePrice = (priceString) => {
 
   // Form state for all passengers
   const [passengers, setPassengers] = useState([]);
+  // State for phone country codes for each passenger
+  const [phoneCountryCodes, setPhoneCountryCodes] = useState([]);
 
   // Validation functions
   const validateEmail = (email) => {
@@ -316,15 +294,63 @@ const parsePrice = (priceString) => {
     setErrors(newErrors);
   };
 
-  // Initialize passengers based on traveler counts - UPDATED to use passenger_ids
+  // Function to get profile data and autofill first passenger
+  const autofillFromProfile = () => {
+    if (!user) return;
+
+    setPassengers(prev => {
+      if (prev.length === 0) return prev;
+      
+      const updated = [...prev];
+      const firstPassenger = updated[0];
+      
+      // Fill first passenger with profile data
+      updated[0] = {
+        ...firstPassenger,
+        title: user.title || firstPassenger.title,
+        given_name: user.first_name || firstPassenger.given_name,
+        family_name: user.last_name || firstPassenger.family_name,
+        email: user.email || firstPassenger.email,
+        // Parse date if available in profile
+        born_on: user.date_of_birth ? format(new Date(user.date_of_birth), 'yyyy-MM-dd') : firstPassenger.born_on,
+        gender: user.gender || firstPassenger.gender,
+        // Add phone with country code
+        phone_number: user.phone ? `${user.phone_country_code || '+880'} ${user.phone}` : firstPassenger.phone_number
+      };
+
+      // Update country code for first passenger
+      setPhoneCountryCodes(prevCodes => {
+        const newCodes = [...prevCodes];
+        newCodes[0] = user.phone_country_code || '+880';
+        return newCodes;
+      });
+
+      // Update passport information if available in profile
+      if (user.passport_number && firstPassenger.identity_documents.length > 0) {
+        updated[0].identity_documents[0] = {
+          ...firstPassenger.identity_documents[0],
+          number: user.passport_number,
+          issuing_country_code: user.passport_issuing_country || 'BD',
+          expires_on: user.passport_expiry ? format(new Date(user.passport_expiry), 'yyyy-MM-dd') : ''
+        };
+      }
+
+      return updated;
+    });
+  };
+
+  // Initialize passengers based on traveler counts
   useEffect(() => {
+    if (authLoading) return;
+
     const initialPassengers = [];
+    const initialCountryCodes = [];
     let passengerIndex = 0;
 
     // Add adults
     for (let i = 0; i < flightData.adults; i++) {
       initialPassengers.push({
-        id: flightData.passenger_ids[i] || `passenger_${passengerIndex++}`, // Use API passenger ID if available
+        id: flightData.passenger_ids[i] || `passenger_${passengerIndex++}`,
         type: "adult",
         title: "",
         given_name: "",
@@ -343,6 +369,8 @@ const parsePrice = (priceString) => {
           },
         ],
       });
+      // Set default country code for each passenger
+      initialCountryCodes.push("+880");
     }
 
     // Add children
@@ -368,6 +396,7 @@ const parsePrice = (priceString) => {
           },
         ],
       });
+      initialCountryCodes.push("+880");
     }
 
     // Add infants
@@ -393,10 +422,20 @@ const parsePrice = (priceString) => {
           },
         ],
       });
+      initialCountryCodes.push("+880");
     }
 
     setPassengers(initialPassengers);
-  }, []); // Empty dependency array - only run once on mount
+    setPhoneCountryCodes(initialCountryCodes);
+    
+    // Autofill from profile if user exists
+    if (user) {
+      // Small delay to ensure state is set before autofilling
+      setTimeout(() => {
+        autofillFromProfile();
+      }, 100);
+    }
+  }, [user, authLoading]);
 
   const updatePassenger = (index, field, value) => {
     setPassengers((prev) => {
@@ -409,6 +448,18 @@ const parsePrice = (priceString) => {
     if (touched[`${index}_${field}`]) {
       validateField(index, field, value);
     }
+  };
+
+  // Update phone with country code
+  const updatePhoneWithCountryCode = (index, countryCode, phoneNumber) => {
+    setPhoneCountryCodes(prev => {
+      const newCodes = [...prev];
+      newCodes[index] = countryCode;
+      return newCodes;
+    });
+    
+    // Update the phone number in passengers state
+    updatePassenger(index, "phone_number", `${countryCode} ${phoneNumber}`);
   };
 
   const updatePassengerDocument = (passengerIndex, field, value) => {
@@ -498,8 +549,9 @@ const parsePrice = (priceString) => {
         isValid = false;
       }
 
-      // Validate phone
-      if (passenger.phone_number && !validatePhone(passenger.phone_number)) {
+      // Validate phone (remove country code prefix for validation)
+      const phoneWithoutCountryCode = passenger.phone_number?.replace(/^\+\d+\s/, '');
+      if (phoneWithoutCountryCode && !validatePhone(phoneWithoutCountryCode)) {
         passengerErrors.phone_number = "Invalid phone number";
         isValid = false;
       }
@@ -556,12 +608,12 @@ const parsePrice = (priceString) => {
     return isValid;
   };
 
-  // Updated handlePayment function to use passenger IDs correctly
+  // Updated handlePayment function
   const handlePayment = async (e) => {
     e.preventDefault();
 
     // Check authentication
-    if (!isAuthenticated || !token) {
+    if (!user) {
       const currentUrl = window.location.pathname + window.location.search;
       router.push("/login?redirect=" + encodeURIComponent(currentUrl));
       return;
@@ -576,24 +628,22 @@ const parsePrice = (priceString) => {
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      const token = localStorage.getItem("authToken");
 
-      // Use the passenger IDs that came from API (flightData.passenger_ids)
-      // If not available, fall back to the IDs from the form
       const passenger_ids = flightData.passenger_ids.length > 0 
         ? flightData.passenger_ids 
         : passengers.map(passenger => passenger.id);
         
-      // Parse price and convert to BDT if needed
-      const priceInfo = parsePrice(flightData.price);
+const priceInfo = parsePrice(flightData.price);
 
       // Prepare payment payload
       const paymentPayload = {
-        total_amount: convertToBDT(flightData.price).replace(/[^\d.]/g, ''),
-        currency: priceInfo.currency,
+  total_amount: priceInfo.amount.toString(),
+          currency: priceInfo.currency,
         offer_id: flightData.offer_id,
-        passenger_ids: passenger_ids, // Use the passenger IDs from API
+        passenger_ids: passenger_ids,
         passengers: passengers.map((passenger, index) => ({
-          id: passenger_ids[index] || passenger.id, // Use API ID first, then fallback
+          id: passenger_ids[index] || passenger.id,
           title: passenger.title,
           given_name: passenger.given_name.trim(),
           family_name: passenger.family_name.trim(),
@@ -620,7 +670,6 @@ const parsePrice = (priceString) => {
       };
 
       console.log("🔄 Initiating flight payment with payload:", paymentPayload);
-      console.log("📋 Passenger IDs being used:", passenger_ids);
 
       // Call payment initiation API
       const response = await fetch(`${apiUrl}/flights/payments/initiate/`, {
@@ -636,8 +685,6 @@ const parsePrice = (priceString) => {
       console.log("📥 Payment initiation response:", data);
 
       if (data.success && data.payment_url) {
-        // Redirect directly to SSLCommerz payment gateway
-        console.log("🔗 Redirecting to payment gateway:", data.payment_url);
         window.location.href = data.payment_url;
       } else {
         throw new Error(data.error || "Failed to initiate payment");
@@ -703,7 +750,6 @@ const parsePrice = (priceString) => {
       );
       return maxChildDate.toISOString().split("T")[0];
     }
-    // For adults, no minimum (but realistically maybe 120 years ago)
     const minDate = new Date(
       today.getFullYear() - 120,
       today.getMonth(),
@@ -713,12 +759,12 @@ const parsePrice = (priceString) => {
   };
 
   // Show loading if checking authentication
-  if (!isAuthenticated) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#5A53A7] mx-auto mb-4"></div>
-          <p>Checking authentication...</p>
+          <p>Loading...</p>
         </div>
       </div>
     );
@@ -768,6 +814,25 @@ const parsePrice = (priceString) => {
       </div>
 
       <div className="max-w-6xl mx-auto py-8 px-4">
+        {/* Profile Autofill Button */}
+        {user && passengers.length > 0 && (
+          <div className="mb-6">
+            <button
+              type="button"
+              onClick={autofillFromProfile}
+              className="inline-flex items-center px-4 py-2 bg-[#5A53A7] text-white rounded-lg hover:bg-[#4a4488] transition"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+              </svg>
+              Fill from Profile
+            </button>
+            <p className="text-sm text-gray-600 mt-2">
+              Auto-fill first passenger information from your profile
+            </p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Flight Summary */}
           <div className="lg:col-span-1">
@@ -860,8 +925,8 @@ const parsePrice = (priceString) => {
                       Total Price
                     </span>
                     <span className="text-xl font-bold text-[#5A53A7]">
-                      {convertToBDT(flightData.price)}
-                    </span>
+  {formatFlightPrice(flightData.price)}
+</span>
                   </div>
                 </div>
               </div>
@@ -1083,29 +1148,55 @@ const parsePrice = (priceString) => {
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Phone Number*
                           </label>
-                          <input
-                            type="tel"
-                            value={passenger.phone_number}
-                            onChange={(e) =>
-                              updatePassenger(
-                                index,
-                                "phone_number",
-                                e.target.value
-                              )
-                            }
-                            onBlur={() => handleBlur(index, "phone_number")}
-                            className={`w-full px-4 py-2 border ${
-                              errors[index]?.phone_number
-                                ? "border-red-500"
-                                : "border-gray-300"
-                            } rounded-lg focus:ring-2 focus:ring-[#55C3A9] focus:border-[#55C3A9] outline-none transition`}
-                            placeholder="+8801712345678"
-                          />
-                          {errors[index]?.phone_number && (
-                            <p className="mt-1 text-sm text-red-600">
-                              {errors[index].phone_number}
-                            </p>
-                          )}
+                          <div className="flex gap-2">
+                            <div className="w-1/3">
+                              <select
+                                value={phoneCountryCodes[index] || "+880"}
+                                onChange={(e) => {
+                                  const countryCode = e.target.value;
+                                  // Extract current phone number without country code
+                                  const currentPhone = passenger.phone_number?.replace(/^\+\d+\s/, '') || '';
+                                  updatePhoneWithCountryCode(index, countryCode, currentPhone);
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#55C3A9] focus:border-[#55C3A9] outline-none transition"
+                              >
+                                {countryCodes.map((country) => (
+                                  <option key={country.code} value={country.code}>
+                                    {country.code} ({country.country})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="flex-1">
+                              <input
+                                type="tel"
+                                value={passenger.phone_number?.replace(/^\+\d+\s/, '') || ''}
+                                onChange={(e) => {
+                                  const phoneNumber = e.target.value;
+                                  updatePhoneWithCountryCode(
+                                    index, 
+                                    phoneCountryCodes[index] || "+880", 
+                                    phoneNumber
+                                  );
+                                }}
+                                onBlur={() => handleBlur(index, "phone_number")}
+                                className={`w-full px-4 py-2 border ${
+                                  errors[index]?.phone_number
+                                    ? "border-red-500"
+                                    : "border-gray-300"
+                                } rounded-lg focus:ring-2 focus:ring-[#55C3A9] focus:border-[#55C3A9] outline-none transition`}
+                                placeholder="1712345678"
+                              />
+                              {errors[index]?.phone_number && (
+                                <p className="mt-1 text-sm text-red-600">
+                                  {errors[index].phone_number}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Format: Country code + phone number
+                          </p>
                         </div>
                       </div>
                     </div>

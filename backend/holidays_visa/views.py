@@ -484,3 +484,91 @@ class CustomUmrahRequestUpdateStatus(generics.UpdateAPIView):
     
     def get_queryset(self):
         return CustomUmrahRequest.objects.all()
+    
+
+# views.py - Add this view
+from django.db.models import Sum, Count, Q
+from django.utils import timezone
+from datetime import timedelta
+
+class VisaApplicationStats(generics.RetrieveAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request, *args, **kwargs):
+        # Calculate date ranges
+        today = timezone.now().date()
+        start_of_month = today.replace(day=1)
+        start_of_year = today.replace(month=1, day=1)
+        
+        # Get all applications for the current user (admin sees all)
+        if request.user.is_staff:
+            queryset = VisaApplication.objects.all()
+        else:
+            queryset = VisaApplication.objects.filter(user=request.user)
+        
+        # Calculate statistics
+        total_applications = queryset.count()
+        
+        status_counts = {
+            'pending': queryset.filter(status='pending').count(),
+            'processing': queryset.filter(status='processing').count(),
+            'document_review': queryset.filter(status='document_review').count(),
+            'approved': queryset.filter(status='approved').count(),
+            'rejected': queryset.filter(status='rejected').count(),
+            'completed': queryset.filter(status='completed').count(),
+            'on_hold': queryset.filter(status='on_hold').count(),
+        }
+        
+        # Calculate revenue
+        revenue = queryset.filter(status__in=['approved', 'completed']).aggregate(
+            total_revenue=Sum('total_amount')
+        )['total_revenue'] or 0
+        
+        # Monthly applications
+        monthly_applications = queryset.filter(
+            created_at__gte=start_of_month
+        ).count()
+        
+        # Yearly applications
+        yearly_applications = queryset.filter(
+            created_at__gte=start_of_year
+        ).count()
+        
+        # Popular countries
+        popular_countries = queryset.values('country__name').annotate(
+            count=Count('id')
+        ).order_by('-count')[:5]
+        
+        stats = {
+            'total': total_applications,
+            'pending': status_counts['pending'],
+            'processing': status_counts['processing'],
+            'document_review': status_counts['document_review'],
+            'approved': status_counts['approved'],
+            'rejected': status_counts['rejected'],
+            'completed': status_counts['completed'],
+            'on_hold': status_counts['on_hold'],
+            'revenue': float(revenue),
+            'monthly': monthly_applications,
+            'yearly': yearly_applications,
+            'popular_countries': list(popular_countries),
+        }
+        
+        return Response(stats)
+
+# views.py - Add this view
+@api_view(['GET'])
+def visa_country_visa_types(request, slug):
+    """
+    Returns visa types for a specific country by slug
+    """
+    try:
+        country = VisaCountry.objects.get(slug=slug)
+        visa_types = VisaType.objects.filter(country=country)
+        serializer = VisaTypeSerializer(visa_types, many=True, context={'request': request})
+        return Response(serializer.data)
+    except VisaCountry.DoesNotExist:
+        return Response(
+            {"detail": "Country not found"}, 
+            status=status.HTTP_404_NOT_FOUND
+        )

@@ -101,19 +101,34 @@ class Payment(models.Model):
     def __str__(self):
         return f"Payment {self.id} - {self.amount} {self.currency}"
     
-
-
-class DuffleMarkup(models.Model):
-    """Model to store Duffel markup percentage"""
-    percentage = models.DecimalField(max_digits=5, decimal_places=2, help_text="Percentage markup (e.g., 10.00 for 10%)")
-
-
-    class Meta:
-        db_table = 'duffel_markups'
-
-    def __str__(self):
-        return f"{self.percentage}% Markup"
+# flights/models.py - Enhanced DuffleMarkup model
+class GlobalMarkup(models.Model):
+    """Global markup settings for different product types"""
+    MARKUP_TYPES = [
+        ('flight', 'Flight Markup'),
+        ('hotel', 'Hotel Markup'),
+        ('default', 'Default Markup'),
+    ]
     
+    markup_type = models.CharField(max_length=20, choices=MARKUP_TYPES, unique=True)
+    percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    is_active = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True
+    )
+    
+    class Meta:
+        db_table = 'global_markups'
+        verbose_name = 'Global Markup'
+        verbose_name_plural = 'Global Markups'
+    
+    def __str__(self):
+        return f"{self.get_markup_type_display()}: {self.percentage}%"
+
 
 # flights/models.py (or payments/models.py)
 from django.db import models

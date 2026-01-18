@@ -73,14 +73,14 @@ class HolidayBookingSerializer(serializers.ModelSerializer):
         rep['package'] = HolidayPackageSerializer(instance.package, context=self.context).data
         return rep
     
+# serializers.py
 class VisaCountrySerializer(serializers.ModelSerializer):
-
+    """Simplified country serializer - only name and cover image"""
     cover_image = serializers.SerializerMethodField()
     
     class Meta:
         model = VisaCountry
-        fields = '__all__'
-
+        fields = ['id', 'name', 'slug', 'cover_image', 'is_featured', 'created_at']
         
     def get_cover_image(self, obj):
         if obj.cover_image:
@@ -88,61 +88,106 @@ class VisaCountrySerializer(serializers.ModelSerializer):
         return None
 
 
+class VisaTypeSerializer(serializers.ModelSerializer):
+    """Visa type with all details"""
+    country_name = serializers.CharField(source='country.name', read_only=True)
+    country_slug = serializers.CharField(source='country.slug', read_only=True)
+    total_fee = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    
+    class Meta:
+        model = VisaType
+        fields = '__all__'
+        read_only_fields = ['country_name', 'country_slug', 'total_fee']
+
+
+
+
+# serializers.py - Update your VisaApplicationSerializer
 class VisaApplicationSerializer(serializers.ModelSerializer):
     country = VisaCountrySerializer(read_only=True)
-    visa_type = serializers.PrimaryKeyRelatedField(queryset=VisaType.objects.all())
+    visa_type = VisaTypeSerializer(read_only=True)
     country_id = serializers.PrimaryKeyRelatedField(
         queryset=VisaCountry.objects.all(),
         source='country',
         write_only=True
     )
-    documents = serializers.JSONField(required=False)
+    visa_type_id = serializers.PrimaryKeyRelatedField(
+        queryset=VisaType.objects.all(),
+        source='visa_type',
+        write_only=True
+    )
     
     class Meta:
         model = VisaApplication
-        fields = "__all__"
-        read_only_fields = [ 'created_at', 'reference_number']
+        fields = [
+            'id',
+            'reference_number',
+            'country',
+            'country_id',
+            'visa_type',
+            'visa_type_id',
+            'contact_name',
+            'email',
+            'phone',
+            'departure_date',
+            'travelers',
+            'passport_number',
+            'passport_expiry',
+            'additional_info',
+            'status',
+            'visa_fee',
+            'processing_fee',
+            'service_fee',
+            'total_amount',
+            'created_at',
+            'updated_at'
+        ]
+        read_only_fields = [
+            'reference_number',
+            'status',
+            'visa_fee',
+            'processing_fee',
+            'service_fee',
+            'total_amount',
+            'created_at',
+            'updated_at'
+        ]
     
-    def validate_passport_expiry(self, value):
-        if value < date.today():
+    def validate(self, data):
+        if data.get('passport_expiry') and data['passport_expiry'] < date.today():
             raise serializers.ValidationError("Passport must be valid (not expired)")
-        return value
-    
-    def validate_departure_date(self, value):
-        if value < date.today():
+        
+        if data.get('departure_date') and data['departure_date'] < date.today():
             raise serializers.ValidationError("Departure date must be in the future")
-        return value
-
+        
+        return data
+    
     def create(self, validated_data):
-        # Calculate fees
+        # Calculate fees automatically
         visa_type = validated_data['visa_type']
         travelers = validated_data['travelers']
         
-        validated_data['visa_fee'] = visa_type.fee * travelers
-        validated_data['processing_fee'] = visa_type.country.fee * travelers
-        validated_data['total_amount'] = (visa_type.fee + visa_type.country.fee) * travelers
+        validated_data['visa_fee'] = visa_type.visa_fee * travelers
+        validated_data['processing_fee'] = visa_type.processing_fee * travelers
+        validated_data['service_fee'] = visa_type.service_fee * travelers
+        validated_data['total_amount'] = (
+            visa_type.visa_fee + 
+            visa_type.processing_fee + 
+            visa_type.service_fee
+        ) * travelers
         
         return super().create(validated_data)
     
     def update(self, instance, validated_data):
+        instance = super().update(instance, validated_data)
         # Recalculate fees if travelers or visa type changes
         if 'travelers' in validated_data or 'visa_type' in validated_data:
-            visa_type = validated_data.get('visa_type', instance.visa_type)
-            travelers = validated_data.get('travelers', instance.travelers)
-            
-            validated_data['visa_fee'] = visa_type.fee * travelers
-            validated_data['processing_fee'] = visa_type.country.fee * travelers
-            validated_data['total_amount'] = (visa_type.fee + visa_type.country.fee) * travelers
-            
-        return super().update(instance, validated_data)
+            instance.calculate_fees()
+            instance.save()
+        return instance
 
 
-class VisaTypeSerializer(serializers.ModelSerializer):
 
-
-    class Meta:
-        model = VisaType
-        fields = '__all__'
 
 
 # holidays_visa/serializers.py

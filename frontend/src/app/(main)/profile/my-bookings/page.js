@@ -28,49 +28,57 @@ export default function MyBookings() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Fetch all flight bookings
-  const fetchAllFlights = async () => {
-    try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/flights/my-flights/`,
-        {
-          headers: {
-            'Authorization': `Token ${token}`,
-            'Content-Type': 'application/json'
-          }
+const fetchAllFlights = async () => {
+  try {
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/flights/my-flights/`,
+      {
+        headers: {
+          'Authorization': `Token ${token}`,
+          'Content-Type': 'application/json'
         }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        return data.map(booking => ({
-          id: booking.id || booking.data?.id,
-          bookingNumber: booking.booking_reference || booking.data?.booking_reference || `FL${(booking.id || booking.data?.id).toString().slice(-6)}`,
-          date: new Date(booking.created_at || booking.data?.created_at || new Date()).toLocaleDateString(),
-          departure: booking.origin || booking.data?.slices?.[0]?.origin?.iata_code || 'N/A',
-          destination: booking.destination || booking.data?.slices?.[0]?.destination?.iata_code || 'N/A',
-          departure_time: booking.departure_date || booking.data?.slices?.[0]?.segments?.[0]?.departing_at,
-          arrival_time: booking.arrival_date || booking.data?.slices?.[0]?.segments?.[0]?.arriving_at,
-          airline: booking.airline || booking.data?.slices?.[0]?.segments?.[0]?.operating_carrier?.name || 'Unknown Airline',
-          flightNumber: booking.flight_number || booking.data?.slices?.[0]?.segments?.[0]?.marketing_carrier_flight_number || 'N/A',
-          status: booking.status || 'Confirmed',
-          price: booking.total_amount ? `GBP ${booking.total_amount}` : `${booking.data?.total_currency || 'GBP'} ${booking.data?.total_amount || '0'}`,
-          passenger: booking.passenger_name || (booking.data?.passengers?.[0]?.given_name + ' ' + booking.data?.passengers?.[0]?.family_name) || 'N/A',
-          email: booking.email || booking.data?.passengers?.[0]?.email || 'N/A',
-          image: '/flight-booking.jpg',
-          passengers: booking.passengers || booking.data?.passengers || [],
-          cabin_class: booking.cabin_class || booking.data?.slices?.[0]?.segments?.[0]?.passengers?.[0]?.cabin_class || 'Economy',
-          slices: booking.data?.slices || [],
-          conditions: booking.data?.conditions,
-          payment_status: booking.data?.payment_status
-        }));
       }
-      return [];
-    } catch (error) {
-      console.error('Error fetching all flights:', error);
-      return [];
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      
+      // Check if data is an array or has a flights property
+      const flightsArray = Array.isArray(data) ? data : data.flights || [];
+      
+      return flightsArray.map(booking => ({
+        id: booking.order_id || booking.id,
+        bookingNumber: booking.booking_reference || `FL${(booking.order_id || booking.id).toString().slice(-6)}`,
+        date: new Date(booking.created_at || new Date()).toLocaleDateString(),
+        departure: booking.departure || booking.origin || booking.data?.slices?.[0]?.origin?.iata_code || 'N/A',
+        destination: booking.arrival || booking.destination || booking.data?.slices?.[0]?.destination?.iata_code || 'N/A',
+        departure_time: booking.departure_time || booking.departure_date || booking.data?.slices?.[0]?.segments?.[0]?.departing_at,
+        arrival_time: booking.arrival_time || booking.arrival_date || booking.data?.slices?.[0]?.segments?.[0]?.arriving_at,
+        airline: booking.airline || booking.data?.slices?.[0]?.segments?.[0]?.operating_carrier?.name || 'Unknown Airline',
+        flightNumber: booking.flight_number || booking.data?.slices?.[0]?.segments?.[0]?.marketing_carrier_flight_number || 'N/A',
+        status: booking.status || 'Confirmed',
+        price: `${booking.currency || 'USD'} ${booking.total_amount || (booking.data?.total_amount ? booking.data.total_amount : '0')}`,
+        passenger: booking.passengers?.[0] ? `${booking.passengers[0].given_name} ${booking.passengers[0].family_name}` : 'N/A',
+        email: booking.passengers?.[0]?.email || booking.email || 'N/A',
+        image: '/flight-booking.jpg',
+        passengers: booking.passengers || booking.data?.passengers || [],
+        cabin_class: booking.cabin_class || booking.data?.slices?.[0]?.segments?.[0]?.passengers?.[0]?.cabin_class || 'Economy',
+        slices: booking.data?.slices || [],
+        conditions: booking.data?.conditions,
+        payment_status: booking.payment_status || booking.data?.payment_status,
+        departure_city: booking.departure_city || 'N/A',
+        arrival_city: booking.arrival_city || 'N/A',
+        duration: booking.duration || 'N/A',
+        trip_type: booking.trip_type || 'One Way'
+      }));
     }
-  };
+    return [];
+  } catch (error) {
+    console.error('Error fetching all flights:', error);
+    return [];
+  }
+};
 
   // Fetch flight booking details
   const fetchFlightBooking = async (orderId) => {
@@ -245,8 +253,9 @@ export default function MyBookings() {
             }
           }
         );
+        
         if (hotelResponse.ok) {
-          const hotelData = await response.json();
+          const hotelData = await hotelResponse.json(); 
           
           // Check if response has bookings array
           const hotelBookingsArray = hotelData.bookings || (Array.isArray(hotelData) ? hotelData : []);

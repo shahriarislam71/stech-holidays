@@ -53,6 +53,8 @@ INSTALLED_APPS = [
     "holidays_visa",
     "flights",
     "hotels",
+
+
     
 ]
 
@@ -218,7 +220,7 @@ AUTH_USER_MODEL = 'coreauth.CustomUser'
 
 
 
-DUFFEL_ACCESS_TOKEN = "duffel_test_4Ery-9S_m7fcuDUdNESqhLBtmEgdkHeiGf8psfkjHfI"  # Replace with your actual Duffel access token
+DUFFEL_ACCESS_TOKEN = "duffel_test_qTHh0S9DGHb4t8_b5q-QCOCebbR3ojJOco7HMLBiySH"  # Replace with your actual Duffel access token
 # Duffel API Configuration
 DUFFEL_CONFIG = {
     'API_KEY': DUFFEL_ACCESS_TOKEN,
@@ -226,7 +228,7 @@ DUFFEL_CONFIG = {
     'VERSION': 'v2',
     'DEFAULT_MARKUP': '10.00',  # €10 default markup
     'DUFFEL_PAYMENTS_FEE_RATE': 0.029,  # 2.9%
-    'FX_MARKUP_RATE': 0.02,  # 2% FX markup
+    'FX_MARKUP_RATE': 1,  # 2% FX markup
     'TIMEOUT': 30,
 }
 
@@ -309,11 +311,12 @@ SOCIALACCOUNT_PROVIDERS = {
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-STATIC_URL = '/backend/static/'
-MEDIA_URL = '/backend/media/'
-STATICFILES_DIRS=[BASE_DIR / "assets",]
-STATIC_ROOT = '/home/jgfabrtq/api.stechholidays.com/static'
-MEDIA_ROOT = '/home/jgfabrtq/api.stechholidays.com/media'
+# STATIC_URL = '/backend/static/'
+# MEDIA_URL = '/backend/media/'
+# STATICFILES_DIRS=[BASE_DIR / "assets",]
+# STATIC_ROOT = '/home/jgfabrtq/api.stechholidays.com/static'
+# MEDIA_ROOT = '/home/jgfabrtq/api.stechholidays.com/media'
+
 
 
 

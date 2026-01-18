@@ -44,4 +44,20 @@ urlpatterns = [
     
     path("payments/initiate/", views.InitiateFlightPaymentView.as_view(), name="flights-initiate-payment"),
     path("payments/success/", views.FlightPaymentSuccessView.as_view(), name="flights-payment-success"),
+
+
+    path('analytics/', views.FlightAnalyticsView.as_view(), name='flight-analytics'),
+    path('markup/', views.FlightMarkupView.as_view(), name='flight-markup'),
+    path('itinerary/<str:order_id>/pdf/', views.FlightItineraryPDFView.as_view(), name='flight-itinerary-pdf'),
+    path('itinerary/<str:order_id>/email/', views.SendItineraryEmailView.as_view(), name='send-itinerary-email'),
+    
+    # Order management (redirects to Duffel)
+    path('orders/', views.OrderListCreateView.as_view(), name='order-list'),
+    path('orders/<str:order_id>/', views.OrderRetrievalView.as_view(), name='order-detail'),
+    path('orders/<str:order_id>/services/', views.OrderServicesView.as_view(), name='order-services'),
+    path('orders/<str:order_id>/cancel/', views.OrderCancelView.as_view(), name='order-cancel'),
+    
+    # Payment URLs
+    path('payments/initiate/', views.InitiateFlightPaymentView.as_view(), name='initiate-flight-payment'),
+    path('payments/success/', views.FlightPaymentSuccessView.as_view(), name='flight-payment-success'),
 ]

@@ -1,45 +1,28 @@
-// components/FlightSearchResults.js
 "use client";
-import React, { useState, useEffect } from "react";
+
+import React, { useState, useEffect, useCallback, createContext, useContext } from "react";
 import { useRouter } from "next/navigation";
-
-// Currency conversion: GBP to BDT
-const GBP_TO_BDT = 155;
-
-const convertGBPToBDT = (gbpAmount) => {
-  return Math.round(gbpAmount * GBP_TO_BDT);
-};
-
-const convertPriceString = (priceString) => {
-  if (!priceString) return priceString;
-  // Extract number from string like "£500" or "GBP 500"
-  const match = priceString.match(/[\d,.]+/);
-  if (match) {
-    const amount = parseFloat(match[0].replace(/,/g, ''));
-    const bdtAmount = convertGBPToBDT(amount);
-    return `৳${bdtAmount.toLocaleString()}`;
-  }
-  return priceString;
-};
-
+import { useExchangeRates } from "@/app/hooks/useExchangeRates";
+// FlightCard Component
 const FlightCard = ({ flight, searchParams }) => {
   const [showPackages, setShowPackages] = useState(false);
   const [farePackages, setFarePackages] = useState([]);
   const [loadingPackages, setLoadingPackages] = useState(false);
   const [packageError, setPackageError] = useState(null);
   const [selectedPackage, setSelectedPackage] = useState(null);
-  const router = useRouter();
   const [showDetails, setShowDetails] = useState(false);
+  const [convertedTotal, setConvertedTotal] = useState("");
+  
+const { formatPrice, loading: ratesLoading } = useExchangeRates();
+  const router = useRouter();
 
   // Convert searchParams to a plain object safely
   const getSearchParamsObject = () => {
     if (!searchParams) return {};
     try {
-      // If it's already an object, return it
       if (typeof searchParams === 'object' && !(searchParams instanceof URLSearchParams)) {
         return searchParams;
       }
-      // If it's URLSearchParams, convert to object
       if (searchParams instanceof URLSearchParams) {
         const params = {};
         for (const [key, value] of searchParams.entries()) {
@@ -66,51 +49,60 @@ const FlightCard = ({ flight, searchParams }) => {
 
   const passengerIds = getPassengerIds();
 
+  // Convert price when rates change
+useEffect(() => {
+  if (!flight.totalPrice) return;
+  
+  try {
+    // Format with flight markup
+    const converted = formatPrice(flight.totalPrice, "flight", true);
+    setConvertedTotal(converted);
+  } catch (error) {
+    console.error("Error converting price:", error);
+    setConvertedTotal(flight.totalPrice || "N/A");
+  }
+}, [flight, formatPrice]);
+
   // Fetch fare packages
+
   useEffect(() => {
-    const fetchFarePackages = async () => {
-      if (!showPackages || !flight.id) return;
+  const fetchFarePackages = async () => {
+    if (!showPackages || !flight.id) return;
+    
+    setLoadingPackages(true);
+    setPackageError(null);
+    
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/flights/offers/${flight.id}/package/`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) throw new Error(`Failed to fetch packages: ${response.status}`);
+
+      const data = await response.json();
       
-      setLoadingPackages(true);
-      setPackageError(null);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      
-      try {
-        const response = await fetch(`${apiUrl}/flights/offers/${flight.id}/package/`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+      if (data.fares && Array.isArray(data.fares)) {
+        // Convert package prices with flight markup
+        const convertedFares = data.fares.map((fare) => {
+          const convertedPrice = formatPrice(fare.price, "flight", true);
+          return { ...fare, price: convertedPrice };
         });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch packages: ${response.status}`);
-        }
-
-        const data = await response.json();
         
-        if (data.fares && Array.isArray(data.fares)) {
-          // Convert package prices from GBP to BDT
-          const convertedFares = data.fares.map(fare => ({
-            ...fare,
-            price: convertPriceString(fare.price),
-            originalPriceGBP: fare.price
-          }));
-          setFarePackages(convertedFares);
-        } else {
-          throw new Error('Invalid package data received');
-        }
-      } catch (error) {
-        console.error('Error fetching fare packages:', error);
-        setPackageError(error.message);
-        setFarePackages([]);
-      } finally {
-        setLoadingPackages(false);
+        setFarePackages(convertedFares);
       }
-    };
+    } catch (error) {
+      console.error('Error fetching fare packages:', error);
+      setPackageError(error.message);
+    } finally {
+      setLoadingPackages(false);
+    }
+  };
 
+  if (showPackages) {
     fetchFarePackages();
-  }, [showPackages, flight.id]);
+  }
+}, [showPackages, flight.id, formatPrice]);
 
   // Reset packages when modal closes
   useEffect(() => {
@@ -187,7 +179,7 @@ const FlightCard = ({ flight, searchParams }) => {
       cabin_class: flight.cabinClass,
       travelers: flight.travelers || 1,
       fare_name: "Standard Fare",
-      passenger_ids: passengerIds.join(','), // Add passenger IDs
+      passenger_ids: passengerIds.join(','),
       ...searchParamsObj
     });
 
@@ -226,7 +218,7 @@ const FlightCard = ({ flight, searchParams }) => {
 
       const result = await response.json();
       
-      // Navigate to user info page with all necessary data including passenger IDs
+      // Navigate to user info page
       const queryParams = new URLSearchParams({
         offer_id: flight.id,
         fare_name: pkg.name,
@@ -240,7 +232,7 @@ const FlightCard = ({ flight, searchParams }) => {
         duration: flight.totalDuration,
         cabin_class: flight.cabinClass,
         travelers: flight.travelers || 1,
-        passenger_ids: passengerIds.join(','), // Add passenger IDs
+        passenger_ids: passengerIds.join(','),
         ...searchParamsObj
       });
 
@@ -429,22 +421,27 @@ const FlightCard = ({ flight, searchParams }) => {
         <div className="w-64 border-l border-dashed border-gray-300 p-6 flex flex-col justify-between bg-gray-50">
           <div>
             <p className="text-gray-500 text-sm font-medium">Total Price</p>
-            <p className="text-3xl font-bold text-[#5A53A7] my-2">{flight.totalPrice}</p>
-            <p className="text-xs text-gray-400 mb-4">for {flight.travelers || 1} traveler(s)</p>
             
-            {/* Additional Price Info */}
-            {flight.offerDetails && (
-              <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200 text-xs text-gray-600">
-                <div className="flex justify-between mb-1">
-                  <span>Base Fare:</span>
-                  <span>{flight.offerDetails.base_amount}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Taxes & Fees:</span>
-                  <span>{flight.offerDetails.tax_amount}</span>
-                </div>
+            {!convertedTotal ? (
+              <div className="my-2">
+                <div className="animate-pulse h-10 bg-gray-200 rounded"></div>
+                <p className="text-xs text-gray-400 mt-1">Calculating final price...</p>
               </div>
+            ) : (
+              <>
+                <p className="text-3xl font-bold text-[#5A53A7] my-2">
+                  {convertedTotal}
+                </p>
+                <p className="text-xs text-gray-500 mb-2">
+                  All taxes and fees included
+                </p>
+                <p className="text-xs text-gray-400 mb-4">
+                  for {flight.travelers || 1} traveler(s)
+                </p>
+              </>
             )}
+
+
 
             {/* Selection Status */}
             {selectedPackage && (
@@ -514,7 +511,6 @@ const FlightCard = ({ flight, searchParams }) => {
                 <div className="text-center py-12">
                   <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-[#5A53A7] mx-auto mb-4"></div>
                   <p className="text-lg text-gray-600">Loading available packages...</p>
-                  <p className="text-sm text-gray-500 mt-2">Please wait while we fetch the best options for you</p>
                 </div>
               ) : packageError ? (
                 <div className="text-center py-12">
@@ -615,16 +611,17 @@ const FlightCard = ({ flight, searchParams }) => {
   );
 };
 
+// Main FlightSearchResults Component
 const FlightSearchResults = ({ flights, searchParams }) => {
+const { formatPrice } = useExchangeRates();
+
   // Convert searchParams to a plain object safely
   const getSearchParamsObject = () => {
     if (!searchParams) return {};
     try {
-      // If it's already an object, return it
       if (typeof searchParams === 'object' && !(searchParams instanceof URLSearchParams)) {
         return searchParams;
       }
-      // If it's URLSearchParams, convert to object
       if (searchParams instanceof URLSearchParams) {
         const params = {};
         for (const [key, value] of searchParams.entries()) {
@@ -696,6 +693,8 @@ const FlightSearchResults = ({ flights, searchParams }) => {
 
   return (
     <div className="space-y-6">
+      {/* Removed the currency conversion banner - clients don't need to know about it */}
+
       <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold text-gray-800 mb-2 sm:mb-0">

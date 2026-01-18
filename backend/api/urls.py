@@ -10,7 +10,7 @@ urlpatterns = [
     path('home/flight-tracker/', FLightView.as_view(), name='cards'),
 
 
-path('images/', UploadedImageViewSet.as_view(), name='image-list-create'),
+    path('images/', UploadedImageViewSet.as_view(), name='image-list-create'),
       path('images/<int:pk>/', RetrieveImage.as_view(), name='image-retrive'),
 
 ]

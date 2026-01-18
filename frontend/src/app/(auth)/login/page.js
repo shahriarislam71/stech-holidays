@@ -64,11 +64,11 @@ export default function LoginPage() {
         </div>
 
         {/* Error Message */}
-        {errorMsg && (
+        {/* {errorMsg && (
           <div className="mb-6 rounded-md bg-red-100 text-red-700 px-5 py-3 text-center font-semibold select-text break-words whitespace-pre-wrap">
             {errorMsg}
           </div>
-        )}
+        )} */}
 
         {/* Google Button or Loader */}
         <div className="flex justify-center">

@@ -32,6 +32,29 @@ urlpatterns = [
 
 
 
-    # Payment booking ssl commerce
+
+
+ # Dashboard URLs
+    path('analytics/', views.HotelAnalyticsView.as_view(), name='hotel-analytics'),
+    path('markup/', views.HotelMarkupView.as_view(), name='hotel-markup'),
+    path('voucher/<str:booking_id>/pdf/', views.HotelVoucherPDFView.as_view(), name='hotel-voucher-pdf'),
+    path('voucher/<str:booking_id>/email/', views.SendHotelVoucherEmailView.as_view(), name='send-hotel-voucher-email'),
+    
+    # Booking management (mostly redirects to Duffel)
+    path('bookings/', views.ListBookingsView.as_view(), name='list-bookings'),
+    path('bookings/<str:booking_id>/', views.GetBookingView.as_view(), name='get-booking'),
+    path('bookings/<str:booking_id>/cancel/', views.CancelBookingView.as_view(), name='cancel-booking'),
+    
+    # Payment URLs
+    path('payments/initiate/', views.InitiatePaymentView.as_view(), name='initiate-payment'),
+    path('payments/success/', views.PaymentSuccessView.as_view(), name='payment-success'),
+
+
+path('cancellation-policy/<str:quote_id>/', views.GetCancellationPolicyView.as_view(), name='cancellation-policy'),
+    path('bookings/complete/', views.CreateCompleteBookingView.as_view(), name='create-complete-booking'),
+path('bookings/send-confirmation-email/', views.SendHotelConfirmationEmailView.as_view(), name='send-hotel-confirmation-email'),
+    path('bookings/details/<str:booking_reference>/', views.GetBookingDetailsView.as_view(), name='get-booking-details'),
+
+        path('bookings/send-confirmation-email/', views.SendHotelConfirmationEmailView.as_view(), name='send-hotel-confirmation-email'),
 
 ]

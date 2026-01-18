@@ -93,18 +93,13 @@ class HolidayBooking(models.Model):
 
 
 class VisaCountry(models.Model):
+    """Simplified visa country model - just name and cover photo"""
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=100, unique=True, blank=True)
-    description = models.TextField()
-    requirements = models.TextField()
-    processing_time = models.CharField(max_length=50)
-    validity = models.CharField(max_length=50)
-    entry_type = models.CharField(max_length=50)  # single, multiple
-    fee = models.DecimalField(max_digits=10, decimal_places=2)
+    cover_image = models.ImageField(upload_to='visa_countries/', blank=True, null=True)
     is_featured = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    cover_image = models.ImageField( blank=True, null=True)
 
     class Meta:
         ordering = ['name']
@@ -120,24 +115,30 @@ class VisaCountry(models.Model):
 
 
 class VisaType(models.Model):
+    """Visa type now contains all details including processing fees"""
     country = models.ForeignKey(VisaCountry, related_name='visa_types', on_delete=models.CASCADE)
     type = models.CharField(max_length=100)  # e.g., "Tourist Visa"
     description = models.TextField()
     processing_time = models.CharField(max_length=50)
     validity = models.CharField(max_length=50)
     entry_type = models.CharField(max_length=50)  # Single/Multiple
-    fee = models.DecimalField(max_digits=10, decimal_places=2)
+    visa_fee = models.DecimalField(max_digits=10, decimal_places=2)  # Renamed from 'fee'
+
+    service_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)  # Added service fee
     image = models.ImageField(upload_to='visa_types/', null=True, blank=True)
     requirements = models.JSONField(default=list)  
     policies = models.JSONField(default=list)
+    is_popular = models.BooleanField(default=False)
     
     def __str__(self):
         return f"{self.type} for {self.country.name}"
     
+    @property
+    def total_fee(self):
+        """Calculate total fee including all charges"""
+        return self.visa_fee  + self.service_fee
 
 class VisaApplication(models.Model):
-   
-    
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='visa_applications')
     country = models.ForeignKey(VisaCountry, on_delete=models.CASCADE, related_name='applications')
     visa_type = models.ForeignKey(VisaType, on_delete=models.CASCADE, related_name='applications', null=True)
@@ -151,11 +152,12 @@ class VisaApplication(models.Model):
     additional_info = models.TextField(blank=True)
     status = models.CharField(max_length=20, default='pending')
     reference_number = models.CharField(max_length=20, unique=True, blank=True)
-    documents = models.JSONField(default=list)  # Store uploaded document references
+    documents = models.JSONField(default=list)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     visa_fee = models.DecimalField(max_digits=10, decimal_places=2)
-    processing_fee = models.DecimalField(max_digits=10, decimal_places=2)
+
+    service_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     
     class Meta:
@@ -174,8 +176,17 @@ class VisaApplication(models.Model):
         date_part = timezone.now().strftime("%y%m%d")
         random_part = str(random.randint(1000, 9999))
         return f"{prefix}{date_part}{random_part}"
+    
+    def calculate_fees(self):
+        """Calculate all fees based on visa type and number of travelers"""
+        if self.visa_type:
+            self.visa_fee = self.visa_type.visa_fee * self.travelers
 
-# Umrah
+            self.service_fee = self.visa_type.service_fee * self.travelers
+            self.total_amount = self.visa_fee  + self.service_fee
+            
+              
+
 
 # holidays_visa/models.py
 

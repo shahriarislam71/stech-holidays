@@ -34,8 +34,8 @@ const VisaSubmissionPage = () => {
   const calculateFees = () => {
     if (!visaDetails) return { visaFee: 0, processingFee: 0, totalAmount: 0 };
     
-    const visaFee = parseFloat(visaDetails.visaType.fee || 0) * formData.travelers;
-    const processingFee = parseFloat(visaDetails.country.fee || 0) * formData.travelers;
+    const visaFee = parseFloat(visaDetails.visaType.visa_fee || 0) * formData.travelers;
+    const processingFee = parseFloat(visaDetails.visaType.service_fee || 0) * formData.travelers;
     const totalAmount = visaFee + processingFee;
     
     return { visaFee, processingFee, totalAmount };
@@ -239,7 +239,7 @@ const VisaSubmissionPage = () => {
           <div className="md:w-1/3">
             <div className="relative h-48 w-full rounded-xl overflow-hidden">
               <Image
-                src={visaDetails.country.cover_image}
+                src={visaDetails.visaType.image}
                 alt={visaDetails.country.name}
                 fill
                 className="object-cover"
@@ -265,7 +265,7 @@ const VisaSubmissionPage = () => {
               </div>
               <div className="bg-gray-50 p-4 rounded-lg">
                 <p className="text-sm text-gray-500 mb-1">Visa Fee</p>
-                <p className="font-medium text-gray-800">{visaDetails.visaType.fee} BDT</p>
+                <p className="font-medium text-gray-800">{visaDetails.visaType.visa_fee} BDT</p>
               </div>
             </div>
           </div>
@@ -497,7 +497,7 @@ const VisaSubmissionPage = () => {
               {/* Banner Image */}
               <div className="h-48 bg-gradient-to-r from-purple-500 to-indigo-600 flex items-center justify-center">
                 <Image 
-                  src={visaDetails.country.cover_image} 
+                  src={visaDetails.image} 
                   alt={visaDetails.country.name} 
                   width={800}
                   height={400}

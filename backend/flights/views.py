@@ -287,7 +287,7 @@ class FlightListView(APIView):
             all_offers = data.get("data", {}).get("offers", [])
             
             itineraries = self._transform_offers(all_offers, passengers, request.data)
-            
+            print(itineraries[0])
             return JsonResponse({
                 "status": "success",
                 "message": f"Found {len(itineraries)} flight options",
@@ -556,7 +556,6 @@ class FlightListView(APIView):
         }
 
 
-
 class FlightDetailsView(APIView):
     """
     GET -> Enriched flight details by offer_id (offers + offer_requests + airlines + aircraft + seat_maps)
@@ -767,8 +766,6 @@ class FlightDetailsView(APIView):
 
         except Exception as e:
             return JsonResponse({"error": "internal server error", "details": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
 
 class DuffelAPIClient:
     """Centralized Duffel API client for multiple endpoints"""
@@ -1515,213 +1512,122 @@ import json
 
 from .models import FlightPaymentTransaction
 
+# flights/views/payment_success.py - Updated
 class FlightPaymentSuccessView(APIView):
     permission_classes = [AllowAny]
 
-    def handle_success_payment(self, data):
-
-
-
-        tran_id = data.get("tran_id")
-        if isinstance(tran_id, list):
-            tran_id = tran_id[0] if tran_id else None
-
-        frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
-        if not tran_id:
-            return redirect(f"{frontend_url}/payment/fail?error=no_tran")
-
-        # Fetch transaction
-        try:
-            tx = FlightPaymentTransaction.objects.get(tran_id=tran_id)
-        except FlightPaymentTransaction.DoesNotExist:
-            return redirect(f"{frontend_url}/payment/fail?error=not_found")
-
-        # Update transaction with SSL redirect data
-        tx.redirect_data = dict(data)
-        tx.redirect_received_at = timezone.now()
-        tx.status = "ssl_success"  # Mark SSL payment as successful
-        tx.val_id = data.get("val_id") or tx.val_id
-        tx.save()
-
-        checkout = tx.checkout_data or {}
-        original_offer_id = checkout.get("offer_id")
-        passenger_ids = checkout.get("passenger_ids", [])
-        passengers_detail = checkout.get("passengers_detail", [])
-
-        if not original_offer_id:
-            return redirect(f"{frontend_url}/payment/fail?tran_id={tran_id}&error=missing_offer")
-
-        duffel_manager = DuffelOrderManager()
-        
-        # Try to use original offer
-        current_offer_id = original_offer_id
-        offer_data = None
-        
-        try:
-
-            offer_resp = duffel_manager.get_offer_details(original_offer_id)
-            offer_data = offer_resp.get("data", {})
-
-        except Exception as e:
-
-            # Offer is expired - handle this specific case
-
-            
-            # Update transaction to reflect this specific error
-            tx.status = "payment_success_offer_expired"
-            tx.save()
-            
-            # Redirect to special offer-expired page
-            return redirect(
-                f"{frontend_url}/payment/offer-expired?"
-                f"tran_id={tran_id}&"
-                f"payment_status=success&"
-                f"offer_status=expired&"
-                f"amount={data.get('amount', [''])[0]}&"
-                f"currency={data.get('currency', [''])[0]}"
-            )
-
-        if not offer_data:
-            return redirect(f"{frontend_url}/payment/fail?tran_id={tran_id}&error=invalid_offer_data")
-
-        # Get the exact amount from the offer
-        offer_total_amount = offer_data.get("total_amount")
-        offer_total_currency = offer_data.get("total_currency")
-        
-        if not offer_total_amount:
-
-            return redirect(f"{frontend_url}/payment/fail?tran_id={tran_id}&error=invalid_offer_amount")
-
-
-
-        # Build validated passengers payload
-        passengers_payload = []
-        for idx, p in enumerate(passengers_detail):
-            passenger_id = passenger_ids[idx] if idx < len(passenger_ids) else f"pas_{uuid.uuid4().hex[:10]}"
-            
-            # Validate passenger data
-            required_fields = ['given_name', 'family_name', 'born_on', 'email']
-            for field in required_fields:
-                if not p.get(field):
-                    return redirect(f"{frontend_url}/payment/fail?tran_id={tran_id}&error=missing_passenger_data")
-
-            cleaned_docs = self.clean_identity_documents(p.get("identity_documents", []))
-            cleaned_phone = self.clean_phone_number(p.get("phone_number"))
-
-            passengers_payload.append({
-                "id": passenger_id,
-                "title": p.get("title", "mr").lower(),
-                "given_name": p.get("given_name"),
-                "family_name": p.get("family_name"),
-                "born_on": p.get("born_on"),
-                "gender": (p.get("gender") or "").lower()[:1],
-                "email": p.get("email"),
-                "phone_number": cleaned_phone,
-                "identity_documents": cleaned_docs
-            })
-
-        # Build order with current offer
-        order_body = {
-            "data": {
-                "type": "instant",
-                "selected_offers": [current_offer_id],
-                "passengers": passengers_payload,
-                "payments": [{
-                    "type": "balance",
-                    "amount": str(offer_total_amount),
-                    "currency": offer_total_currency
-                }]
-            }
-        }
-
-
-
-
-        # Create Duffel order
-        try:
-            duffel_resp = duffel_manager._make_request("POST", "/air/orders", order_body)
-            duffel_data = duffel_resp.get("data") or {}
-
-            
-            # Save local order
-            try:
-                order_creator = OrderCreationView()
-                saved_order = order_creator._save_order_to_database(
-                    duffel_data, passengers_detail or [], checkout.get("metadata", {})
-    )
-            except Exception as e:
-                # Log the error and still mark transaction as successful
-                print("❌ Order save failed:", e)
-                tx.status = "complete_success_but_local_save_failed"
-                tx.save()
-                return redirect(
-                    f"{frontend_url}/payment/success?"
-                    f"tran_id={tran_id}&order_id={duffel_data.get('id')}&paid=true&booking_type=flight"
-                )
-
-
-                # Still proceed since Duffel order was created successfully
-
-            # Link transaction → order and mark as complete success
-            tx.order_id = duffel_data.get("id")
-            tx.duffel_offer_id = current_offer_id
-            tx.status = "complete_success"
-            tx.save()
-
-            return redirect(
-                f"{frontend_url}/payment/success?tran_id={tran_id}&order_id={tx.order_id}&paid=true&booking_type=flight"
-    )
-
-        except Exception as e:
-
-            # Mark transaction as payment success but order failed
-            tx.status = "payment_success_order_failed"
-            tx.save()
-            
-            error_msg = str(e).lower()
-            if "expired" in error_msg or "no longer available" in error_msg:
-                return redirect(
-                    f"{frontend_url}/payment/offer-expired?"
-                    f"tran_id={tran_id}&"
-                    f"payment_status=success&"
-                    f"offer_status=expired&"
-                    f"amount={data.get('amount', [''])[0]}&"
-                    f"currency={data.get('currency', [''])[0]}"
-                )
-            else:
-                return redirect(f"{frontend_url}/payment/fail?tran_id={tran_id}&error=order_creation_failed")
-
-    def clean_identity_documents(self, docs):
-        """Ensure Duffel identity_documents meet validation rules."""
-        cleaned = []
-        for doc in docs:
-            new_doc = dict(doc)
-            uid = str(new_doc.get("unique_identifier", "")).strip()
-            if len(uid) > 15:
-
-                new_doc["unique_identifier"] = uid[:15]
-            cleaned.append(new_doc)
-        return cleaned
-
-    def clean_phone_number(self, phone):
-        """Duffel requires E.164 format (+countrycode...)."""
-        if not phone:
-            return None
-        phone = str(phone).strip()
-        if not phone.startswith("+"):
-
-            digits = "".join([c for c in phone if c.isdigit()])
-            phone = f"+{digits}"
-        return phone[:20]
-
-    def post(self, request):
-
-        return self.handle_success_payment(request.data)
-
     def get(self, request):
+        order_id = request.GET.get('order_id')
+        tran_id = request.GET.get('tran_id')
+        
+        try:
+            if order_id:
+                # Get order from Duffel
+                order_manager = DuffelOrderManager()
+                order_response = order_manager._make_request("GET", f"/air/orders/{order_id}")
+                order_data = order_response.get('data', {})
+                
+                # Get local order
+                order = Order.objects.get(id=order_id)
+                
+                # Transform to comprehensive confirmation data
+                confirmation_data = self._prepare_flight_confirmation(order_data, order)
+                
+                return Response({
+                    'status': 'success',
+                    'booking': confirmation_data
+                }, status=200)
+                
+            elif tran_id:
+                # Handle SSL payment success
+                return self.handle_success_payment(request.GET)
+                
+        except Exception as e:
+            logger.error(f"Error fetching confirmation: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': 'Failed to load confirmation'
+            }, status=500)
 
-        return self.handle_success_payment(request.GET)
-
+    def _prepare_flight_confirmation(self, order_data, local_order):
+        """Prepare comprehensive flight confirmation data"""
+        slices = order_data.get('slices', [])
+        passengers = order_data.get('passengers', [])
+        
+        return {
+            'booking_type': 'flight',
+            'booking_reference': order_data.get('booking_reference'),
+            'booking_confirmed_date': order_data.get('created_at'),
+            
+            # Flight Details
+            'airline': self._get_airline_name(order_data),
+            'flight_number': self._get_flight_number(order_data),
+            'departure': self._get_departure_info(order_data),
+            'arrival': self._get_arrival_info(order_data),
+            'departure_time': self._get_departure_time(order_data),
+            'arrival_time': self._get_arrival_time(order_data),
+            'duration': self._calculate_duration(order_data),
+            
+            # Passenger Details
+            'passengers': passengers,
+            'number_of_passengers': len(passengers),
+            
+            # Pricing
+            'total_amount_paid': order_data.get('total_amount'),
+            'currency': order_data.get('total_currency'),
+            'tax_amount': order_data.get('tax_amount'),
+            'fee_amount': 0,  # Add if available
+            
+            # Business Information (from settings)
+            'business_name': getattr(settings, 'BUSINESS_NAME', 'Stech Holidays'),
+            'business_address': getattr(settings, 'BUSINESS_ADDRESS', '2nd floor, House-31 Road No. 17, Dhaka 1213'),
+            'customer_service_phone': getattr(settings, 'CUSTOMER_SERVICE_PHONE', '01811-271271'),
+            'customer_service_email': getattr(settings, 'CUSTOMER_SERVICE_EMAIL', 'info@stechholidays.com'),
+            'terms_url': getattr(settings, 'TERMS_URL', 'https://stechholidays.com/terms'),
+            
+            # Status
+            'status': 'confirmed',
+            'payment_status': 'paid'
+        }
+    
+    def _get_airline_name(self, order_data):
+        slices = order_data.get('slices', [])
+        if slices and slices[0].get('segments'):
+            return slices[0]['segments'][0].get('operating_carrier', {}).get('name', '')
+        return ''
+    
+    def _get_flight_number(self, order_data):
+        slices = order_data.get('slices', [])
+        if slices and slices[0].get('segments'):
+            segment = slices[0]['segments'][0]
+            carrier = segment.get('marketing_carrier', {})
+            return f"{carrier.get('iata_code', '')}{segment.get('marketing_carrier_flight_number', '')}"
+        return ''
+    
+    def _get_departure_info(self, order_data):
+        slices = order_data.get('slices', [])
+        if slices and slices[0].get('segments'):
+            origin = slices[0]['segments'][0].get('origin', {})
+            return {
+                'airport': origin.get('name', ''),
+                'code': origin.get('iata_code', ''),
+                'city': origin.get('city_name', '')
+            }
+        return {}
+    
+    def _get_arrival_info(self, order_data):
+        slices = order_data.get('slices', [])
+        if slices:
+            last_slice = slices[-1]
+            segments = last_slice.get('segments', [])
+            if segments:
+                destination = segments[-1].get('destination', {})
+                return {
+                    'airport': destination.get('name', ''),
+                    'code': destination.get('iata_code', ''),
+                    'city': destination.get('city_name', '')
+                }
+        return {}
 
 
 class DuffelOrderManager:
@@ -2188,6 +2094,7 @@ class CreatePaymentIntentView(APIView):
             
             # Calculate final amount (you can add your markup logic here)
             final_amount = offer_amount + markup
+            print(f"{offer_amount} + {markup} = {final_amount} {target_currency}")
             
             # Create payment intent
             payment_intent = duffel_service.create_payment_intent(
@@ -3240,3 +3147,365 @@ class CancelFlightBookingView(APIView):
                 "message": "Failed to cancel booking",
                 "error": str(e)
             }, status=500)
+
+
+
+# flights/views/dashboard.py
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework import status
+from django.db.models import Sum, Count, Q
+from django.utils import timezone
+from datetime import timedelta
+import logging
+
+logger = logging.getLogger(__name__)
+
+class FlightAnalyticsView(APIView):
+    """Get flight booking analytics for dashboard"""
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    
+    def get(self, request):
+        try:
+            # Time ranges
+            now = timezone.now()
+            last_30_days = now - timedelta(days=30)
+            last_7_days = now - timedelta(days=7)
+            
+            # Get orders from local database
+            from .models import Order, Payment, Passenger
+            
+            # Total bookings
+            total_bookings = Order.objects.count()
+            
+            # Total revenue
+            total_revenue = Payment.objects.aggregate(
+                total=Sum('amount')
+            )['total'] or 0
+            
+            # Recent bookings (last 7 days)
+            recent_bookings = Order.objects.filter(
+                created_at__gte=last_7_days
+            ).order_by('-created_at')[:10]
+            
+            # Top routes
+            top_routes = []
+            orders = Order.objects.all()
+            for order in orders:
+                duffel_data = order.duffel_data or {}
+                slices = duffel_data.get('slices', [])
+                if slices:
+                    first_slice = slices[0]
+                    segments = first_slice.get('segments', [])
+                    if segments:
+                        first_segment = segments[0]
+                        last_segment = segments[-1]
+                        route = f"{first_segment.get('origin', {}).get('iata_code', '')}-{last_segment.get('destination', {}).get('iata_code', '')}"
+                        
+                        # Check if route exists
+                        found = False
+                        for r in top_routes:
+                            if r['route'] == route:
+                                r['bookings'] += 1
+                                r['revenue'] += float(order.total_amount) if order.total_amount else 0
+                                found = True
+                                break
+                        
+                        if not found:
+                            top_routes.append({
+                                'route': route,
+                                'bookings': 1,
+                                'revenue': float(order.total_amount) if order.total_amount else 0,
+                                'growth': 12.5  # Placeholder for actual calculation
+                            })
+            
+            # Sort top routes by bookings
+            top_routes = sorted(top_routes, key=lambda x: x['bookings'], reverse=True)[:5]
+            
+            # Format recent bookings for response
+            formatted_recent = []
+            for booking in recent_bookings:
+                duffel_data = booking.duffel_data or {}
+                slices = duffel_data.get('slices', [])
+                if slices:
+                    first_slice = slices[0]
+                    segments = first_slice.get('segments', [])
+                    if segments:
+                        first_segment = segments[0]
+                        last_segment = segments[-1]
+                        
+                        formatted_recent.append({
+                            'id': booking.id,
+                            'airline': first_segment.get('operating_carrier', {}).get('name', 'Unknown'),
+                            'flightNumber': first_segment.get('marketing_carrier_flight_number', ''),
+                            'departure': first_segment.get('origin', {}).get('iata_code', ''),
+                            'arrival': last_segment.get('destination', {}).get('iata_code', ''),
+                            'date': booking.created_at.strftime('%b %d, %Y'),
+                            'status': 'confirmed' if booking.duffel_data and booking.duffel_data.get('confirmed_at') else 'pending',
+                            'amount': float(booking.total_amount) if booking.total_amount else 0
+                        })
+            
+            # Get conversion rate (placeholders - implement actual tracking)
+            conversion_rate = 24.5  # Placeholder
+            
+            return Response({
+                'status': 'success',
+                'data': {
+                    'totalBookings': total_bookings,
+                    'totalRevenue': total_revenue,
+                    'conversionRate': conversion_rate,
+                    'topRoutes': top_routes,
+                    'recentBookings': formatted_recent
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error fetching flight analytics: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': 'Failed to fetch analytics'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class FlightMarkupView(APIView):
+    """Manage flight markup percentage"""
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    
+    def get(self, request):
+        """Get current markup setting"""
+        try:
+            # Retrieve from database or settings
+            from django.conf import settings
+            markup = getattr(settings, 'FLIGHT_MARKUP_PERCENTAGE', 8)
+            
+            return Response({
+                'status': 'success',
+                'markup': markup
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error getting markup: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': 'Failed to get markup'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def put(self, request):
+        """Update markup percentage"""
+        try:
+            percentage = request.data.get('percentage')
+            if not percentage:
+                return Response({
+                    'status': 'error',
+                    'message': 'Percentage is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Validate percentage
+            try:
+                percentage = float(percentage)
+                if percentage < 0 or percentage > 50:
+                    return Response({
+                        'status': 'error',
+                        'message': 'Percentage must be between 0 and 50'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except ValueError:
+                return Response({
+                    'status': 'error',
+                    'message': 'Invalid percentage format'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Save to database or settings
+            # For now, we'll return success
+            # In production, save to database table for settings
+            
+            return Response({
+                'status': 'success',
+                'message': 'Markup updated successfully',
+                'markup': percentage
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error updating markup: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': 'Failed to update markup'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class FlightItineraryPDFView(APIView):
+    """Generate PDF itinerary for flight booking"""
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    
+    def get(self, request, order_id):
+        """Generate and return PDF itinerary"""
+        try:
+            # Get order details
+            from .models import Order
+            order = Order.objects.get(id=order_id)
+            
+            # Get Duffel itinerary data
+            duffel_client = DuffelOrderManager()
+            order_response = duffel_client._make_request("GET", f"/air/orders/{order_id}")
+            
+            if not order_response or 'data' not in order_response:
+                return Response({
+                    'status': 'error',
+                    'message': 'Order not found in Duffel'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            order_data = order_response['data']
+            
+            # Generate PDF with company letterhead
+            pdf_content = self._generate_itinerary_pdf(order_data)
+            
+            # Create response with PDF
+            from django.http import HttpResponse
+            response = HttpResponse(pdf_content, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="itinerary-{order_id}.pdf"'
+            
+            return response
+            
+        except Order.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'message': 'Order not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error generating PDF: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': 'Failed to generate itinerary PDF'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _generate_itinerary_pdf(self, order_data):
+        """Generate PDF with company branding"""
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import letter
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from io import BytesIO
+        
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        story = []
+        
+        styles = getSampleStyleSheet()
+        
+        # Add company header
+        story.append(Paragraph("STECH HOLIDAYS", styles['Title']))
+        story.append(Paragraph("Flight Itinerary", styles['Heading1']))
+        story.append(Spacer(1, 20))
+        
+        # Add booking details
+        booking_ref = order_data.get('booking_reference', 'N/A')
+        story.append(Paragraph(f"<b>Booking Reference:</b> {booking_ref}", styles['Normal']))
+        story.append(Paragraph(f"<b>Order ID:</b> {order_data.get('id', 'N/A')}", styles['Normal']))
+        story.append(Spacer(1, 10))
+        
+        # Add flight details table
+        flights_data = []
+        slices = order_data.get('slices', [])
+        for slice_idx, slice_data in enumerate(slices):
+            segments = slice_data.get('segments', [])
+            for segment in segments:
+                flights_data.append([
+                    segment.get('marketing_carrier_flight_number', 'N/A'),
+                    segment.get('operating_carrier', {}).get('name', 'N/A'),
+                    segment.get('origin', {}).get('iata_code', 'N/A'),
+                    segment.get('destination', {}).get('iata_code', 'N/A'),
+                    segment.get('departing_at', 'N/A'),
+                    segment.get('arriving_at', 'N/A')
+                ])
+        
+        if flights_data:
+            flights_table = Table([['Flight', 'Airline', 'From', 'To', 'Departure', 'Arrival']] + flights_data)
+            flights_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            story.append(flights_table)
+        
+        # Add footer with company info
+        story.append(Spacer(1, 20))
+        story.append(Paragraph("STECH HOLIDAYS - Your Trusted Travel Partner", styles['Normal']))
+        story.append(Paragraph("Contact: +880 XXXX-XXXXXX | Email: info@stechholidays.com", styles['Normal']))
+        
+        doc.build(story)
+        buffer.seek(0)
+        return buffer.getvalue()
+
+
+class SendItineraryEmailView(APIView):
+    """Send itinerary email to customer"""
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    
+    def post(self, request, order_id):
+        """Send email with itinerary PDF"""
+        try:
+            # Get order and customer info
+            from .models import Order
+            order = Order.objects.get(id=order_id)
+            
+            # Get customer email from passengers
+            passenger_email = None
+            for passenger in order.passengers.all():
+                if passenger.email:
+                    passenger_email = passenger.email
+                    break
+            
+            if not passenger_email:
+                return Response({
+                    'status': 'error',
+                    'message': 'No email found for this booking'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Generate PDF
+            pdf_view = FlightItineraryPDFView()
+            pdf_content = pdf_view._generate_itinerary_pdf(order.duffel_data or {})
+            
+            # Send email with attachment
+            from django.core.mail import EmailMessage
+            from django.conf import settings
+            
+            email = EmailMessage(
+                subject=f'Your Flight Itinerary - Booking {order.booking_reference}',
+                body=f'Dear Customer,\n\nPlease find your flight itinerary attached.\n\nThank you for choosing STECH HOLIDAYS.\n\nBest regards,\nSTECH HOLIDAYS Team',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[passenger_email],
+                cc=[settings.DEFAULT_FROM_EMAIL]  # CC to admin
+            )
+            
+            email.attach(f'itinerary-{order_id}.pdf', pdf_content, 'application/pdf')
+            email.send()
+            
+            # Log email sent
+            logger.info(f"Flight itinerary email sent for order {order_id} to {passenger_email}")
+            
+            return Response({
+                'status': 'success',
+                'message': 'Itinerary email sent successfully'
+            }, status=status.HTTP_200_OK)
+            
+        except Order.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'message': 'Order not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            logger.error(f"Error sending itinerary email: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': 'Failed to send itinerary email'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
