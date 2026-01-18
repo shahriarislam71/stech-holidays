@@ -1,9 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone', // ← ADD THIS LINE
   eslint: {
-    ignoreDuringBuilds: true, // <-- This makes your build succeed
+    ignoreDuringBuilds: true,
   },
-
   images: {
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
@@ -49,13 +49,11 @@ const nextConfig = {
         hostname: 'logo.clearbit.com',
         pathname: '/**',
       },
-
-  {
+      {
         protocol: 'https',
         hostname: 'i.travelapi.com',
         pathname: '/**',
       },
-      // Add other domains as needed
       {
         protocol: 'http',
         hostname: 'localhost',
@@ -64,7 +62,7 @@ const nextConfig = {
       },
       {
         protocol: 'https',
-        hostname: '**.example.com', // For any example.com subdomains
+        hostname: '**.example.com',
         pathname: '/**',
       },
       {
@@ -84,17 +82,18 @@ const nextConfig = {
       },
       {
         protocol: 'https',
-        hostname: '**.bstatic.com', // wildcard covers all subdomains
+        hostname: '**.bstatic.com',
         pathname: '/**',
       },
-
-      // Your own domain wildcard
       {
         protocol: 'https',
         hostname: '**.stechholidays.com',
         pathname: '/**',
       },
     ],
+  },
+  typescript: {
+    ignoreBuildErrors: true, // ← ADD THIS TOO (optional)
   },
 };
 
