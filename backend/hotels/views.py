@@ -59,7 +59,7 @@ class AccommodationSearchView(APIView):
             if not guests:
                 return Response({
                     "status": "error",
-                    "message": "At least 1 guest is required"
+                    "message": "At least one guest is required"
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             # Build Duffel request
