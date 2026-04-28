@@ -470,3 +470,6 @@ PAYMENT_CANCEL_REDIRECT_URL = f"{FRONTEND_URL}/payment/cancel"
 
 # API Version
 API_VERSION = 'v1'
+
+
+#aisbiscis 
