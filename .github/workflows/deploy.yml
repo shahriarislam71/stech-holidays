@@ -90,7 +90,7 @@ jobs:
 
       # ✅ FIXED: Security scan - only checks for OS-level malware, ignores npm CVEs
       - name: 🔍 Security scan (block crypto miners only)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ needs.build-backend.outputs.image_tag }}
           scanners: vuln
@@ -103,7 +103,7 @@ jobs:
       # ✅ OPTIONAL: Add a reporting-only scan for npm vulnerabilities (doesn't fail build)
       - name: 📊 Report npm vulnerabilities (info only)
         if: always()
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ needs.build-backend.outputs.image_tag }}
           format: table
