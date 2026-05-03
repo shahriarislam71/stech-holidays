@@ -10,8 +10,8 @@ env:
   BACKEND_IMAGE_NAME: stech-holidays-backend
   FRONTEND_IMAGE_NAME: stech-holidays-frontend
 
-  VPS_HOST: 72.62.79.113
-  VPS_PORT: 2222
+  VPS_HOST: 165.22.102.30
+  VPS_PORT: 22
   VPS_USER: abdullah
   VPS_PROJECT_ROOT: /opt/stech-holidays
   VPS_COMPOSE_DIR: /opt/stech-holidays/compose
