@@ -79,11 +79,6 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:3000/api/health || \
-        curl -f http://localhost:3000/health || \
-        curl -f http://localhost:3000/ || exit 1
 
 # Expose Next.js port
 EXPOSE 3000
