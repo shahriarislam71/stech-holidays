@@ -87,11 +87,6 @@ RUN chown -R django:django /app
 # Switch to non-root user
 USER django
 
-# Health check - adapts to your available endpoints
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/health/ || \
-       curl -f http://localhost:8000/api/health/ || \
-       curl -f http://localhost:8000/ || exit 1
 
 # Expose Django port
 EXPOSE 8000
