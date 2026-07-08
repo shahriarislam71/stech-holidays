@@ -13,4 +13,6 @@ urlpatterns = [
     path('images/', UploadedImageViewSet.as_view(), name='image-list-create'),
       path('images/<int:pk>/', RetrieveImage.as_view(), name='image-retrive'),
 
+    path('medical-tourism/inquiry/', MedicalTourismInquiryView.as_view(), name='medical-tourism-inquiry'),
+
 ]

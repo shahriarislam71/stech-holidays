@@ -91,3 +91,54 @@ class UploadedImageViewSet(ListCreateAPIView):
 class RetrieveImage(generics.RetrieveUpdateDestroyAPIView):
     queryset = UploadedImage.objects.all()
     serializer_class = UploadedImageSerializer
+
+
+from django.core.mail import send_mail
+from django.conf import settings
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status, permissions
+
+MEDICAL_TOURISM_INQUIRY_RECIPIENT = "sunwaybd@jghealthcare.com"
+
+
+class MedicalTourismInquiryView(APIView):
+    """Public endpoint for the Medical Tourism contact form.
+    Uses the standard EMAIL_* settings (console backend until SMTP is configured)."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        data = request.data
+        full_name = (data.get('full_name') or '').strip()
+        phone = (data.get('phone') or '').strip()
+
+        if not full_name or not phone:
+            return Response(
+                {"error": "full_name and phone are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        email = (data.get('email') or '').strip()
+        country = (data.get('country') or '').strip()
+        treatment = (data.get('treatment') or '').strip()
+        message = (data.get('message') or '').strip()
+
+        body = (
+            f"New Medical Tourism inquiry from stechholidays.com\n\n"
+            f"Full name: {full_name}\n"
+            f"Phone: {phone}\n"
+            f"Email: {email or '-'}\n"
+            f"Country of interest: {country or '-'}\n"
+            f"Treatment needed: {treatment or '-'}\n\n"
+            f"Message:\n{message or '-'}\n"
+        )
+
+        send_mail(
+            subject=f"Medical Tourism Inquiry — {full_name}",
+            message=body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[MEDICAL_TOURISM_INQUIRY_RECIPIENT],
+            fail_silently=False,
+        )
+
+        return Response({"success": True})
