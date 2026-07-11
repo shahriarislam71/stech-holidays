@@ -201,7 +201,7 @@ function HotelDetailsPageContent({ hotelId }) {
   // Loading state
   if (loading || ratesLoading) {
     return (
-      <div className="px-4 md:px-[190px] py-8">
+      <div className="px-4 md:px-8 lg:px-16 xl:px-32 py-8">
         <div className="flex justify-center items-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#5A53A7]"></div>
         </div>
@@ -212,7 +212,7 @@ function HotelDetailsPageContent({ hotelId }) {
   // Error state
   if (error && !hotel) {
     return (
-      <div className="px-4 md:px-[190px] py-8">
+      <div className="px-4 md:px-8 lg:px-16 xl:px-32 py-8">
         <div className="bg-white rounded-xl shadow-lg p-8 text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
             Error Loading Hotel
@@ -232,7 +232,7 @@ function HotelDetailsPageContent({ hotelId }) {
 
   if (!hotel) {
     return (
-      <div className="px-4 md:px-[190px] py-8">
+      <div className="px-4 md:px-8 lg:px-16 xl:px-32 py-8">
         <div className="bg-white rounded-xl shadow-lg p-8 text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
             Hotel not found
@@ -257,7 +257,7 @@ function HotelDetailsPageContent({ hotelId }) {
   // New: {formatPriceForDisplay(offer.total_amount, offer.currency)}
 
   return (
-    <div className="px-4 md:px-[190px] py-4 bg-gradient-to-b from-[#f7f7ff] to-white min-h-screen">
+    <div className="px-4 md:px-8 lg:px-16 xl:px-32 py-4 bg-gradient-to-b from-[#f7f7ff] to-white min-h-screen">
       {/* Back button */}
       <div className="max-w-7xl mx-auto">
         <Link

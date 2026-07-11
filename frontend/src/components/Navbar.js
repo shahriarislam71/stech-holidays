@@ -93,7 +93,7 @@ export default function Navbar() {
 
   return (
     <nav className="bg-gradient-to-r from-[#5A53A7] to-[#55C3A9] shadow-sm sticky top-0 z-50">
-      <div className="mx-auto px-4 sm:px-6 lg:px-[190px]">
+      <div className="mx-auto max-w-[1600px] px-3 sm:px-6 lg:px-10 xl:px-16">
         <div className="flex h-20 items-center justify-between">
           {/* Logo */}
           <div className="flex-shrink-0">

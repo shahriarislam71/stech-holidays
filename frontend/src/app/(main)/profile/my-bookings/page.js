@@ -915,7 +915,7 @@ const fetchAllFlights = async () => {
         </div>
       )}
 
-      <div className="px-4 md:px-[190px] py-6">
+      <div className="px-4 md:px-8 lg:px-16 xl:px-32 py-6">
         {/* Mobile Header */}
         <div className="md:hidden flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-[#445494]">My Bookings</h1>

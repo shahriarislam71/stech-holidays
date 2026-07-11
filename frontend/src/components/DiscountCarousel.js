@@ -557,7 +557,7 @@ const DiscountCarousel = () => {
   if (isLoading) {
     return (
       <div className="bg-white py-8 md:py-12 px-4 sm:px-6 lg:px-8 xl:px-44 2xl:px-60">
-        <div className="max-w-7xl mx-auto text-center">
+        <div className="max-w-[1600px] mx-auto text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#55C3A9]"></div>
           <p className="mt-4 text-gray-600">Loading travel offers...</p>
         </div>
@@ -568,7 +568,7 @@ const DiscountCarousel = () => {
   if (!data) {
     return (
       <div className="bg-white py-8 md:py-12 px-4 sm:px-6 lg:px-8 xl:px-44 2xl:px-60">
-        <div className="max-w-7xl mx-auto text-center">
+        <div className="max-w-[1600px] mx-auto text-center">
           <p className="text-gray-600">Failed to load travel offers. Please try again later.</p>
         </div>
       </div>
@@ -623,7 +623,7 @@ const DiscountCarousel = () => {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto relative">
+      <div className="max-w-[1600px] mx-auto relative">
         {/* Title Section with Filter Buttons */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 md:mb-5 mt-5 gap-4 md:gap-0">
           <div className="w-full md:w-auto">

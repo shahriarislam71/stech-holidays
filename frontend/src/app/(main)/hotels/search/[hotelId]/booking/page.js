@@ -444,7 +444,7 @@ export default function BookingConfirmationPage({ params }) {
 
   if (authLoading || loading) {
     return (
-      <div className="px-4 md:px-[190px] py-8">
+      <div className="px-4 md:px-8 lg:px-16 xl:px-32 py-8">
         <div className="flex justify-center items-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#5A53A7]"></div>
         </div>
@@ -454,7 +454,7 @@ export default function BookingConfirmationPage({ params }) {
 
   if (!user && !authLoading) {
     return (
-      <div className="px-4 md:px-[190px] py-8">
+      <div className="px-4 md:px-8 lg:px-16 xl:px-32 py-8">
         <div className="bg-white rounded-xl shadow-lg p-8 text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
             Authentication Required
@@ -477,7 +477,7 @@ export default function BookingConfirmationPage({ params }) {
 
   if (error) {
     return (
-      <div className="px-4 md:px-[190px] py-8">
+      <div className="px-4 md:px-8 lg:px-16 xl:px-32 py-8">
         <div className="bg-white rounded-xl shadow-lg p-8 text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
             Error Loading Booking Details
@@ -497,7 +497,7 @@ export default function BookingConfirmationPage({ params }) {
 
   if (!quoteData) {
     return (
-      <div className="px-4 md:px-[190px] py-8">
+      <div className="px-4 md:px-8 lg:px-16 xl:px-32 py-8">
         <div className="bg-white rounded-xl shadow-lg p-8 text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">
             No booking data found
@@ -525,7 +525,7 @@ export default function BookingConfirmationPage({ params }) {
     formData.firstName && formData.lastName && formData.email && formData.phone;
 
   return (
-    <div className="px-4 md:px-[190px] py-8 bg-gradient-to-b from-[#f7f7ff] to-white min-h-screen">
+    <div className="px-4 md:px-8 lg:px-16 xl:px-32 py-8 bg-gradient-to-b from-[#f7f7ff] to-white min-h-screen">
       <div className="max-w-7xl mx-auto">
         {/* Back button */}
         <Link

@@ -5,9 +5,28 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { format } from "date-fns";
 import { useActiveSection } from "@/context/ActiveSectionContext";
+import { Pencil, Save, X } from "lucide-react";
+import useEditableComponent from "@/hooks/useEditableComponent";
+
+const HERO_CONTENT_FALLBACK = {
+  title: "Create A New Story With Every Trip",
+  subtitle: "Flight, Hotel, Holidays & Visa at your fingertips",
+};
 
 const HeroSection = () => {
   const { activeSection, setActiveSection } = useActiveSection();
+  const {
+    data: heroContent,
+    tempData: heroContentTemp,
+    setTempData: setHeroContentTemp,
+    isAdmin: isHeroAdmin,
+    editMode: heroEditMode,
+    startEdit: startHeroEdit,
+    cancelEdit: cancelHeroEdit,
+    save: saveHeroContent,
+    saving: savingHeroContent,
+  } = useEditableComponent("hero-content", HERO_CONTENT_FALLBACK);
+  const heroView = heroEditMode ? heroContentTemp : heroContent;
   const router = useRouter();
   const pathname = usePathname();
   const [activeTab, setActiveTab] = useState("flight");
@@ -679,17 +698,68 @@ const handleFlightSearch = () => {
       </div>
 
       {/* Content */}
-      <div className="relative flex flex-col items-center justify-center h-[200px] sm:h-[400px] px-4 sm:px-[190px] -mt-[350px] sm:-mt-[450px]">
-        <h1 className="text-white text-2xl sm:text-5xl font-bold mb-2 hidden sm:block sm:mb-4 text-center">
-          Create A New Story With Every Trip
-        </h1>
-        <p className="text-white text-sm sm:text-xl mb-8 sm:mb-12 hidden sm:block">
-          Flight, Hotel, Holidays & Visa at your fingertips
-        </p>
+      <div className="relative flex flex-col items-center justify-center h-[200px] sm:h-[400px] px-4 sm:px-8 lg:px-16 xl:px-32 -mt-[350px] sm:-mt-[450px]">
+        {isHeroAdmin && (
+          <div className="absolute top-2 right-2 sm:top-4 sm:right-4 z-20 flex gap-2">
+            {heroEditMode ? (
+              <>
+                <button
+                  onClick={saveHeroContent}
+                  disabled={savingHeroContent}
+                  className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-full shadow-lg disabled:opacity-60"
+                  title="Save changes"
+                >
+                  <Save className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={cancelHeroEdit}
+                  className="bg-gray-700 hover:bg-gray-800 text-white p-2 rounded-full shadow-lg"
+                  title="Cancel"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={startHeroEdit}
+                className="bg-white text-[#5A53A7] p-2 rounded-full shadow-lg hover:bg-gray-100"
+                title="Edit headline"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {heroEditMode ? (
+          <div className="hidden sm:flex flex-col items-center gap-3 w-full max-w-2xl">
+            <input
+              type="text"
+              value={heroView.title}
+              onChange={(e) => setHeroContentTemp((prev) => ({ ...prev, title: e.target.value }))}
+              className="text-2xl sm:text-5xl font-bold text-center bg-white/90 text-[#2b2860] rounded px-3 py-2 w-full"
+            />
+            <input
+              type="text"
+              value={heroView.subtitle}
+              onChange={(e) => setHeroContentTemp((prev) => ({ ...prev, subtitle: e.target.value }))}
+              className="text-sm sm:text-xl text-center bg-white/90 text-[#2b2860] rounded px-3 py-2 w-full"
+            />
+          </div>
+        ) : (
+          <>
+            <h1 className="text-white text-2xl sm:text-5xl font-bold mb-2 hidden sm:block sm:mb-4 text-center">
+              {heroView.title}
+            </h1>
+            <p className="text-white text-sm sm:text-xl mb-8 sm:mb-12 hidden sm:block">
+              {heroView.subtitle}
+            </p>
+          </>
+        )}
       </div>
 
       {/* Booking Sections */}
-      <div className="relative mx-4 sm:mx-[190px]">
+      <div className="relative mx-4 sm:mx-8 lg:mx-16 xl:mx-32">
         <div className="bg-gradient-to-r from-[#5A53A7] via-[#4a8b9a] to-[#55C3A9] rounded-3xl shadow-xl">
           {/* Tabs */}
           <div className="flex justify-center -mt-12 sm:-mt-16">

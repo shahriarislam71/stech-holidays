@@ -258,7 +258,7 @@ const HolidayDestinationPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="px-4 md:px-[190px] py-8 md:py-12">
+      <div className="px-4 md:px-8 lg:px-16 xl:px-32 py-8 md:py-12">
         <Breadcrumb destination={destination} />
         
         <div className="mb-8 relative">

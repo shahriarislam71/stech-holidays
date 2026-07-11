@@ -24,7 +24,7 @@ export default function PaymentFailPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#f7f7ff] to-white py-12 px-4 md:px-[190px]">
+    <div className="min-h-screen bg-gradient-to-b from-[#f7f7ff] to-white py-12 px-4 md:px-8 lg:px-16 xl:px-32">
       <div className="max-w-3xl mx-auto">
         {/* Error Icon */}
         <div className="text-center mb-8">

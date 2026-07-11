@@ -235,8 +235,8 @@ const FlightTracker = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[300px] px-4 md:px-[190px] py-12" style={{ backgroundColor: 'rgb(248, 251, 254)' }}>
-        <div className="flex flex-col md:flex-row items-center justify-between w-full max-w-6xl bg-white rounded-2xl shadow-lg p-6 md:p-8">
+      <div className="flex items-center justify-center min-h-[300px] px-4 md:px-8 lg:px-16 xl:px-32 py-12" style={{ backgroundColor: 'rgb(248, 251, 254)' }}>
+        <div className="flex flex-col md:flex-row items-center justify-between w-full max-w-7xl bg-white rounded-2xl shadow-lg p-6 md:p-8">
           <div className="text-center w-full">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#55C3A9]"></div>
             <p className="mt-4 text-gray-600">Loading flight tracker...</p>
@@ -248,8 +248,8 @@ const FlightTracker = () => {
 
   if (!data) {
     return (
-      <div className="flex items-center justify-center min-h-[300px] px-4 md:px-[190px] py-12" style={{ backgroundColor: 'rgb(248, 251, 254)' }}>
-        <div className="flex flex-col md:flex-row items-center justify-between w-full max-w-6xl bg-white rounded-2xl shadow-lg p-6 md:p-8">
+      <div className="flex items-center justify-center min-h-[300px] px-4 md:px-8 lg:px-16 xl:px-32 py-12" style={{ backgroundColor: 'rgb(248, 251, 254)' }}>
+        <div className="flex flex-col md:flex-row items-center justify-between w-full max-w-7xl bg-white rounded-2xl shadow-lg p-6 md:p-8">
           <div className="text-center w-full">
             <p className="text-gray-600">Failed to load flight tracker. Please try again later.</p>
           </div>
@@ -259,7 +259,7 @@ const FlightTracker = () => {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-[300px] px-4 md:px-[190px] py-12 relative" style={{ backgroundColor: 'rgb(248, 251, 254)' }}>
+    <div className="flex items-center justify-center min-h-[300px] px-4 md:px-8 lg:px-16 xl:px-32 py-12 relative" style={{ backgroundColor: 'rgb(248, 251, 254)' }}>
       {/* Edit Mode Toggle Button */}
       {isAdmin && (
         <div className="absolute top-4 right-4 z-20">
@@ -306,7 +306,7 @@ const FlightTracker = () => {
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row items-center justify-between w-full max-w-6xl bg-white rounded-2xl shadow-lg p-6 md:p-8">
+      <div className="flex flex-col md:flex-row items-center justify-between w-full max-w-7xl bg-white rounded-2xl shadow-lg p-6 md:p-8">
         {/* Left Content - Will appear first on mobile */}
         <div className="flex-1 md:pr-8 order-2 md:order-1 text-center md:text-left">
           {editMode ? (

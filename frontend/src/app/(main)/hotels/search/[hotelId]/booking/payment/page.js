@@ -30,7 +30,7 @@ export default function PaymentPage({ params }) {
   };
 
   return (
-    <div className="px-4 md:px-[190px] py-8 bg-gradient-to-b from-[#f7f7ff] to-white min-h-screen">
+    <div className="px-4 md:px-8 lg:px-16 xl:px-32 py-8 bg-gradient-to-b from-[#f7f7ff] to-white min-h-screen">
       <div className="max-w-7xl mx-auto">
         {/* Back button */}
         <Link 

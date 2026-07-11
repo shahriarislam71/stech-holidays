@@ -303,7 +303,7 @@ const FlightDestinationPage = () => {
   if (flights.length === 0 && !loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="bg-gradient-to-r px-4 md:px-[190px] from-[#5A53A7] to-[#4a8b9a] text-white py-6 shadow-md">
+        <div className="bg-gradient-to-r px-4 md:px-8 lg:px-16 xl:px-32 from-[#5A53A7] to-[#4a8b9a] text-white py-6 shadow-md">
           <div className="max-w-7xl mx-auto">
             <h1 className="text-xl md:text-2xl font-bold mb-4">Flight Search</h1>
           </div>
@@ -346,7 +346,7 @@ const FlightDestinationPage = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Search Summary Banner */}
-      <div className="bg-gradient-to-r px-4 md:px-[190px] from-[#5A53A7] to-[#4a8b9a] text-white py-6 shadow-md">
+      <div className="bg-gradient-to-r px-4 md:px-8 lg:px-16 xl:px-32 from-[#5A53A7] to-[#4a8b9a] text-white py-6 shadow-md">
         <div className="max-w-7xl mx-auto">
           <h1 className="text-xl md:text-2xl font-bold mb-4">
             Flight Search Results
@@ -381,7 +381,7 @@ const FlightDestinationPage = () => {
       </div>
 
       {/* Main Content */}
-      <div className="mx-4 md:mx-[190px] py-6 md:py-8">
+      <div className="mx-4 md:mx-8 lg:mx-16 xl:mx-32 py-6 md:py-8">
         <div className="flex flex-col md:flex-row gap-6 md:gap-8">
           {/* Mobile Filter Button */}
           <div className="md:hidden flex justify-between items-center mb-4">

@@ -22,7 +22,7 @@ export default function TermsPage() {
       {/* Hero Section */}
       <div className="relative bg-gradient-to-r from-[#5A53A7] to-[#55C3A9] text-white py-12 md:py-16">
         <div className="absolute inset-0 bg-black opacity-10"></div>
-        <div className="relative px-4 md:px-[190px]">
+        <div className="relative px-4 md:px-8 lg:px-16 xl:px-32">
           <div className="max-w-6xl mx-auto">
             <div className="flex items-center mb-6">
               <div className="w-16 h-16 bg-white bg-opacity-20 rounded-xl flex items-center justify-center mr-4">
@@ -41,7 +41,7 @@ export default function TermsPage() {
         </div>
       </div>
 
-      <div className="px-4 md:px-[190px] py-8 md:py-12">
+      <div className="px-4 md:px-8 lg:px-16 xl:px-32 py-8 md:py-12">
         <div className="max-w-6xl mx-auto">
           {/* Quick Navigation */}
           <div className="bg-white rounded-xl shadow-sm p-6 mb-8 sticky top-4 z-10 border border-gray-200">

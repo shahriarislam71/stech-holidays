@@ -65,7 +65,7 @@ export default function OfferDetail({ params }) {
           priority
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end pb-12">
-          <div className="px-[190px] w-full">
+          <div className="px-4 sm:px-8 lg:px-16 xl:px-32 w-full">
             <div className="max-w-3xl">
               <h1 className="text-4xl font-bold text-white">{offer.title}</h1>
               <p className="text-xl text-white/90 mt-4">{offer.description}</p>
@@ -75,7 +75,7 @@ export default function OfferDetail({ params }) {
       </div>
 
       {/* Breadcrumbs */}
-      <div className="px-[190px] py-4 bg-white shadow-sm">
+      <div className="px-4 sm:px-8 lg:px-16 xl:px-32 py-4 bg-white shadow-sm">
         <div className="flex items-center space-x-2 text-sm text-gray-600">
           <Link href="/" className="hover:text-[#55C3A9] transition-colors">Home</Link>
           <span>/</span>
@@ -86,7 +86,7 @@ export default function OfferDetail({ params }) {
       </div>
 
       {/* Main Content */}
-      <div className="px-[190px] py-12">
+      <div className="px-4 sm:px-8 lg:px-16 xl:px-32 py-12">
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Left Column - Details */}
           <div className="lg:w-2/3">

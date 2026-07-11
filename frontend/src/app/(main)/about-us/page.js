@@ -11,7 +11,7 @@ export default function AboutUsPage() {
       {/* Hero Section */}
       <div className="relative bg-gradient-to-r from-[#5A53A7] to-[#55C3A9] text-white py-16 md:py-24 overflow-hidden">
         <div className="absolute inset-0 bg-black opacity-10"></div>
-        <div className="relative px-4 md:px-[190px]">
+        <div className="relative px-4 md:px-8 lg:px-16 xl:px-32">
           <div className="max-w-4xl mx-auto text-center">
             <h1 className="text-4xl md:text-5xl font-bold mb-6">Our Journey Began With A Simple Spark</h1>
             <p className="text-xl md:text-2xl opacity-90 max-w-3xl mx-auto">
@@ -21,7 +21,7 @@ export default function AboutUsPage() {
         </div>
       </div>
 
-      <div className="px-4 md:px-[190px] py-12 md:py-16">
+      <div className="px-4 md:px-8 lg:px-16 xl:px-32 py-12 md:py-16">
         {/* Main Content */}
         <div className="max-w-6xl mx-auto">
           {/* Our Story */}

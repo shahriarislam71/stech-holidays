@@ -13,7 +13,7 @@ const GetStarted = () => {
       />
       
       {/* Content Overlay */}
-      <div className="relative z-10 h-full flex flex-col justify-center items-start px-[190px]">
+      <div className="relative z-10 h-full flex flex-col justify-center items-start px-4 sm:px-8 lg:px-16 xl:px-32">
         <div className="max-w-2xl space-y-8">
           {/* Main Heading */}
           <h1 className="text-5xl font-bold leading-tight text-white">

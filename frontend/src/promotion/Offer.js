@@ -58,7 +58,7 @@ export default function Offer() {
     <div className="min-h-screen bg-gray-50">
       {/* Tabs Navigation */}
       <div className="bg-white shadow-sm sticky top-20 z-10">
-        <div className="px-4 md:px-[190px]">
+        <div className="px-4 md:px-8 lg:px-16 xl:px-32">
           <div className="flex space-x-2 md:space-x-8 border-b border-gray-200 overflow-x-auto scrollbar-hide">
             <button
               onClick={() => setActiveTab('all')}
@@ -83,7 +83,7 @@ export default function Offer() {
       </div>
 
       {/* Promotions Content */}
-      <div className="px-4 md:px-[190px] py-6 md:py-8">
+      <div className="px-4 md:px-8 lg:px-16 xl:px-32 py-6 md:py-8">
         {filteredPromotions.length === 0 ? (
           <div className="text-center py-8 md:py-12">
             <h3 className="text-lg md:text-xl font-medium text-gray-600">No promotions available in this category</h3>

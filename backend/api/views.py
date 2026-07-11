@@ -1,18 +1,12 @@
 
-import os
-import json
 from django.http import JsonResponse
-from django.views import View
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
-from django.utils.decorators import method_decorator
 from .models import *
-# Utility functions
-
 from .models import ComponentData
 
 from rest_framework import generics
-
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAdminUser
 
 
 def write_to_db(model_name, data):
@@ -24,51 +18,70 @@ def write_to_db(model_name, data):
     component.save()
 
 
+class ComponentDataView(APIView):
+    """
+    Generic GET/PATCH/PUT/DELETE for a named ComponentData JSON blob.
 
-@method_decorator(csrf_exempt, name='dispatch')
-class JsonDBView(View):
-    model_name = None  # Override this in subclasses
+    Backs the inline-editable ("CMS") sections of the site — Footer, hero
+    sections, Medical Tourism blocks, and other informational content.
+    GET is public. Write methods require an admin (is_staff) account, since
+    the frontend gates its edit UI on the same authToken used to log in.
 
-    def get(self, request):
+    `model_name` can be set on a subclass (legacy components below) or
+    supplied via the `name` URL kwarg for the generic `home/<name>/` route.
+    """
+    model_name = None
+
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [AllowAny()]
+        return [IsAdminUser()]
+
+    def _name(self):
+        return self.model_name or self.kwargs.get('name')
+
+    def get(self, request, *args, **kwargs):
         try:
-            component = ComponentData.objects.get(name=self.model_name)
-            data = component.data
-            return JsonResponse(data, safe=False)
+            component = ComponentData.objects.get(name=self._name())
+            return Response(component.data)
         except ComponentData.DoesNotExist:
-            return JsonResponse({"error": f"{self.model_name} does not exist in the database"}, status=404)
+            return Response({"error": f"{self._name()} does not exist in the database"}, status=404)
 
-    def patch(self, request):
-        updated_data = json.loads(request.body)
-        try:
-            component = ComponentData.objects.get(name=self.model_name)
+    def patch(self, request, *args, **kwargs):
+        name = self._name()
+        component, created = ComponentData.objects.get_or_create(name=name, defaults={"data": request.data})
+        if not created:
             existing_data = component.data
-
-            if isinstance(existing_data, list) and isinstance(updated_data, list):
-                existing_data = updated_data
-            elif isinstance(existing_data, dict) and isinstance(updated_data, dict):
-                existing_data.update(updated_data)
+            incoming_data = request.data
+            if isinstance(existing_data, list) and isinstance(incoming_data, list):
+                existing_data = incoming_data
+            elif isinstance(existing_data, dict) and isinstance(incoming_data, dict):
+                existing_data.update(incoming_data)
             else:
-                return JsonResponse({"error": "Invalid data format"}, status=400)
+                existing_data = incoming_data
+            component.data = existing_data
+            component.save()
+        return Response(component.data)
 
-            write_to_db(self.model_name, existing_data)
-            return JsonResponse(existing_data, safe=False)
-        except ComponentData.DoesNotExist:
-            return JsonResponse({"error": f"{self.model_name} does not exist in the database"}, status=404)
+    def put(self, request, *args, **kwargs):
+        write_to_db(self._name(), request.data)
+        return Response(request.data)
 
-    def put(self, request):
-        new_data = json.loads(request.body)
-        write_to_db(self.model_name, new_data)
-        return JsonResponse(new_data, safe=False)
+    def delete(self, request, *args, **kwargs):
+        ComponentData.objects.filter(name=self._name()).delete()
+        return Response(status=204)
 
 
-
-class CarouselView(JsonDBView):
+# Legacy fixed-name components (kept for backward compatibility with
+# existing explicit URLs below). New sections should use the generic
+# `home/<name>/` route instead of adding a subclass here.
+class CarouselView(ComponentDataView):
     model_name = 'carousel_data'
-class AirlinesView(JsonDBView):
+class AirlinesView(ComponentDataView):
     model_name = 'airlines'
-class AppView(JsonDBView):
+class AppView(ComponentDataView):
     model_name = 'app'
-class FLightView(JsonDBView):
+class FLightView(ComponentDataView):
     model_name = 'flights'
 
 
@@ -95,8 +108,6 @@ class RetrieveImage(generics.RetrieveUpdateDestroyAPIView):
 
 from django.core.mail import send_mail
 from django.conf import settings
-from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework import status, permissions
 
 MEDICAL_TOURISM_INQUIRY_RECIPIENT = "sunwaybd@jghealthcare.com"

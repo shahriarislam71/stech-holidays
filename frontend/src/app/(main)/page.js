@@ -2,7 +2,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import DiscountCarousel from "@/components/DiscountCarousel";
-import DownloadApp from "@/components/DownloadApp";
 import FlightTracker from "@/components/FlightTracker";
 import HeroSection from "@/components/HeroSection";
 import PopularDestinations from "@/components/PopularDestination";
@@ -44,8 +43,6 @@ export default function Home() {
       <FlightTracker />
       <PopularDestinations destinations={destinations} />
       <TrustedAirlines />
-      <DownloadApp />
-      {/* Other sections would go here */}
     </main>
   );
 }

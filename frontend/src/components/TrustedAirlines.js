@@ -520,7 +520,7 @@ const TrustedAirlines = () => {
   if (isLoading) {
     return (
       <div className="bg-white py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-[1600px] mx-auto">
           <div className="text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#445494]"></div>
             <p className="mt-4 text-gray-600">Loading airlines...</p>
@@ -533,7 +533,7 @@ const TrustedAirlines = () => {
   if (!data) {
     return (
       <div className="bg-white py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-[1600px] mx-auto">
           <div className="text-center">
             <p className="text-gray-600">Failed to load airlines. Please try again later.</p>
           </div>
@@ -590,7 +590,7 @@ const TrustedAirlines = () => {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[1600px] mx-auto">
         <div className="text-center mb-10 md:mb-12">
           {editMode ? (
             <>

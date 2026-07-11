@@ -7,7 +7,7 @@ export default function MainNav() {
 
   return (
     <nav className="bg-white shadow-sm">
-      <div className="px-4 md:px-[190px] py-4">
+      <div className="px-4 md:px-8 lg:px-16 xl:px-32 py-4">
         <div className="flex items-center justify-between">
           
 

@@ -213,7 +213,7 @@ export default function HotelSearchPage() {
     <div>
       <MainNav />
       
-      <div className="px-4 md:px-[190px] py-4 md:py-8">
+      <div className="px-4 md:px-8 lg:px-16 xl:px-32 py-4 md:py-8">
         {/* Compact Search Form */}
         <div className="mb-6 md:mb-8">
           <HotelSearchForm 

@@ -238,7 +238,7 @@ const HolidaysCustomPackage = () => {
         </div>
 
         {/* Content - Positioned exactly like reference */}
-        <div className="relative flex flex-col items-center justify-center h-[200px] sm:h-[400px] px-4 sm:px-[190px] -mt-[350px] sm:-mt-[450px]">
+        <div className="relative flex flex-col items-center justify-center h-[200px] sm:h-[400px] px-4 sm:px-8 lg:px-16 xl:px-32 -mt-[350px] sm:-mt-[450px]">
           <h1 className="text-white text-2xl sm:text-5xl font-bold mb-2 text-center">
             Create Your Dream Holiday
           </h1>

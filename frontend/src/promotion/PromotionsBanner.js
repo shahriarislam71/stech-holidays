@@ -15,7 +15,7 @@ export default function PromotionsBanner() {
       
       {/* Optional Overlay Content */}
       <div className="absolute inset-0 bg-gradient-to-r from-[#5A53A7]/80 to-[#55C3A9]/80 flex items-center">
-        <div className="px-4 md:px-[190px] w-full">
+        <div className="px-4 md:px-8 lg:px-16 xl:px-32 w-full">
           <div className="max-w-2xl">
             <h1 className="text-2xl md:text-4xl font-bold text-white mb-2 md:mb-4">Exclusive Travel Deals</h1>
             <p className="text-base md:text-xl text-white/90 mb-4 md:mb-6">Discover our limited-time offers and save on your next adventure</p>

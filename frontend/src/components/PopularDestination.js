@@ -71,7 +71,7 @@ const PopularDestinations = ({ destinations }) => {
 
   return (
     <div className="w-full bg-gradient-to-b from-[#f8fbfe] to-[#e6f0fd] py-8 md:py-16 overflow-hidden">
-      <div className="mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-[190px]">
+      <div className="mx-auto px-4 sm:px-6 md:px-8 lg:px-12 xl:px-32">
         {/* Title */}
         <div className="mb-8 md:mb-12 text-center">
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-[#445494] mb-3">Popular Destinations</h2>

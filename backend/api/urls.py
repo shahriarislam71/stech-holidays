@@ -9,6 +9,9 @@ urlpatterns = [
     path('home/app/', AppView.as_view(), name='cards'),
     path('home/flight-tracker/', FLightView.as_view(), name='cards'),
 
+    # Generic inline-editable ("CMS") sections — matched after the fixed
+    # routes above. e.g. home/footer/, home/medical-tourism-ips/
+    path('home/<slug:name>/', ComponentDataView.as_view(), name='home-component'),
 
     path('images/', UploadedImageViewSet.as_view(), name='image-list-create'),
       path('images/<int:pk>/', RetrieveImage.as_view(), name='image-retrive'),
