@@ -74,19 +74,22 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_PAT }}
 
-      - name: 🐳 Build frontend image (local, for scan)
+      - name: 🐳 Build and push frontend image
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
-          push: false
-          load: true
+          push: true
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ needs.build-backend.outputs.image_tag }}
+            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ env.FRONTEND_IMAGE_NAME }}:latest
           build-args: |
             NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL || 'https://api.stechholidays.com' }}
             NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL || 'https://stechholidays.com' }}
           cache-from: type=gha
+
+      - name: 📥 Pull frontend image for scanning
+        run: docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ needs.build-backend.outputs.image_tag }}
 
       # ✅ FIXED: Security scan - only checks for OS-level malware, ignores npm CVEs
       - name: 🔍 Security scan (block crypto miners only)
@@ -100,7 +103,7 @@ jobs:
           exit-code: 1
           scan-type: image
 
-      # ✅ OPTIONAL: Add a reporting-only scan for npm vulnerabilities (doesn't fail build)
+      # Reporting-only scan for remaining application-library findings.
       - name: 📊 Report npm vulnerabilities (info only)
         if: always()
         uses: aquasecurity/trivy-action@v0.36.0
@@ -121,14 +124,6 @@ jobs:
           else
             echo "✅ No vulnerability report generated"
           fi
-
-      - name: 🐳 Push frontend image
-        run: |
-          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ needs.build-backend.outputs.image_tag }}
-          docker tag \
-            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ needs.build-backend.outputs.image_tag }} \
-            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ env.FRONTEND_IMAGE_NAME }}:latest
-          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/${{ env.FRONTEND_IMAGE_NAME }}:latest
 
   deploy-vps:
     runs-on: ubuntu-latest

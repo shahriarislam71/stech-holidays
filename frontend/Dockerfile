@@ -12,7 +12,7 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 
 # Install ALL dependencies (including dev) for building
-RUN npm ci
+RUN npm ci --ignore-scripts --no-audit --no-fund
 
 # ---- Builder Stage ----
 FROM base AS builder
@@ -38,7 +38,7 @@ ENV NEXT_DISABLE_BARREL_OPTIMIZATION=1
 RUN npm run build
 
 # Create production node_modules (remove dev dependencies)
-RUN npm ci --only=production --ignore-scripts
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
 # ---- Production Stage ----
 FROM node:20-alpine AS production
